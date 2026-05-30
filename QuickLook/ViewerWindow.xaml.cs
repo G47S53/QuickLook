@@ -36,6 +36,8 @@ using FontFamily = System.Windows.Media.FontFamily;
 using Size = System.Windows.Size;
 using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 
+using System.Windows.Interop;
+
 namespace QuickLook;
 
 public partial class ViewerWindow : Window
@@ -46,8 +48,16 @@ public partial class ViewerWindow : Window
     private FileSystemWatcher _autoReloadWatcher;
     private readonly bool _autoReload;
 
+    Double OldLeft = 0;
+    Double OldTop = 0;
+    Double OldWidth = 0;
+    Double OldHeight = 0;
+
     internal ViewerWindow()
     {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        var screen = System.Windows.Forms.Screen.FromHandle(hwnd);
+
         // this object should be initialized before loading UI components, because many of which are binding to it.
         ContextObject = new ContextObject() { Source = this };
 
@@ -82,20 +92,29 @@ public partial class ViewerWindow : Window
             {
                 if (this.WindowState == WindowState.Maximized)
                 {
+                    this.Left = OldLeft;
+                    this.Top = OldTop;
+                    this.Width = OldWidth;
+                    this.Height = OldHeight;
                     this.WindowState = WindowState.Normal;
                     this.WindowStyle = WindowStyle.SingleBorderWindow;
                     this.ResizeMode = ResizeMode.CanResize;
                 }
                 else
                 {
+                    OldLeft = Left;
+                    OldTop = Top;
+                    OldWidth = Width;
+                    OldHeight = Height;
+
                     this.WindowStyle = WindowStyle.None;
                     this.ResizeMode = ResizeMode.NoResize;
                     this.WindowState = WindowState.Maximized;
 
                     Left = 0;
                     Top = 0;
-                    Width = SystemParameters.PrimaryScreenWidth;
-                    Height = SystemParameters.PrimaryScreenHeight;
+                    Width = screen.Bounds.Width;
+                    Height = screen.Bounds.Height;
                 }
             }
         };
