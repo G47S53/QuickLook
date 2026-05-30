@@ -72,6 +72,26 @@ public partial class ViewerWindow : Window
 
         ShowInTaskbar = SettingHelper.Get("ShowInTaskbar", false);
 
+        // --                 Modification guillaume                   --
+        // -- Ajout d'actions aux boutons droit et milieu de la souris --
+        MouseDown += (sender, e) =>
+        {
+            if (e.ChangedButton == MouseButton.Middle)
+                Close();
+            if (e.ChangedButton == MouseButton.Right)
+            {
+                if (this.WindowState == WindowState.Maximized)
+                {
+                    this.WindowState = WindowState.Normal;
+                }
+                else
+                {
+                    this.WindowState = WindowState.Maximized;
+                }
+            }
+        };
+        // --           Fin de la modification guillaume               --
+
         Deactivated += (_, _) =>
         {
             if (!SettingHelper.Get("CloseOnLostFocus", false))
