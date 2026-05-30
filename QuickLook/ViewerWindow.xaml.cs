@@ -72,7 +72,7 @@ public partial class ViewerWindow : Window
 
         ShowInTaskbar = SettingHelper.Get("ShowInTaskbar", false);
 
-        // --                 Modification guillaume                   --
+        // --                 Modification Guillaume                   --
         // -- Ajout d'actions aux boutons droit et milieu de la souris --
         MouseDown += (sender, e) =>
         {
@@ -83,14 +83,23 @@ public partial class ViewerWindow : Window
                 if (this.WindowState == WindowState.Maximized)
                 {
                     this.WindowState = WindowState.Normal;
+                    this.WindowStyle = WindowStyle.SingleBorderWindow;
+                    this.ResizeMode = ResizeMode.CanResize;
                 }
                 else
                 {
+                    this.WindowStyle = WindowStyle.None;
+                    this.ResizeMode = ResizeMode.NoResize;
                     this.WindowState = WindowState.Maximized;
+
+                    Left = 0;
+                    Top = 0;
+                    Width = SystemParameters.PrimaryScreenWidth;
+                    Height = SystemParameters.PrimaryScreenHeight;
                 }
             }
         };
-        // --           Fin de la modification guillaume               --
+        // --           Fin de la modification Guillaume               --
 
         Deactivated += (_, _) =>
         {
