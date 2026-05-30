@@ -16,7 +16,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 extern alias MediaInfoWrapper;
-
 using MediaInfoWrapper::MediaInfo;
 using QuickLook.Common.Annotations;
 using QuickLook.Common.Helpers;
@@ -41,6 +40,7 @@ using System.Windows.Threading;
 using UtfUnknown;
 using WPFMediaKit.DirectShow.Controls;
 using WPFMediaKit.DirectShow.MediaPlayers;
+using Newtonsoft.Json;  
 
 namespace QuickLook.Plugin.VideoViewer;
 
@@ -57,6 +57,16 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
     private bool _wasPlaying;
     private bool _shouldLoop;
     private bool _useHardwareAcceleration;
+
+    private readonly string configPath = Path.Combine(
+                                         Environment.GetFolderPath(
+                                         Environment.SpecialFolder.ApplicationData),
+                                         "QuickLook",
+                                         "VideoViewerSettings.json");
+
+    private VideoViewerSettings settings;
+
+    public bool AutoCloseEnabled;
 
     public ViewerPanel(ContextObject context)
     {
@@ -99,6 +109,40 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         buttonMute.Click += (_, _) => volumeSliderLayer.Visibility = Visibility.Visible;
         volumeSliderLayer.MouseDown += (_, _) => volumeSliderLayer.Visibility = Visibility.Collapsed;
 
+        // ------------------------------------------------------------
+        // -                modification Guillaume                    -
+        // -                        début                             -
+        // -Modifications apportées par rapport à la version originale-
+        // ------------------------------------------------------------
+
+        LoadSettings();
+
+        buttonSeekMode.Click += ButtonSeekMode_Click;
+        buttonAutoClose.Click += (_, _) =>
+        {
+            AutoCloseEnabled = !AutoCloseEnabled;
+
+            UpdateAutoCloseUI();
+
+            settings.CloseWhenFinished = AutoCloseEnabled;
+            SaveSettings();
+        };
+
+        mediaElement.MouseLeftButtonDown += (_, e) =>
+        {
+            if (mediaElement.IsPlaying)
+            {
+                mediaElement.Pause();
+                ShowVideoInfo($"Pause : {(new TimeSpan(mediaElement.MediaPosition)):mm\\:ss} / {(new TimeSpan(mediaElement.MediaDuration)):mm\\:ss}");
+            }
+            else
+            {
+                mediaElement.Play();
+            }
+
+            e.Handled = true;
+        };
+
         sliderProgress.PreviewMouseDown += (_, e) =>
         {
             _wasPlaying = mediaElement.IsPlaying;
@@ -108,9 +152,204 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         {
             if (_wasPlaying) mediaElement.Play();
         };
+        sliderProgress.MouseMove += (_, e) =>
+        {
+            if (e.LeftButton != MouseButtonState.Pressed)
+                return;
 
-        PreviewMouseWheel += (_, e) => ChangeVolume(e.Delta / 120d * 0.04d);
+            var pos = e.GetPosition(sliderProgress);
+
+            double ratio = pos.X / sliderProgress.ActualWidth;
+
+            ratio = Math.Max(0, Math.Min(1, ratio));
+
+            long newPos = (long)(sliderProgress.Maximum * ratio);
+
+            sliderProgress.Value = newPos;
+
+            mediaElement.MediaPosition = newPos;
+
+            e.Handled = true;
+        };
+
+        //PreviewMouseWheel += (_, e) => ChangeVolume(e.Delta / 120d * 0.04d);
+        PreviewMouseWheel += (_, e) =>
+        {
+            if (mediaElement == null)
+                return;
+
+            long step = 0;
+
+            switch (seekMode)
+            {
+                case 0:
+                    step = (long)(mediaElement.MediaDuration * 0.05);
+                    break;
+
+                case 1:
+                    step = TimeSpan.FromSeconds(1).Ticks;
+                    break;
+
+                case 2:
+                    step = TimeSpan.FromSeconds(5).Ticks;
+                    break;
+            }
+
+            long newPos = mediaElement.MediaPosition + (e.Delta > 0 ? step : -step);
+
+            if (newPos < 0)
+                newPos = 0;
+            if (newPos > mediaElement.MediaDuration)
+            {
+                newPos = mediaElement.MediaDuration;
+                mediaElement.MediaPosition = newPos;
+                ShowVideoInfo($"{(new TimeSpan(newPos)):mm\\:ss} / " + $"{(new TimeSpan(mediaElement.MediaDuration)):mm\\:ss}");
+                mediaElement.Pause();
+                if (AutoCloseEnabled)
+                    Window.GetWindow(this)?.Close();
+                return;
+            }
+
+            mediaElement.MediaPosition = newPos;
+
+            ShowVideoInfo($"{(new TimeSpan(newPos)):mm\\:ss} / " + $"{(new TimeSpan(mediaElement.MediaDuration)):mm\\:ss}");
+
+            e.Handled = true;
+        };
     }
+
+    private void LoadSettings()
+    {
+        try
+        {
+            if (File.Exists(configPath))
+            {
+                string json = File.ReadAllText(configPath);
+
+                settings = JsonConvert.DeserializeObject<VideoViewerSettings>(json);
+
+                seekMode = settings.SeekMode;
+                AutoCloseEnabled = settings.CloseWhenFinished;
+
+                UpdateSeekModeUISilencieux();
+                UpdateAutoCloseUI();
+            }
+            else
+            {
+                settings = new VideoViewerSettings();
+            }
+        }
+        catch
+        {
+            settings = new VideoViewerSettings();
+        }
+    }
+
+    private void SaveSettings()
+    {
+        try
+        {
+            string folder =
+                Path.GetDirectoryName(configPath);
+
+            if (!Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+            }
+
+            string json = JsonConvert.SerializeObject(settings, Formatting.Indented);
+
+            File.WriteAllText(configPath, json);
+        }
+        catch
+        {
+        }
+    }
+
+    private int seekMode = 0;
+
+    private void ButtonSeekMode_Click(object sender, RoutedEventArgs e)
+    {
+        CycleSeekMode();
+    }
+
+    private void CycleSeekMode()
+    {
+        seekMode++;
+
+        if (seekMode > 2)
+            seekMode = 0;
+
+        UpdateSeekModeUI();
+
+        settings.SeekMode = seekMode;
+
+        SaveSettings();
+    }
+
+    private void UpdateAutoCloseUI()
+    {
+        buttonAutoClose.Opacity = AutoCloseEnabled ? 1d : 0.5d;
+        textAutoClose.TextDecorations = AutoCloseEnabled ? null : TextDecorations.Strikethrough;
+    }
+
+    private void UpdateSeekModeUI()
+    {
+        switch (seekMode)
+        {
+            case 0:
+                textSeekMode.Text = ":  5%";
+                ShowVideoInfo("Molette : 5%");
+                break;
+            case 1:
+                textSeekMode.Text = ":  1s";
+                ShowVideoInfo("Molette : 1s");
+                break;
+            case 2:
+                textSeekMode.Text = ":  5s";
+                ShowVideoInfo("Molette : 5s");
+                break;
+        }
+    }
+
+    private void UpdateSeekModeUISilencieux()
+    {
+        switch (seekMode)
+        {
+            case 0:
+                textSeekMode.Text = ":  5%";
+                break;
+            case 1:
+                textSeekMode.Text = ":  1s";
+                break;
+            case 2:
+                textSeekMode.Text = ":  5s";
+                break;
+        }
+    }
+
+    private void ShowVideoInfo(string text)
+    {
+        videoInfoText.Text = text;
+
+        var storyboard =
+            (Storyboard)videoInfoPopup.Resources["StoryboardShowVideoInfo"];
+
+        storyboard.Begin();
+    }
+
+    public class VideoViewerSettings
+    {
+        public bool CloseWhenFinished { get; set; } = false;
+
+        public int SeekMode { get; set; } = 2;
+    }
+
+    // ------------------------------------------------------------
+    // -                modification Guillaume                    -
+    // -                        fin                               -
+    // -Modifications apportées par rapport à la version originale-
+    // ------------------------------------------------------------
 
     private partial void LoadAndInsertGlassLayer();
 
@@ -199,7 +438,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         _midiPlayer = null;
     }
 
-    private void Panel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void Panel_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.LeftButton == MouseButtonState.Pressed)
         {
@@ -209,6 +448,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
                 return;
 
             wnd?.DragMove();
+        }
+        if (e.ChangedButton == MouseButton.Middle)
+        {
+            //CycleSeekMode();
         }
     }
 
@@ -255,6 +498,9 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             IsPlaying = false;
 
             mediaElement.Pause();
+
+            if (AutoCloseEnabled)
+                Window.GetWindow(this)?.Close();
         }
     }
 
@@ -435,9 +681,16 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
             if (mediaElement.Source == null)
             {
+
+                // ------------------------------------------------------------
+                // -                modification Guillaume                    -
+                // ------------------------------------------------------------
+
+                //modif en commentant les 2 lignes en dessous.
+
                 // No source loaded yet – just store the flag for the next Open
-                player.Dispatcher.BeginInvoke(() =>
-                    player.EnableLAVHardwareAcceleration = enable);
+                //player.Dispatcher.BeginInvoke(() =>
+                //    player.EnableLAVHardwareAcceleration = enable);
                 return;
             }
 
