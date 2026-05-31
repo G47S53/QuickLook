@@ -238,7 +238,12 @@ public sealed partial class Plugin : IViewer, IMoreMenu
         else
             context.PreferredSize = new Size(800, 600);
 
-        context.Theme = (Themes)SettingHelper.Get("LastTheme", 1, "QuickLook.Plugin.ImageViewer");
+        //context.Theme = (Themes)SettingHelper.Get("LastTheme", 1, "QuickLook.Plugin.ImageViewer");
+
+        context.TitlebarAutoHide = true;       // ← AJOUT
+        context.TitlebarOverlap = true;        // ← AJOUT
+        context.Theme = Themes.Dark;           // ← AJOUT
+        context.TitlebarBlurVisibility = true; // ← AJOUT
     }
 
     public void View(string path, ContextObject context)

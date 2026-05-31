@@ -624,4 +624,35 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
     {
         viewPanel.ScrollToBottom();
     }
+    private void ShowButtonsContainer(object sender, MouseEventArgs e)
+    {
+        // Si TitlebarAutoHide n'est pas activé, on ne fait rien.
+        // C'est la même vérification que HasVideo dans le VideoViewer.
+        if (!ContextObject.TitlebarAutoHide)
+            return;
+
+        // On récupère le Storyboard "Show" depuis les ressources du StackPanel,
+        // exactement comme le VideoViewer fait avec FindResource.
+        // En Delphi ce serait comme chercher un composant par son nom avec FindComponent.
+        var show = (Storyboard)buttonsContainer.FindResource("ShowButtonsStoryboard");
+
+        // On ne relance l'animation que si les boutons sont complètement
+        // visibles ou complètement invisibles — pas pendant une animation en cours.
+        if (buttonsContainer.Opacity == 0 || buttonsContainer.Opacity == 1)
+            show.Begin();
+    }
+
+    private void AutoHideButtonsContainer(object sender, EventArgs e)
+    {
+        // Cette méthode est appelée automatiquement quand l'animation Show
+        // est terminée (grâce au Completed="AutoHideButtonsContainer" dans le XAML).
+        // C'est le même principe que AutoHideVideoControlContainer.
+
+        // Si la souris est sur les boutons, on ne les cache pas.
+        if (buttonsContainer.IsMouseOver)
+            return;
+
+        var hide = (Storyboard)buttonsContainer.FindResource("HideButtonsStoryboard");
+        hide.Begin();
+    }
 }
