@@ -90,32 +90,7 @@ public partial class ViewerWindow : Window
                 Close();
             if (e.ChangedButton == MouseButton.Right)
             {
-                if (this.WindowState == WindowState.Maximized)
-                {
-                    this.Left = OldLeft;
-                    this.Top = OldTop;
-                    this.Width = OldWidth;
-                    this.Height = OldHeight;
-                    this.WindowState = WindowState.Normal;
-                    this.WindowStyle = WindowStyle.SingleBorderWindow;
-                    this.ResizeMode = ResizeMode.CanResize;
-                }
-                else
-                {
-                    OldLeft = Left;
-                    OldTop = Top;
-                    OldWidth = Width;
-                    OldHeight = Height;
-
-                    this.WindowStyle = WindowStyle.None;
-                    this.ResizeMode = ResizeMode.NoResize;
-                    this.WindowState = WindowState.Maximized;
-
-                    Left = 0;
-                    Top = 0;
-                    Width = screen.Bounds.Width;
-                    Height = screen.Bounds.Height;
-                }
+                this.ToggleFullscreen();
             }
         };
         // --           Fin de la modification Guillaume               --
