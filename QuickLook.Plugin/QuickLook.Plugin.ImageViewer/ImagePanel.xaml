@@ -168,12 +168,12 @@
                     Visibility="{Binding ElementName=imagePanel, Path=BackgroundVisibility}" />
         </StackPanel>
         <TextBlock x:Name="textMeta"
-                   Margin="0,40,8,0"
+                   Margin="0,0,8,40"
                    Padding="5,5,5,5"
                    HorizontalAlignment="Right"
-                   VerticalAlignment="Top"
+                   VerticalAlignment="Bottom"
                    Background="{DynamicResource CaptionBackground}"
-                   FontSize="11"
+                   FontSize="18"
                    Foreground="{DynamicResource WindowTextForeground}"
                    IsHitTestVisible="False">
             <TextBlock.Inlines>
