@@ -88,10 +88,10 @@ public partial class ViewerWindow : Window
         {
             if (e.ChangedButton == MouseButton.Middle)
                 Close();
-            if (e.ChangedButton == MouseButton.Right)
+            /*if (e.ChangedButton == MouseButton.Right)
             {
                 this.ToggleFullscreen();
-            }
+            }*/
         };
         // --           Fin de la modification Guillaume               --
 
