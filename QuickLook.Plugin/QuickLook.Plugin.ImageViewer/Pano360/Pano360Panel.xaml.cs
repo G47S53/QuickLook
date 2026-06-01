@@ -192,12 +192,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _lastMouseX = _startMouseX = pos.X;
             _lastMouseY = _startMouseY = pos.Y;
             Mouse.Capture(this);
+            // Guillaume: J'ai ajouté cette ligne pour rendre la barre de contrôle transparente pendant la navigation, afin de ne pas gêner la vue.
+            barreBtn.Opacity = 0;
         }
 
         private void OnMouseUp(object sender, MouseButtonEventArgs e)
         {
             _isMouseDown = false;
             Mouse.Capture(null);
+            // Guillaume: J'ai ajouté cette ligne pour rendre la barre de contrôle opaque à nouveau après la navigation.
+            // ToDo: idéalement, il faudrait peut-être faire ça dans OnMouseMove, on réussir a detecter le déplacement du panorama pour que cela fonctionne également avec la 3Dconnexion, et pas seulement avec la souris.
+            barreBtn.Opacity = 1;
         }
 
         private void OnMouseMove(object sender, MouseEventArgs e)
