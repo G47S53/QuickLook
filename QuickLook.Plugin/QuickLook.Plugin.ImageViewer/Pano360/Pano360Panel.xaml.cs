@@ -97,6 +97,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // était appelé dans MenuOuvrir_Click.
             Loaded += (s, e) => InitScene();
             Unloaded += (s, e) => Dispose();
+
+
+            // Guillaume: J'ai ajouté ce code pour permettre de basculer en plein écran en cliquant avec le bouton droit de la souris.
+            MouseRightButtonUp += (s, e) =>
+            {
+                ToggleFullscreen();
+            };
         }
 
         // -------------------------------------------------------------------------
@@ -107,46 +114,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             var fileName = System.IO.Path.GetFileName(_imagePath);
 
-            try
-            {
-                SetTitle(fileName, "DBG: SetupCamera...");
-                SetupCamera();
+            SetupCamera();
+            SetupLight();
 
-                SetTitle(fileName, "DBG: SetupLight...");
-                SetupLight();
+            var material = CreatePanoramaMaterial(_imagePath);
+            SetupSphere(material);
 
-                SetTitle(fileName, "DBG: CreateMaterial...");
-                var material = CreatePanoramaMaterial(_imagePath);
+            SetupEventHandlers();
 
-                SetTitle(fileName, "DBG: SetupSphere...");
-                SetupSphere(material);
-
-                SetTitle(fileName, "DBG: SetupEventHandlers...");
-                SetupEventHandlers();
-                txtLoading.Visibility = Visibility.Collapsed;
-
-                // ← LA LIGNE CLÉ : signale à QuickLook que le chargement est terminé
-                // Sans elle, QuickLook maintient son spinner par-dessus tout le contenu.
-                _context.IsBusy = false;
-
-                Focus();
-
-                // Titre final propre
-                SetTitle(fileName, null);
-            }
-            catch (Exception ex)
-            {
-                SetTitle(fileName, "ERREUR : " + ex.Message);
-            }
+            txtLoading.Visibility = Visibility.Collapsed;
+            _context.IsBusy = false;  // ← LA LIGNE CLÉ : signale à QuickLook que le chargement est terminé. Sans elle, QuickLook maintient son spinner par-dessus tout le contenu.
+            Focus();
         }
-
-        private void SetTitle(string fileName, string debugInfo)
-        {
-            _context.Title = debugInfo != null
-                ? string.Format("[{0}] 360°: {1}", debugInfo, fileName)
-                : string.Format("360°: {0}", fileName);
-        }
-
         // -------------------------------------------------------------------------
         // Mise en place de la scène 3D
         // -------------------------------------------------------------------------
@@ -435,6 +414,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             CompositionTarget.Rendering -= OnRendering;
             DeconnecterSpaceMouse();
             viewport3D.Children.Clear();
+        }
+
+        // Guillaume: J'ai ajouté ce code pour permettre de basculer en plein écran.
+        private void ToggleFullscreen()
+        {
+            var window = Window.GetWindow(this);
+            if (window == null) return;
+
+            var method = window.GetType().GetMethod(
+                "ToggleFullscreen",
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic);
+
+            method?.Invoke(window, null);
         }
     }
 }
