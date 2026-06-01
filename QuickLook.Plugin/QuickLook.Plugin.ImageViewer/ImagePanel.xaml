@@ -104,6 +104,7 @@
         On cible le StackPanel lui-même via x:Reference buttonsContainer.
     -->
                 <Storyboard x:Key="ShowButtonsStoryboard" Completed="AutoHideButtonsContainer">
+                    <!-- La ligne ci-dessous permet d'afficher le caption container, le keytime correspond au temps de transition -->
                     <DoubleAnimation Storyboard.Target="{Binding Source={x:Reference buttonsContainer}}"
                          Storyboard.TargetProperty="Opacity"
                          To="1"
@@ -111,7 +112,7 @@
                 </Storyboard>
 
                 <!--
-        Storyboard "Hide" : attend 1 seconde puis disparaît en 0.05 seconde.
+        Storyboard "Hide" : attend 1 seconde puis disparaît en 0.5 seconde.
         Même timing que HideCaptionContainerStoryboard dans ViewerWindow.xaml.
     -->
                 <Storyboard x:Key="HideButtonsStoryboard">
@@ -120,7 +121,8 @@
                         <DoubleAnimationUsingKeyFrames.KeyFrames>
                             <LinearDoubleKeyFrame KeyTime="0:0:0"    Value="1" />
                             <LinearDoubleKeyFrame KeyTime="0:0:1"    Value="1" />
-                            <LinearDoubleKeyFrame KeyTime="0:0:1.05" Value="0" />
+                            <!-- La ligne ci-dessous permet de cacher le caption container, le keytime correspond au temps de transition -->
+                            <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0" />
                         </DoubleAnimationUsingKeyFrames.KeyFrames>
                     </DoubleAnimationUsingKeyFrames>
                 </Storyboard>
