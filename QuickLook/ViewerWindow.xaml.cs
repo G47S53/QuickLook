@@ -48,11 +48,6 @@ public partial class ViewerWindow : Window
     private FileSystemWatcher _autoReloadWatcher;
     private readonly bool _autoReload;
 
-    Double OldLeft = 0;
-    Double OldTop = 0;
-    Double OldWidth = 0;
-    Double OldHeight = 0;
-
     internal ViewerWindow()
     {
         var hwnd = new WindowInteropHelper(this).Handle;
