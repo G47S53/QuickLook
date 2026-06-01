@@ -96,6 +96,11 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         viewPanel.ManipulationInertiaStarting += ViewPanel_ManipulationInertiaStarting;
         viewPanel.ManipulationStarting += ViewPanel_ManipulationStarting;
         viewPanel.ManipulationDelta += ViewPanel_ManipulationDelta;
+
+        MouseRightButtonUp += (s, e) =>
+        {
+            ToggleFullscreen();
+        };
     }
 
     internal ImagePanel(ContextObject context, MetaProvider meta) : this()
@@ -654,5 +659,18 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
 
         var hide = (Storyboard)buttonsContainer.FindResource("HideButtonsStoryboard");
         hide.Begin();
+    }
+    private void ToggleFullscreen()
+    {
+        var window = Window.GetWindow(this);
+        if (window == null) return;
+
+        var method = window.GetType().GetMethod(
+            "ToggleFullscreen",
+            System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.Public |
+            System.Reflection.BindingFlags.NonPublic);
+
+        method?.Invoke(window, null);
     }
 }
