@@ -131,7 +131,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private AutoRotationState _autoRotState = AutoRotationState.Off;
 
         // ─────────────────────────────────────────────────────────────────────
-        // NOUVEAUX CHAMPS — Opacité progressive
+        // Opacité progressive
         // ─────────────────────────────────────────────────────────────────────
         // Horodatage du dernier mouvement détecté (souris OU autorotation OU SpaceMouse).
         private DateTime _lastMovementTime = DateTime.MinValue;
@@ -242,7 +242,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             MouseUp += OnMouseUp;
             MouseMove += OnMouseMove;
             MouseWheel += OnMouseWheel;
-            // KeyDown += OnKeyDown;
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -250,6 +249,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void OnMouseDown(object sender, MouseButtonEventArgs e)
         {
+            if (e.MiddleButton == MouseButtonState.Pressed) Window.GetWindow(this)?.Close();  // Clic molette → fermer le panneau (fonctionnalité perdue de l'assembly principal)
+
             if (e.LeftButton != MouseButtonState.Pressed) return;
 
             if (_autoRotState != AutoRotationState.Off)
@@ -304,37 +305,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 sb.Begin(txtFov);
             }
         }
-
-        //private void OnKeyDown(object sender, KeyEventArgs e)
-        //{
-        //    switch (e.Key)
-        //    {
-        //        case Key.Left:
-        //            _horizontalRotation.Angle += KeyRotationDelta;
-        //            MarquerMouvement();
-        //            break;
-        //        case Key.Right:
-        //            _horizontalRotation.Angle -= KeyRotationDelta;
-        //            MarquerMouvement();
-        //            break;
-        //        case Key.Up:
-        //            ClampVertical(_verticalRotation.Angle + KeyRotationDelta);
-        //            MarquerMouvement();
-        //            break;
-        //        case Key.Down:
-        //            ClampVertical(_verticalRotation.Angle - KeyRotationDelta);
-        //            MarquerMouvement();
-        //            break;
-        //        case Key.Add:
-        //        case Key.OemPlus:
-        //            OnMouseWheel(this, new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, 120));
-        //            break;
-        //        case Key.Subtract:
-        //        case Key.OemMinus:
-        //            OnMouseWheel(this, new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120));
-        //            break;
-        //    }
-        //}
 
         // ─────────────────────────────────────────────────────────────────────
         // BOUCLE DE RENDU — appelée à chaque frame WPF
@@ -668,5 +638,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             method?.Invoke(window, null);
         }
+
     }
 }

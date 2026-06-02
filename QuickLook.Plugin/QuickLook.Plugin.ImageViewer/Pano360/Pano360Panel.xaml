@@ -138,14 +138,30 @@
                         <TextBlock.Resources>
                             <Storyboard x:Key="FadeFovStoryboard">
                                 <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="(TextBlock.Foreground).(SolidColorBrush.Color)">
-
                                     <DiscreteColorKeyFrame KeyTime="0:0:0" Value="White" />
-
                                     <LinearColorKeyFrame KeyTime="0:0:1.5" Value="White" />
-
                                     <LinearColorKeyFrame KeyTime="0:0:2.0" Value="#999999" />
-
                                 </ColorAnimationUsingKeyFrames>
+                                <!-- 
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="FontSize">
+                                    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="13" />
+                                    <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="13" />
+                                    <LinearDoubleKeyFrame KeyTime="0:0:2.0" Value="12" />
+                                </DoubleAnimationUsingKeyFrames>
+                                
+                                <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="FontWeight">
+                                    <DiscreteObjectKeyFrame KeyTime="0:0:0">
+                                        <DiscreteObjectKeyFrame.Value>
+                                            <FontWeight>Bold</FontWeight>
+                                        </DiscreteObjectKeyFrame.Value>
+                                    </DiscreteObjectKeyFrame>
+
+                                    <DiscreteObjectKeyFrame KeyTime="0:0:1.5">
+                                        <DiscreteObjectKeyFrame.Value>
+                                            <FontWeight>Normal</FontWeight>
+                                        </DiscreteObjectKeyFrame.Value>
+                                    </DiscreteObjectKeyFrame>
+                                </ObjectAnimationUsingKeyFrames>  -->
                             </Storyboard>
                         </TextBlock.Resources>
                     </TextBlock>
