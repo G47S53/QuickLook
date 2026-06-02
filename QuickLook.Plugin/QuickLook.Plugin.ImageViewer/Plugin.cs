@@ -26,6 +26,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
+using QuickLook.Plugin.ImageViewer.Pano360; // ← AJOUT
 
 namespace QuickLook.Plugin.ImageViewer;
 
@@ -59,6 +60,7 @@ public sealed partial class Plugin : IViewer, IMoreMenu
     private ImagePanel _ip;
     private string _currentPath;
     private MetaProvider _meta;
+    private Pano360Panel _pano;   // ← AJOUT
 
     private IWebImagePanel _ipWeb;
     private IWebMetaProvider _metaWeb;
@@ -236,12 +238,27 @@ public sealed partial class Plugin : IViewer, IMoreMenu
         else
             context.PreferredSize = new Size(800, 600);
 
-        context.Theme = (Themes)SettingHelper.Get("LastTheme", 1, "QuickLook.Plugin.ImageViewer");
+        //context.Theme = (Themes)SettingHelper.Get("LastTheme", 1, "QuickLook.Plugin.ImageViewer");
+
+        context.TitlebarAutoHide = true;       // ← AJOUT
+        context.TitlebarOverlap = true;        // ← AJOUT
+        context.Theme = Themes.Dark;           // ← AJOUT
+        context.TitlebarBlurVisibility = true; // ← AJOUT
     }
 
     public void View(string path, ContextObject context)
     {
         _currentPath = path;
+
+        // ── AJOUT : détection équirectangulaire ──────────────────────────────
+        if (EquirectangularDetector.IsEquirectangular(_meta))         // ← AJOUT
+        {                                                             // ← AJOUT
+            _pano = new Pano360Panel(context, path);                  // ← AJOUT
+            context.ViewerContent = _pano;                            // ← AJOUT
+            context.Title = $"360°: {path}";                          // ← AJOUT
+            return;                                                   // ← AJOUT
+        }                                                             // ← AJOUT
+        // ─────────────────────────────────────────────────────────────────────
 
         if (WebHandler.TryView(path, context, _metaWeb, out _ipWeb))
             return;
@@ -266,6 +283,9 @@ public sealed partial class Plugin : IViewer, IMoreMenu
     public void Cleanup()
     {
         GC.SuppressFinalize(this);
+
+        _pano?.Dispose(); // ← AJOUT
+        _pano = null;     // ← AJOUT
 
         _ip?.Dispose();
         _ip = null;

@@ -96,6 +96,12 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         viewPanel.ManipulationInertiaStarting += ViewPanel_ManipulationInertiaStarting;
         viewPanel.ManipulationStarting += ViewPanel_ManipulationStarting;
         viewPanel.ManipulationDelta += ViewPanel_ManipulationDelta;
+
+        // Guillaume: J'ai ajouté ce code pour permettre de basculer en plein écran en cliquant avec le bouton droit de la souris.
+        MouseRightButtonUp += (s, e) =>
+        {
+            ToggleFullscreen();
+        };
     }
 
     internal ImagePanel(ContextObject context, MetaProvider meta) : this()
@@ -623,5 +629,50 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
     public void ScrollToBottom()
     {
         viewPanel.ScrollToBottom();
+    }
+    private void ShowButtonsContainer(object sender, MouseEventArgs e)
+    {
+        // Si TitlebarAutoHide n'est pas activé, on ne fait rien.
+        // C'est la même vérification que HasVideo dans le VideoViewer.
+        if (!ContextObject.TitlebarAutoHide)
+            return;
+
+        // On récupère le Storyboard "Show" depuis les ressources du StackPanel,
+        // exactement comme le VideoViewer fait avec FindResource.
+        // En Delphi ce serait comme chercher un composant par son nom avec FindComponent.
+        var show = (Storyboard)buttonsContainer.FindResource("ShowButtonsStoryboard");
+
+        // On ne relance l'animation que si les boutons sont complètement
+        // visibles ou complètement invisibles — pas pendant une animation en cours.
+        if (buttonsContainer.Opacity == 0 || buttonsContainer.Opacity == 1)
+            show.Begin();
+    }
+
+    private void AutoHideButtonsContainer(object sender, EventArgs e)
+    {
+        // Cette méthode est appelée automatiquement quand l'animation Show
+        // est terminée (grâce au Completed="AutoHideButtonsContainer" dans le XAML).
+        // C'est le même principe que AutoHideVideoControlContainer.
+
+        // Si la souris est sur les boutons, on ne les cache pas.
+        if (buttonsContainer.IsMouseOver)
+            return;
+
+        var hide = (Storyboard)buttonsContainer.FindResource("HideButtonsStoryboard");
+        hide.Begin();
+    }
+    // Guillaume: J'ai ajouté ce code pour permettre de basculer en plein écran.
+    private void ToggleFullscreen()
+    {
+        var window = Window.GetWindow(this);
+        if (window == null) return;
+
+        var method = window.GetType().GetMethod(
+            "ToggleFullscreen",
+            System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.Public |
+            System.Reflection.BindingFlags.NonPublic);
+
+        method?.Invoke(window, null);
     }
 }

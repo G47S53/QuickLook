@@ -42,6 +42,9 @@ public class ContextObject : INotifyPropertyChanged
     private string _colorProfileName = null;
     private bool _isBlocked;
 
+    // Guillaume: cette propriété est utilisée pour indiquer que le plugin est en train d'interagir avec l'utilisateur.
+    public bool IsPluginInteracting { get; set; } = false;
+
     /// <summary>
     /// Get the instance of Viewer window.
     /// </summary>

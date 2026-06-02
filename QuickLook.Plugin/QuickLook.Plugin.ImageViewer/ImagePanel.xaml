@@ -19,7 +19,7 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid>
+    <Grid MouseMove="ShowButtonsContainer">
         <Rectangle RenderOptions.BitmapScalingMode="NearestNeighbor" Visibility="{Binding BackgroundVisibility, ElementName=imagePanel}">
             <Rectangle.Style>
                 <Style>
@@ -92,10 +92,41 @@
             </Border.Resources>
         </Border>
 
-        <StackPanel Margin="0,8,0,0"
+        <StackPanel x:Name="buttonsContainer"
+                    Margin="0,8,0,0"
                     HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
+                    VerticalAlignment="Bottom"
                     Orientation="Horizontal">
+            <StackPanel.Resources>
+                <!--
+        Storyboard "Show" : fait apparaître les boutons en 0.05 seconde.
+        C'est la même durée que ShowCaptionContainerStoryboard dans ViewerWindow.xaml.
+        On cible le StackPanel lui-même via x:Reference buttonsContainer.
+    -->
+                <Storyboard x:Key="ShowButtonsStoryboard" Completed="AutoHideButtonsContainer">
+                    <!-- La ligne ci-dessous permet d'afficher le caption container, le keytime correspond au temps de transition -->
+                    <DoubleAnimation Storyboard.Target="{Binding Source={x:Reference buttonsContainer}}"
+                         Storyboard.TargetProperty="Opacity"
+                         To="1"
+                         Duration="0:0:0.05" />
+                </Storyboard>
+
+                <!--
+        Storyboard "Hide" : attend 1 seconde puis disparaît en 0.5 seconde.
+        Même timing que HideCaptionContainerStoryboard dans ViewerWindow.xaml.
+    -->
+                <Storyboard x:Key="HideButtonsStoryboard">
+                    <DoubleAnimationUsingKeyFrames Storyboard.Target="{Binding Source={x:Reference buttonsContainer}}"
+                                       Storyboard.TargetProperty="Opacity">
+                        <DoubleAnimationUsingKeyFrames.KeyFrames>
+                            <LinearDoubleKeyFrame KeyTime="0:0:0"    Value="1" />
+                            <LinearDoubleKeyFrame KeyTime="0:0:1"    Value="1" />
+                            <!-- La ligne ci-dessous permet de cacher le caption container, le keytime correspond au temps de transition -->
+                            <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0" />
+                        </DoubleAnimationUsingKeyFrames.KeyFrames>
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
+            </StackPanel.Resources>
             <Button x:Name="buttonCopy"
                     Width="24"
                     Height="24"
@@ -137,12 +168,12 @@
                     Visibility="{Binding ElementName=imagePanel, Path=BackgroundVisibility}" />
         </StackPanel>
         <TextBlock x:Name="textMeta"
-                   Margin="0,40,8,0"
+                   Margin="0,0,8,40"
                    Padding="5,5,5,5"
                    HorizontalAlignment="Right"
-                   VerticalAlignment="Top"
+                   VerticalAlignment="Bottom"
                    Background="{DynamicResource CaptionBackground}"
-                   FontSize="11"
+                   FontSize="18"
                    Foreground="{DynamicResource WindowTextForeground}"
                    IsHitTestVisible="False">
             <TextBlock.Inlines>
