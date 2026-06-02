@@ -134,7 +134,21 @@
                         FontSize="13"
                         VerticalAlignment="Center"
                         Margin="0,0,8,0"
-                        ToolTip="Molette pour le zoom" />
+                        ToolTip="Molette pour le zoom">
+                        <TextBlock.Resources>
+                            <Storyboard x:Key="FadeFovStoryboard">
+                                <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="(TextBlock.Foreground).(SolidColorBrush.Color)">
+
+                                    <DiscreteColorKeyFrame KeyTime="0:0:0" Value="White" />
+
+                                    <LinearColorKeyFrame KeyTime="0:0:1.5" Value="White" />
+
+                                    <LinearColorKeyFrame KeyTime="0:0:2.0" Value="#999999" />
+
+                                </ColorAnimationUsingKeyFrames>
+                            </Storyboard>
+                        </TextBlock.Resources>
+                    </TextBlock>
 
                     <!-- Séparateur vertical léger -->
                     <Separator

@@ -44,6 +44,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using TDxInput;
@@ -70,8 +71,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private const double VerticalAngleMin = -90.0;
         private const double VerticalAngleMax = 45.0;
-
-        private int _scrollEventId = 0;
 
         // ─────────────────────────────────────────────────────────────────────
         // NOUVELLES CONSTANTES — Autorotation
@@ -291,28 +290,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             MarquerMouvement();
         }
 
-        private async void OnMouseWheel(object sender, MouseWheelEventArgs e)
+        private void OnMouseWheel(object sender, MouseWheelEventArgs e)
         {
             double delta = e.Delta > 0 ? -FovZoomStep : FovZoomStep;
             double newFov = Clamp(_camera.FieldOfView + delta, FovMin, FovMax);
             _camera.FieldOfView = newFov;
             txtFov.Text = string.Format("(FOV: {0:F0}°)", newFov);
             
-            // 2. On passe le texte en blanc
-            txtFov.Foreground = new SolidColorBrush(Colors.White);
-
-            // 3. On incrémente le compteur à chaque coup de molette et on garde la valeur locale
-            int currentEventId = ++_scrollEventId;
-
-            // 4. On attend X millisecondes (ex: 1500 ms = 1.5 secondes) de manière asynchrone
-            await Task.Delay(1500);
-
-            // 5. Si la valeur locale est toujours égale à la valeur globale, 
-            // cela veut dire qu'il n'y a pas eu de nouveau coup de molette entre-temps.
-            if (currentEventId == _scrollEventId)
+            // 2. On récupère et on lance l'animation XAML
+            if (txtFov.Resources["FadeFovStoryboard"] is Storyboard sb)
             {
-                // On remet la couleur grise (#999999 correspond à R:153, G:153, B:153)
-                txtFov.Foreground = new SolidColorBrush(Color.FromRgb(153, 153, 153));
+                // On applique le storyboard spécifiquement sur le txtFov
+                sb.Begin(txtFov);
             }
         }
 
