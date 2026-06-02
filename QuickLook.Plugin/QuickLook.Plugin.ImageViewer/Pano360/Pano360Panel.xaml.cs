@@ -249,6 +249,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void OnMouseDown(object sender, MouseButtonEventArgs e)
         {
+            if (_context != null) _context.IsPluginInteracting = true;
+
             if (e.MiddleButton == MouseButtonState.Pressed) Window.GetWindow(this)?.Close();  // Clic molette → fermer le panneau (fonctionnalité perdue de l'assembly principal)
 
             if (e.LeftButton != MouseButtonState.Pressed) return;
@@ -273,6 +275,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private void OnMouseUp(object sender, MouseButtonEventArgs e)
         {
+            if (_context != null) _context.IsPluginInteracting = false;
+
             _isMouseDown = false;
             Mouse.Capture(null);
             // Pas besoin de changer l'opacité ici ; UpdateBarreOpacity() le fera

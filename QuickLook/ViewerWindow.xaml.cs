@@ -22,6 +22,7 @@ using QuickLook.Helpers;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.Remoting.Contexts;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -45,6 +46,9 @@ public partial class ViewerWindow : Window
     private string _path = string.Empty;
     private FileSystemWatcher _autoReloadWatcher;
     private readonly bool _autoReload;
+
+    // Guillaume: cette propriété est utilisée pour indiquer que le plugin est en train d'interagir avec l'utilisateur.
+    //private ContextObject _context;
 
     internal ViewerWindow()
     {
@@ -460,6 +464,13 @@ public partial class ViewerWindow : Window
 
     private void ShowWindowCaptionContainer(object sender, MouseEventArgs e)
     {
+        // Si le plugin dit qu'il est en train d'interagir, on bloque !
+
+        if (ContextObject?.IsPluginInteracting == true)
+        {
+            return;
+        }
+
         var show = (Storyboard)windowCaptionContainer.FindResource("ShowCaptionContainerStoryboard");
 
         if (windowCaptionContainer.Opacity == 0 || windowCaptionContainer.Opacity == 1)
