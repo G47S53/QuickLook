@@ -15,6 +15,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+// ═══════════════════════════════════════════════════════════════════════════
+// RÉSUMÉ DES MODIFICATIONS (Guillaume)
+// ───────────────────────────────────────────────────────────────────────────
+// 1. AUTOROTATION (3 états : Off / Rapide / Lent)
+//    - Enum AutoRotationState avec les 3 valeurs.
+//    - Constantes AutoRotateFastSeconds (durée d'un tour complet en mode Rapide)
+//      et AutoRotateSlowSeconds (durée en mode Lent).
+//    - BtnAutoRotate_Click() : cycle les états et met à jour le libellé du bouton.
+//    - Dans OnRendering() : si une rotation est active, on incrémente
+//      _horizontalRotation.Angle proportionnellement au temps écoulé.
+//
+// 2. OPACITÉ PROGRESSIVE sur mouvement (remplace barreBtn.Opacity = 0 / 1)
+//    - _lastMovementTime : horodatage de la dernière détection de mouvement.
+//    - _isMoving : indique si le panorama était en mouvement au dernier frame.
+//    - UpdateBarreOpacity() : appelé à chaque frame dans OnRendering().
+//      → Si mouvement détecté → fade-out vers OpacityMin.
+//      → Si repos depuis InactivityDelay secondes → fade-in vers OpacityFull.
+//    - "Mouvement" = souris pressée, autorotation active, ou SpaceMouse actif
+//      avec déplacement détectable.
+//    - Toutes les lignes "barreBtn.Opacity = 0/1" du code original ont été
+//      supprimées ; c'est UpdateBarreOpacity() qui gère tout.
+// ═══════════════════════════════════════════════════════════════════════════
+
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -22,43 +45,62 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
-
 using TDxInput;
-
 using Media3D = System.Windows.Media.Media3D;
 
 namespace QuickLook.Plugin.ImageViewer.Pano360
 {
     public partial class Pano360Panel : UserControl, IDisposable
     {
-        // -------------------------------------------------------------------------
-        // Constantes
-        // -------------------------------------------------------------------------
-
+        // ─────────────────────────────────────────────────────────────────────
+        // Constantes — paramètres de la sphère et de la navigation
+        // ─────────────────────────────────────────────────────────────────────
         private const int SphereSlices = 72;
         private const int SphereStacks = 36;
+
         private const double FovMin = 30.0;
         private const double FovMax = 120.0;
         private const double FovDefault = 90.0;
         private const double FovZoomStep = 5.0;
+
         private const double MouseSensitivity = 1.0;
         private const double MouseDeadZone = 5.0;
         private const double KeyRotationDelta = 2.0;
+
         private const double VerticalAngleMin = -90.0;
         private const double VerticalAngleMax = 45.0;
 
-        // -------------------------------------------------------------------------
-        // Champs 3D
-        // -------------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
+        // NOUVELLES CONSTANTES — Autorotation
+        // ─────────────────────────────────────────────────────────────────────
+        // Durée d'un tour complet (360°) en secondes.
+        // Changez ces valeurs pour accélérer ou ralentir chaque mode.
+        private const double AutoRotateFastSeconds = 20.0;  // Tour rapide : 20 s
+        private const double AutoRotateSlowSeconds = 60.0;  // Tour lent   : 60 s
 
+        // ─────────────────────────────────────────────────────────────────────
+        // NOUVELLES CONSTANTES — Opacité progressive de la barre de boutons
+        // ─────────────────────────────────────────────────────────────────────
+        // Opacité cible quand le panorama EST en mouvement (presque invisible).
+        private const double OpacityMin = 0.15;
+        // Opacité cible quand le panorama est au REPOS (pleinement visible).
+        private const double OpacityFull = 1.0;
+        // Délai d'inactivité (en secondes) avant de réafficher les boutons.
+        private const double InactivityDelay = 1.2;
+        // Vitesse du fondu (en unités d'opacité par seconde).
+        // Plus la valeur est grande, plus la transition est rapide.
+        private const double FadeSpeed = 2.5;
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Champs 3D
+        // ─────────────────────────────────────────────────────────────────────
         private PerspectiveCamera _camera = new PerspectiveCamera();
         private AxisAngleRotation3D _horizontalRotation = new AxisAngleRotation3D();
         private AxisAngleRotation3D _verticalRotation = new AxisAngleRotation3D();
 
-        // -------------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
         // Champs navigation souris
-        // -------------------------------------------------------------------------
-
+        // ─────────────────────────────────────────────────────────────────────
         private bool _isMouseDown = false;
         private double _startMouseX;
         private double _startMouseY;
@@ -66,70 +108,79 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double _lastMouseY;
         private TimeSpan _lastRenderTime;
 
-        // -------------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
         // Champs SpaceMouse 3Dconnexion
-        // -------------------------------------------------------------------------
-
+        // ─────────────────────────────────────────────────────────────────────
         private Device _smDevice;
         private Sensor _smSensor;
         private bool _spaceMouseEnabled = false;
 
-        // -------------------------------------------------------------------------
-        // Référence au context pour le debug via la barre de titre
-        // -------------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
+        // NOUVEAUX CHAMPS — Autorotation
+        // ─────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Énumération des 3 états possibles pour l'autorotation.
+        /// L'ordre définit le cycle : Off → Rapide → Lent → Off → …
+        /// </summary>
+        private enum AutoRotationState { Off, Rapide, Lent }
+
+        // État courant de l'autorotation (commence arrêté).
+        private AutoRotationState _autoRotState = AutoRotationState.Off;
+
+        // ─────────────────────────────────────────────────────────────────────
+        // NOUVEAUX CHAMPS — Opacité progressive
+        // ─────────────────────────────────────────────────────────────────────
+        // Horodatage du dernier mouvement détecté (souris OU autorotation OU SpaceMouse).
+        private DateTime _lastMovementTime = DateTime.MinValue;
+
+        // Indique si un mouvement était actif au frame précédent.
+        // Sert à détecter le passage repos ↔ mouvement sans heuristique trop lourde.
+        private bool _isMoving = false;
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Référence au contexte QuickLook et au chemin du fichier image
+        // ─────────────────────────────────────────────────────────────────────
         private readonly QuickLook.Common.Plugin.ContextObject _context;
         private readonly string _imagePath;
 
-        // -------------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
         // Constructeur
-        // -------------------------------------------------------------------------
-
+        // ─────────────────────────────────────────────────────────────────────
         public Pano360Panel(QuickLook.Common.Plugin.ContextObject context, string imagePath)
         {
             InitializeComponent();
-
             _context = context;
             _imagePath = imagePath;
 
-            // Même approche que l'application standalone originale :
-            // tout est synchrone dans Loaded, exactement comme SetupScene()
-            // était appelé dans MenuOuvrir_Click.
+            // Initialisation de la scène 3D dès que le contrôle est chargé
             Loaded += (s, e) => InitScene();
             Unloaded += (s, e) => Dispose();
 
-
-            // Guillaume: J'ai ajouté ce code pour permettre de basculer en plein écran en cliquant avec le bouton droit de la souris.
-            MouseRightButtonUp += (s, e) =>
-            {
-                ToggleFullscreen();
-            };
+            // Clic droit → bascule plein écran (fonctionnalité Guillaume originale)
+            MouseRightButtonUp += (s, e) => ToggleFullscreen();
         }
 
-        // -------------------------------------------------------------------------
-        // Initialisation de la scène — synchrone, identique au code original
-        // -------------------------------------------------------------------------
-
+        // ─────────────────────────────────────────────────────────────────────
+        // Initialisation de la scène
+        // ─────────────────────────────────────────────────────────────────────
         private void InitScene()
         {
-            var fileName = System.IO.Path.GetFileName(_imagePath);
-
             SetupCamera();
             SetupLight();
-
             var material = CreatePanoramaMaterial(_imagePath);
             SetupSphere(material);
-
             SetupEventHandlers();
 
             txtLoading.Visibility = Visibility.Collapsed;
-            _context.IsBusy = false;  // ← LA LIGNE CLÉ : signale à QuickLook que le chargement est terminé. Sans elle, QuickLook maintient son spinner par-dessus tout le contenu.
+            _context.IsBusy = false;  // Signale à QuickLook que le chargement est terminé
+
             Focus();
         }
-        // -------------------------------------------------------------------------
-        // Mise en place de la scène 3D
-        // -------------------------------------------------------------------------
 
+        // ─────────────────────────────────────────────────────────────────────
+        // Mise en place de la caméra
+        // ─────────────────────────────────────────────────────────────────────
         private void SetupCamera()
         {
             _camera = new PerspectiveCamera
@@ -142,6 +193,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             viewport3D.Camera = _camera;
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // Lumière ambiante (éclaire uniformément toute la sphère)
+        // ─────────────────────────────────────────────────────────────────────
         private void SetupLight()
         {
             viewport3D.Children.Add(new ModelVisual3D
@@ -150,6 +204,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             });
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // Construction de la sphère et application du matériau (texture 360°)
+        // ─────────────────────────────────────────────────────────────────────
         private void SetupSphere(Material material)
         {
             var mesh = CreatePanoramaSphere();
@@ -158,6 +215,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 BackMaterial = material
             };
 
+            // Deux rotations indépendantes : horizontale (axe Y) et verticale (axe X).
             _horizontalRotation = new AxisAngleRotation3D(new Media3D.Vector3D(0, 1, 0), 0);
             _verticalRotation = new AxisAngleRotation3D(new Media3D.Vector3D(1, 0, 0), 0);
 
@@ -169,13 +227,15 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             viewport3D.Children.Add(new ModelVisual3D { Content = model });
         }
 
-        // -------------------------------------------------------------------------
-        // Gestion des événements
-        // -------------------------------------------------------------------------
-
+        // ─────────────────────────────────────────────────────────────────────
+        // Enregistrement des gestionnaires d'événements
+        // ─────────────────────────────────────────────────────────────────────
         private void SetupEventHandlers()
         {
+            // CompositionTarget.Rendering est appelé à chaque frame WPF rendu.
+            // C'est ici que l'animation de rotation et le fondu de la barre sont gérés.
             CompositionTarget.Rendering += OnRendering;
+
             MouseDown += OnMouseDown;
             MouseUp += OnMouseUp;
             MouseMove += OnMouseMove;
@@ -183,6 +243,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             KeyDown += OnKeyDown;
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // Gestion de la souris
+        // ─────────────────────────────────────────────────────────────────────
         private void OnMouseDown(object sender, MouseButtonEventArgs e)
         {
             if (e.LeftButton != MouseButtonState.Pressed) return;
@@ -192,25 +255,29 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _lastMouseX = _startMouseX = pos.X;
             _lastMouseY = _startMouseY = pos.Y;
             Mouse.Capture(this);
-            // Guillaume: J'ai ajouté cette ligne pour rendre la barre de contrôle transparente pendant la navigation, afin de ne pas gêner la vue.
-            barreBtn.Opacity = 0;
+
+            // Signale le début d'un mouvement (pour le fondu de la barre)
+            MarquerMouvement();
         }
 
         private void OnMouseUp(object sender, MouseButtonEventArgs e)
         {
             _isMouseDown = false;
             Mouse.Capture(null);
-            // Guillaume: J'ai ajouté cette ligne pour rendre la barre de contrôle opaque à nouveau après la navigation.
-            // ToDo: idéalement, il faudrait peut-être faire ça dans OnMouseMove, on réussir a detecter le déplacement du panorama pour que cela fonctionne également avec la 3Dconnexion, et pas seulement avec la souris.
-            barreBtn.Opacity = 1;
+            // Pas besoin de changer l'opacité ici ; UpdateBarreOpacity() le fera
+            // automatiquement après InactivityDelay secondes sans mouvement.
         }
 
         private void OnMouseMove(object sender, MouseEventArgs e)
         {
             if (!_isMouseDown) return;
+
             var pos = e.GetPosition(this);
             _lastMouseX = pos.X;
             _lastMouseY = pos.Y;
+
+            // La souris bouge alors qu'elle est pressée → mouvement en cours
+            MarquerMouvement();
         }
 
         private void OnMouseWheel(object sender, MouseWheelEventArgs e)
@@ -227,15 +294,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 case Key.Left:
                     _horizontalRotation.Angle += KeyRotationDelta;
+                    MarquerMouvement();
                     break;
                 case Key.Right:
                     _horizontalRotation.Angle -= KeyRotationDelta;
+                    MarquerMouvement();
                     break;
                 case Key.Up:
                     ClampVertical(_verticalRotation.Angle + KeyRotationDelta);
+                    MarquerMouvement();
                     break;
                 case Key.Down:
                     ClampVertical(_verticalRotation.Angle - KeyRotationDelta);
+                    MarquerMouvement();
                     break;
                 case Key.Add:
                 case Key.OemPlus:
@@ -248,30 +319,157 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // BOUCLE DE RENDU — appelée à chaque frame WPF
+        // ─────────────────────────────────────────────────────────────────────
         private void OnRendering(object sender, EventArgs e)
         {
-            if (!_isMouseDown) return;
-
             var args = (RenderingEventArgs)e;
             double elapsed = (args.RenderingTime - _lastRenderTime).TotalSeconds;
             _lastRenderTime = args.RenderingTime;
 
+            // Protection contre les délais aberrants (ex. : fenêtre minimisée)
             if (elapsed > 0.1) return;
 
-            double deltaX = _lastMouseX - _startMouseX;
-            double deltaY = _lastMouseY - _startMouseY;
+            // ── Navigation souris ──────────────────────────────────────────
+            if (_isMouseDown)
+            {
+                double deltaX = _lastMouseX - _startMouseX;
+                double deltaY = _lastMouseY - _startMouseY;
 
-            double speedX = Math.Abs(deltaX) < MouseDeadZone ? 0 : deltaX * MouseSensitivity * elapsed;
-            double speedY = Math.Abs(deltaY) < MouseDeadZone ? 0 : deltaY * MouseSensitivity * elapsed;
+                double speedX = Math.Abs(deltaX) < MouseDeadZone ? 0 : deltaX * MouseSensitivity * elapsed;
+                double speedY = Math.Abs(deltaY) < MouseDeadZone ? 0 : deltaY * MouseSensitivity * elapsed;
 
-            _horizontalRotation.Angle += speedX;
-            ClampVertical(_verticalRotation.Angle - speedY);
+                _horizontalRotation.Angle += speedX;
+                ClampVertical(_verticalRotation.Angle - speedY);
+            }
+
+            // ── Autorotation ───────────────────────────────────────────────
+            // Si l'autorotation est active ET que l'utilisateur ne navigue pas
+            // manuellement, on fait tourner la sphère en continu.
+            if (_autoRotState != AutoRotationState.Off && !_isMouseDown)
+            {
+                // Calcule la vitesse angulaire en degrés/seconde :
+                //   360° ÷ durée_d_un_tour
+                double secondsPerTurn = (_autoRotState == AutoRotationState.Rapide)
+                    ? AutoRotateFastSeconds
+                    : AutoRotateSlowSeconds;
+
+                double degreesPerSecond = 360.0 / secondsPerTurn;
+
+                _horizontalRotation.Angle += degreesPerSecond * elapsed;
+
+                // L'autorotation est un mouvement continu : on met à jour l'horodatage
+                MarquerMouvement();
+            }
+
+            // ── Mise à jour de l'opacité de la barre de boutons ───────────
+            UpdateBarreOpacity(elapsed);
         }
 
-        // -------------------------------------------------------------------------
-        // SpaceMouse 3Dconnexion
-        // -------------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
+        // OPACITÉ PROGRESSIVE — cœur de la logique d'effacement/réapparition
+        // ─────────────────────────────────────────────────────────────────────
+        /// <summary>
+        /// Appelée à chaque frame. Calcule si le panorama est en mouvement
+        /// et ajuste progressivement l'opacité de la barre de boutons.
+        ///
+        /// Logique :
+        ///   • Mouvement en cours  → fondu vers OpacityMin  (barre discrète)
+        ///   • Repos depuis > InactivityDelay s → fondu vers OpacityFull (barre visible)
+        ///
+        /// Le fondu est proportionnel au temps écoulé (elapsed) * FadeSpeed,
+        /// ce qui donne une transition fluide indépendante du taux de rafraîchissement.
+        /// </summary>
+        private void UpdateBarreOpacity(double elapsed)
+        {
+            double timeSinceLastMove = (DateTime.Now - _lastMovementTime).TotalSeconds;
 
+            // Détermine si l'on est actuellement "en mouvement"
+            bool movingNow = _isMouseDown
+                          || _autoRotState != AutoRotationState.Off
+                          || _spaceMouseEnabled;  // SpaceMouse peut bouger à tout moment
+
+            double targetOpacity;
+
+            if (movingNow || timeSinceLastMove < InactivityDelay)
+            {
+                // Mouvement actif (ou encore dans la fenêtre d'inactivité) → on cache
+                targetOpacity = OpacityMin;
+            }
+            else
+            {
+                // Repos prolongé → on réaffiche
+                targetOpacity = OpacityFull;
+            }
+
+            // Interpolation linéaire vers la cible (Lerp)
+            // Math.Sign(…) donne la direction, Math.Min(…) évite de dépasser la cible
+            double current = barreBtn.Opacity;
+            double diff = targetOpacity - current;
+
+            if (Math.Abs(diff) > 0.005)   // Seuil pour éviter les micro-oscillations
+            {
+                double step = FadeSpeed * elapsed;
+                // On avance vers la cible sans la dépasser
+                barreBtn.Opacity = current + Math.Sign(diff) * Math.Min(Math.Abs(diff), step);
+            }
+            else
+            {
+                barreBtn.Opacity = targetOpacity;
+            }
+        }
+
+        /// <summary>
+        /// Méthode utilitaire : note l'heure courante comme "dernier mouvement détecté".
+        /// À appeler dès qu'une action de navigation est détectée.
+        /// </summary>
+        private void MarquerMouvement()
+        {
+            _lastMovementTime = DateTime.Now;
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // BOUTON AUTOROTATION — cycle entre les 3 états
+        // ─────────────────────────────────────────────────────────────────────
+        /// <summary>
+        /// Gestionnaire du clic sur le bouton "AutoRotate".
+        /// À chaque clic, l'état avance dans le cycle :
+        ///   Off  →  Rapide  →  Lent  →  Off  → …
+        /// Le libellé du bouton est mis à jour pour refléter l'état courant.
+        /// </summary>
+        private void BtnAutoRotate_Click(object sender, RoutedEventArgs e)
+        {
+            // Passage à l'état suivant dans le cycle
+            switch (_autoRotState)
+            {
+                case AutoRotationState.Off:
+                    _autoRotState = AutoRotationState.Rapide;
+                    btnAutoRotate.Content = "⏩ Rapide";
+                    break;
+
+                case AutoRotationState.Rapide:
+                    _autoRotState = AutoRotationState.Lent;
+                    btnAutoRotate.Content = "🐢 Lent";
+                    break;
+
+                case AutoRotationState.Lent:
+                    _autoRotState = AutoRotationState.Off;
+                    btnAutoRotate.Content = "⏸ Off";
+                    break;
+            }
+
+            // Si on vient de désactiver l'autorotation, on note que le mouvement
+            // vient de s'arrêter pour déclencher la temporisation de réapparition.
+            if (_autoRotState == AutoRotationState.Off)
+            {
+                _lastMovementTime = DateTime.Now;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // SpaceMouse 3Dconnexion
+        // ─────────────────────────────────────────────────────────────────────
         private void BtnSpaceMouse_Checked(object sender, RoutedEventArgs e)
             => ConnecterSpaceMouse();
 
@@ -281,6 +479,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private void ConnecterSpaceMouse()
         {
             if (_spaceMouseEnabled) return;
+
             try
             {
                 _smDevice = (Device)Activator.CreateInstance(
@@ -323,27 +522,32 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 _horizontalRotation.Angle -= ry;
                 ClampVertical(_verticalRotation.Angle + rx);
+
+                // La SpaceMouse est en train de bouger → on marque le mouvement
+                MarquerMouvement();
             });
         }
 
-        // -------------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
         // Helpers
-        // -------------------------------------------------------------------------
+        // ─────────────────────────────────────────────────────────────────────
 
+        /// <summary>Contraint une valeur entre un minimum et un maximum.</summary>
         private static double Clamp(double value, double min, double max)
-        {
-            return value < min ? min : value > max ? max : value;
-        }
+            => value < min ? min : value > max ? max : value;
 
+        /// <summary>Applique la contrainte verticale à l'angle de la caméra.</summary>
         private void ClampVertical(double newAngle)
-        {
-            _verticalRotation.Angle = Clamp(newAngle, VerticalAngleMin, VerticalAngleMax);
-        }
+            => _verticalRotation.Angle = Clamp(newAngle, VerticalAngleMin, VerticalAngleMax);
 
+        // ─────────────────────────────────────────────────────────────────────
+        // Génération de la sphère 3D (mesh)
+        // ─────────────────────────────────────────────────────────────────────
         private static MeshGeometry3D CreatePanoramaSphere()
         {
             var mesh = new MeshGeometry3D();
 
+            // Calcul des sommets et des coordonnées de texture (uv-mapping sphérique)
             for (int stack = 0; stack <= SphereStacks; stack++)
             {
                 double phi = Math.PI / SphereStacks * stack;
@@ -353,6 +557,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     double x = Math.Sin(phi) * Math.Cos(theta);
                     double y = Math.Cos(phi);
                     double z = Math.Sin(phi) * Math.Sin(theta);
+
                     mesh.Positions.Add(new Point3D(x, y, z));
                     mesh.TextureCoordinates.Add(new Point(
                         slice / (double)SphereSlices,
@@ -360,6 +565,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 }
             }
 
+            // Construction des triangles (deux triangles par quad de la grille)
             for (int stack = 0; stack < SphereStacks; stack++)
             {
                 for (int slice = 0; slice < SphereSlices; slice++)
@@ -372,6 +578,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     mesh.TriangleIndices.Add(i0);
                     mesh.TriangleIndices.Add(i2);
                     mesh.TriangleIndices.Add(i1);
+
                     mesh.TriangleIndices.Add(i2);
                     mesh.TriangleIndices.Add(i3);
                     mesh.TriangleIndices.Add(i1);
@@ -381,9 +588,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             return mesh;
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // Chargement de la texture panoramique
+        // ─────────────────────────────────────────────────────────────────────
         /// <summary>
-        /// Identique au code original de l'application standalone :
-        /// UriSource + CacheOption.OnLoad, pas de MemoryStream, pas de Freeze.
+        /// Identique au code original : UriSource + CacheOption.OnLoad.
+        /// Pas de MemoryStream, pas de Freeze.
         /// </summary>
         private static Material CreatePanoramaMaterial(string imagePath)
         {
@@ -407,13 +617,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 TileMode = TileMode.FlipX,
                 Stretch = Stretch.Fill
             };
+
             return new DiffuseMaterial(brush);
         }
 
-        // -------------------------------------------------------------------------
-        // IDisposable
-        // -------------------------------------------------------------------------
-
+        // ─────────────────────────────────────────────────────────────────────
+        // IDisposable — nettoyage des ressources
+        // ─────────────────────────────────────────────────────────────────────
         public void Dispose()
         {
             CompositionTarget.Rendering -= OnRendering;
@@ -421,7 +631,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             viewport3D.Children.Clear();
         }
 
-        // Guillaume: J'ai ajouté ce code pour permettre de basculer en plein écran.
+        // ─────────────────────────────────────────────────────────────────────
+        // Bascule plein écran (Guillaume)
+        // ─────────────────────────────────────────────────────────────────────
+        /// <summary>
+        /// Invoque la méthode ToggleFullscreen() de la fenêtre parente par
+        /// réflexion, car elle n'est pas exposée dans une interface publique.
+        /// </summary>
         private void ToggleFullscreen()
         {
             var window = Window.GetWindow(this);
