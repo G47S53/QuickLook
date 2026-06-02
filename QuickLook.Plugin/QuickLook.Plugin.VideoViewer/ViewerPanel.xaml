@@ -20,8 +20,42 @@
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid MouseLeftButtonDown="Panel_MouseLeftButtonDown">
+    <Grid MouseDown="Panel_MouseDown">
         <mediakit:MediaUriElement x:Name="mediaElement" />
+        <Border x:Name="videoInfoPopup"
+                Padding="15,4,15,4"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="#CC303030"
+                CornerRadius="5"
+                IsHitTestVisible="False"
+                Opacity="0">
+
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="10"
+                      ShadowDepth="0"
+                      Opacity="0.7"/>
+            </Border.Effect>
+
+            <TextBlock x:Name="videoInfoText"
+               FontSize="28"
+               Foreground="White"
+               Text="Pause" />
+
+            <Border.Resources>
+                <Storyboard x:Key="StoryboardShowVideoInfo">
+                    <DoubleAnimationUsingKeyFrames
+                Storyboard.Target="{Binding Source={x:Reference videoInfoPopup}}"
+                Storyboard.TargetProperty="Opacity">
+
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.1" Value="0.9" />
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.8" Value="0.9" />
+                        <LinearDoubleKeyFrame KeyTime="0:0:1.2" Value="0" />
+
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
+            </Border.Resources>
+        </Border>
         <Grid x:Name="coverArtPersenter"
               Background="{StaticResource MainWindowBackground}"
               ClipToBounds="True">
@@ -194,6 +228,8 @@
                         </Style>
                     </Button.Style>
                 </Button>
+                <!-- Original hardware acceleration button preserved here for easy restore (commented out) -->
+                <!--
                 <Button x:Name="buttonHardwareAcceleration"
                         DockPanel.Dock="Left"
                         Style="{StaticResource HardwareAccelerationButtonStyle}"
@@ -211,6 +247,15 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
+                </Button>
+                -->
+
+                <!-- Placeholder hidden button to keep name/reference intact for code-behind -->
+                <Button x:Name="buttonHardwareAcceleration"
+                        DockPanel.Dock="Left"
+                        Visibility="Collapsed"
+                        ToolTip="Hardware/Software Decoding (hidden)">
+                    <TextBlock VerticalAlignment="Center">S/W</TextBlock>
                 </Button>
                 <Button x:Name="buttonMute"
                         DockPanel.Dock="Right"
@@ -245,6 +290,59 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
+                </Button>
+                <Button x:Name="buttonAutoClose"
+                        DockPanel.Dock="Left"
+                        Width="80"
+                        ToolTip="Fermeture automatique"
+                        Style="{StaticResource ControlButtonStyle}">
+                    <TextBlock x:Name="textAutoClose"
+                               Text="AutoClose">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+
+                                <Setter Property="TextDecorations"
+                    Value="{x:Null}" />
+
+                                <Style.Triggers>
+
+                                    <DataTrigger Binding="{Binding AutoCloseEnabled}"
+                            Value="False">
+
+                                        <Setter Property="TextDecorations"
+                            Value="Strikethrough"/>
+
+                                        <Setter Property="Opacity"
+                            Value="0.6"/>
+
+                                    </DataTrigger>
+
+                                </Style.Triggers>
+
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Button>
+                <Button x:Name="buttonSeekMode"
+                        DockPanel.Dock="Left"
+                        Width="50"
+                        ToolTip="Mode molette"
+                        Style="{StaticResource ControlButtonStyle}">
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                        <!-- Icône via Segoe MDL2 Assets -->
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                   Text="&#xE962;"
+                                   FontSize="14"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,0,0" />
+                        <!-- Texte du mode -->
+                        <TextBlock x:Name="textSeekMode"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Text=":  5%" />
+                    </StackPanel>
                 </Button>
                 <Slider x:Name="sliderProgress"
                         Delay="1"

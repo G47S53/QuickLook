@@ -16,7 +16,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 extern alias MediaInfoWrapper;
-
 using MediaInfoWrapper::MediaInfo;
 using QuickLook.Common.Annotations;
 using QuickLook.Common.Helpers;
@@ -41,6 +40,7 @@ using System.Windows.Threading;
 using UtfUnknown;
 using WPFMediaKit.DirectShow.Controls;
 using WPFMediaKit.DirectShow.MediaPlayers;
+using Newtonsoft.Json;  // GUILLAUME: Ajout de Newtonsoft.Json pour la sérialisation/désérialisation des paramètres personnalisés de l'utilisateur dans un fichier JSON.
 
 namespace QuickLook.Plugin.VideoViewer;
 
@@ -57,6 +57,19 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
     private bool _wasPlaying;
     private bool _shouldLoop;
     private bool _useHardwareAcceleration;
+
+    // Guillaume: Ajout d'une configuration, avec persistance dans un fichier JSON, pour la molette de défilement et l'auto-fermeture à la fin de la vidéo.
+    private readonly string configPath = Path.Combine(
+                                         Environment.GetFolderPath(
+                                         Environment.SpecialFolder.ApplicationData),
+                                         "QuickLook",
+                                         "VideoViewerSettings.json");
+    
+    // Guillaume: Ajout d'un objet de settings pour stocker les configurations personnalisées de l'utilisateur, avec sérialisation/désérialisation JSON.
+    private VideoViewerSettings settings;
+
+    // Guillaume: Ajout d'une propriété pour activer/désactiver l'auto-fermeture à la fin de la vidéo, avec mise à jour de l'interface utilisateur en conséquence.
+    public bool AutoCloseEnabled;
 
     public ViewerPanel(ContextObject context)
     {
@@ -99,17 +112,256 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         buttonMute.Click += (_, _) => volumeSliderLayer.Visibility = Visibility.Visible;
         volumeSliderLayer.MouseDown += (_, _) => volumeSliderLayer.Visibility = Visibility.Collapsed;
 
+        // Guillaume: Chargement des paramètres personnalisés de l'utilisateur depuis un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème de lecture ou de format.
+        LoadSettings();
+
+        // Guillaume: Attribution de la commande de changement de mode de seek à la fois au clic sur le bouton dédié de l'interface et à la molette de la souris, avec mise à jour de l'interface utilisateur et persistance du choix dans les paramètres.
+        buttonSeekMode.Click += ButtonSeekMode_Click;
+
+        // Guillaume: Attribution de la commande d'activation/désactivation de l'auto-fermeture à la fin de la vidéo au clic sur le bouton dédié de l'interface, avec mise à jour de l'interface utilisateur et persistance du choix dans les paramètres.
+        buttonAutoClose.Click += (_, _) =>
+        {
+            AutoCloseEnabled = !AutoCloseEnabled;
+
+            UpdateAutoCloseUI();
+
+            settings.CloseWhenFinished = AutoCloseEnabled;
+            SaveSettings();
+        };
+
+        // Guillaume: Ajout de la gestion du clic gauche sur la vidéo pour basculer entre lecture et pause, avec affichage d'une info-bulle indiquant le temps actuel et la durée totale de la vidéo lors de la pause.
+        mediaElement.MouseLeftButtonDown += (_, e) =>
+        {
+            if (mediaElement.IsPlaying)
+            {
+                mediaElement.Pause();
+                ShowVideoInfo($"Pause : {(new TimeSpan(mediaElement.MediaPosition)):mm\\:ss} / {(new TimeSpan(mediaElement.MediaDuration)):mm\\:ss}");
+            }
+            else
+            {
+                mediaElement.Play();
+            }
+
+            e.Handled = true;
+        };
+
+        // Guillaume: Ajout de la gestion du clic et du glissement sur la barre de progression pour permettre à l'utilisateur de naviguer dans la vidéo, avec mise en pause pendant le glissement et reprise de la lecture à la fin du glissement si la vidéo était en cours de lecture.
         sliderProgress.PreviewMouseDown += (_, e) =>
         {
             _wasPlaying = mediaElement.IsPlaying;
             mediaElement.Pause();
         };
+
+        // Les 2 commandes suivantes étaient déjà presente avant mes modifications.
         sliderProgress.PreviewMouseUp += (_, _) =>
         {
             if (_wasPlaying) mediaElement.Play();
         };
+        sliderProgress.MouseMove += (_, e) =>
+        {
+            if (e.LeftButton != MouseButtonState.Pressed)
+                return;
 
-        PreviewMouseWheel += (_, e) => ChangeVolume(e.Delta / 120d * 0.04d);
+            var pos = e.GetPosition(sliderProgress);
+
+            double ratio = pos.X / sliderProgress.ActualWidth;
+
+            ratio = Math.Max(0, Math.Min(1, ratio));
+
+            long newPos = (long)(sliderProgress.Maximum * ratio);
+
+            sliderProgress.Value = newPos;
+
+            mediaElement.MediaPosition = newPos;
+
+            e.Handled = true;
+        };
+
+        // Guillaume: Lignes ci-dessous commentée pour éviter les conflits avec la commande de changement de mode de seek attribuée à la molette de la souris.
+        //PreviewMouseWheel += (_, e) => ChangeVolume(e.Delta / 120d * 0.04d);
+
+        // Guillaume: Ajout de la gestion de la molette de la souris pour permettre à l'utilisateur de naviguer dans la vidéo en fonction du mode de seek sélectionné (5% de la durée totale, 1 seconde ou 5 secondes), avec mise à jour de l'interface utilisateur pour afficher le temps actuel et la durée totale lors du changement de position, et fermeture automatique de la fenêtre si l'option est activée et que la fin de la vidéo est atteinte.
+        PreviewMouseWheel += (_, e) =>
+        {
+            if (mediaElement == null)
+                return;
+
+            long step = 0;
+
+            switch (seekMode)
+            {
+                case 0:
+                    step = (long)(mediaElement.MediaDuration * 0.05);
+                    break;
+
+                case 1:
+                    step = TimeSpan.FromSeconds(1).Ticks;
+                    break;
+
+                case 2:
+                    step = TimeSpan.FromSeconds(5).Ticks;
+                    break;
+            }
+
+            long newPos = mediaElement.MediaPosition + (e.Delta > 0 ? step : -step);
+
+            if (newPos < 0)
+                newPos = 0;
+            if (newPos > mediaElement.MediaDuration)
+            {
+                newPos = mediaElement.MediaDuration;
+                mediaElement.MediaPosition = newPos;
+                ShowVideoInfo($"{(new TimeSpan(newPos)):mm\\:ss} / " + $"{(new TimeSpan(mediaElement.MediaDuration)):mm\\:ss}");
+                mediaElement.Pause();
+                if (AutoCloseEnabled)
+                    Window.GetWindow(this)?.Close();
+                return;
+            }
+
+            mediaElement.MediaPosition = newPos;
+
+            ShowVideoInfo($"{(new TimeSpan(newPos)):mm\\:ss} / " + $"{(new TimeSpan(mediaElement.MediaDuration)):mm\\:ss}");
+
+            e.Handled = true;
+        };
+    }
+
+    // Guillaume: Ajout d'une méthode pour charger les paramètres personnalisés de l'utilisateur depuis un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème de lecture ou de format, et mise à jour de l'interface utilisateur en conséquence.
+    private void LoadSettings()
+    {
+        try
+        {
+            if (File.Exists(configPath))
+            {
+                string json = File.ReadAllText(configPath);
+
+                settings = JsonConvert.DeserializeObject<VideoViewerSettings>(json);
+
+                seekMode = settings.SeekMode;
+                AutoCloseEnabled = settings.CloseWhenFinished;
+
+                UpdateSeekModeUISilencieux();
+                UpdateAutoCloseUI();
+            }
+            else
+            {
+                settings = new VideoViewerSettings();
+            }
+        }
+        catch
+        {
+            settings = new VideoViewerSettings();
+        }
+    }
+
+    // Guillaume: Ajout d'une méthode pour sauvegarder les paramètres personnalisés de l'utilisateur dans un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème d'écriture.
+    private void SaveSettings()
+    {
+        try
+        {
+            string folder =
+                Path.GetDirectoryName(configPath);
+
+            if (!Directory.Exists(folder))
+            {
+                Directory.CreateDirectory(folder);
+            }
+
+            string json = JsonConvert.SerializeObject(settings, Formatting.Indented);
+
+            File.WriteAllText(configPath, json);
+        }
+        catch
+        {
+        }
+    }
+
+    // Guillaume: Ajout d'un champ pour stocker le mode de seek sélectionné par l'utilisateur (0 pour 5% de la durée totale, 1 pour 1 seconde, 2 pour 5 secondes).
+    private int seekMode = 0;
+
+    // Guillaume: Ajout d'une méthode pour gérer le clic sur le bouton de changement de mode de seek.
+    private void ButtonSeekMode_Click(object sender, RoutedEventArgs e)
+    {
+        CycleSeekMode();
+    }
+
+    // Guillaume: Ajout d'une méthode pour faire défiler les modes de seek disponibles (5% de la durée totale, 1 seconde, 5 secondes) à chaque appel.
+    private void CycleSeekMode()
+    {
+        seekMode++;
+
+        if (seekMode > 2)
+            seekMode = 0;
+
+        UpdateSeekModeUI();
+
+        settings.SeekMode = seekMode;
+
+        SaveSettings();
+    }
+
+    // Guillaume: Ajout d'une méthode pour mettre à jour l'interface utilisateur en fonction de l'état de l'option d'auto-fermeture à la fin de la vidéo, en modifiant l'opacité du bouton dédié et en ajoutant une décoration de texte barré au label associé lorsque l'option est désactivée.
+    private void UpdateAutoCloseUI()
+    {
+        buttonAutoClose.Opacity = AutoCloseEnabled ? 1d : 0.5d;
+        textAutoClose.TextDecorations = AutoCloseEnabled ? null : TextDecorations.Strikethrough;
+    }
+
+    // Guillaume: Ajout d'une méthode pour mettre à jour l'interface utilisateur en fonction du mode de seek sélectionné.
+    private void UpdateSeekModeUI()
+    {
+        switch (seekMode)
+        {
+            case 0:
+                textSeekMode.Text = ":  5%";
+                ShowVideoInfo("Molette : 5%");
+                break;
+            case 1:
+                textSeekMode.Text = ":  1s";
+                ShowVideoInfo("Molette : 1s");
+                break;
+            case 2:
+                textSeekMode.Text = ":  5s";
+                ShowVideoInfo("Molette : 5s");
+                break;
+        }
+    }
+
+    // Guillaume: Ajout d'une méthode pour mettre à jour silencieusement l'interface utilisateur en fonction du mode de seek sélectionné, sans afficher d'info-bulle.
+    // Utile pour le chargement initial des paramètres sans afficher d'info-bulle inutile.
+    private void UpdateSeekModeUISilencieux()
+    {
+        switch (seekMode)
+        {
+            case 0:
+                textSeekMode.Text = ":  5%";
+                break;
+            case 1:
+                textSeekMode.Text = ":  1s";
+                break;
+            case 2:
+                textSeekMode.Text = ":  5s";
+                break;
+        }
+    }
+
+    // Guillaume: Ajout d'une méthode pour afficher une info-bulle au centre de la vidéo avec un texte personnalisé.
+    private void ShowVideoInfo(string text)
+    {
+        videoInfoText.Text = text;
+
+        var storyboard =
+            (Storyboard)videoInfoPopup.Resources["StoryboardShowVideoInfo"];
+
+        storyboard.Begin();
+    }
+
+    // Guillaume: Ajout d'une classe pour stocker les paramètres personnalisés de l'utilisateur.
+    public class VideoViewerSettings
+    {
+        public bool CloseWhenFinished { get; set; } = false;
+
+        public int SeekMode { get; set; } = 2;
     }
 
     private partial void LoadAndInsertGlassLayer();
@@ -199,7 +451,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         _midiPlayer = null;
     }
 
-    private void Panel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void Panel_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.LeftButton == MouseButtonState.Pressed)
         {
@@ -210,6 +462,14 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
             wnd?.DragMove();
         }
+
+        // GUILLAUME: Utilisation de la molette de la souris pour changer le mode de seek (5%, 1s, 5s)
+        // La commande est annulée pour éviter les conflits avec la  commande générale de fermeture de l'application
+
+        /*if (e.ChangedButton == MouseButton.Middle)
+        {
+            CycleSeekMode();
+        }*/
     }
 
     public event PropertyChangedEventHandler PropertyChanged;
@@ -255,6 +515,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             IsPlaying = false;
 
             mediaElement.Pause();
+
+            // GUILLAUME: Ferme la fenêtre si l'option Autoclose est activée et que la vidéo est arrivée à sa fin.
+            if (AutoCloseEnabled)
+                Window.GetWindow(this)?.Close();
         }
     }
 
@@ -436,8 +700,12 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             if (mediaElement.Source == null)
             {
                 // No source loaded yet – just store the flag for the next Open
-                player.Dispatcher.BeginInvoke(() =>
-                    player.EnableLAVHardwareAcceleration = enable);
+
+                // GUILLAUME: Lignes ci-dessous commentée pour éviter une exception de cross-threading, car le player n'est pas encore initialisé et ne peut pas recevoir d'invocation.
+                
+                /*player.Dispatcher.BeginInvoke(() =>
+                //    player.EnableLAVHardwareAcceleration = enable);*/
+
                 return;
             }
 
