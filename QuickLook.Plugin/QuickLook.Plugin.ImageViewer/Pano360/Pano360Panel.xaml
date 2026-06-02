@@ -74,7 +74,7 @@
                     <!-- ── Bouton SpaceMouse ─────────────────────────────── -->
                     <ToggleButton
                         x:Name="btnSpaceMouse"
-                        Content="🖱 SpaceMouse"
+                        Content="🖱 3D Mouse"
                         Width="105"
                         Margin="0,0,6,0"
                         Padding="8,4"
@@ -130,11 +130,11 @@
                     <TextBlock
                         x:Name="txtFov"
                         Text="(FOV: 90°)"
-                        Foreground="White"
+                        Foreground="#999999"
                         FontSize="13"
                         VerticalAlignment="Center"
                         Margin="0,0,8,0"
-                        ToolTip="Molette ou +/- pour zoomer" />
+                        ToolTip="Molette pour le zoom" />
 
                     <!-- Séparateur vertical léger -->
                     <Separator

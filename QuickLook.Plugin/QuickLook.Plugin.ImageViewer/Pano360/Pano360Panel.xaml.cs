@@ -39,6 +39,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 using System;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -70,6 +71,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double VerticalAngleMin = -90.0;
         private const double VerticalAngleMax = 45.0;
 
+        private int _scrollEventId = 0;
+
         // ─────────────────────────────────────────────────────────────────────
         // NOUVELLES CONSTANTES — Autorotation
         // ─────────────────────────────────────────────────────────────────────
@@ -86,7 +89,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // Opacité cible quand le panorama est au REPOS (pleinement visible).
         private const double OpacityFull = 1.0;
         // Délai d'inactivité (en secondes) avant de réafficher les boutons.
-        private const double InactivityDelay = 1.2;
+        private const double InactivityDelay = 0.5;
         // Vitesse du fondu (en unités d'opacité par seconde).
         // Plus la valeur est grande, plus la transition est rapide.
         private const double FadeSpeed = 2.5;
@@ -116,7 +119,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _spaceMouseEnabled = false;
 
         // ─────────────────────────────────────────────────────────────────────
-        // NOUVEAUX CHAMPS — Autorotation
+        // Autorotation
         // ─────────────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -240,7 +243,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             MouseUp += OnMouseUp;
             MouseMove += OnMouseMove;
             MouseWheel += OnMouseWheel;
-            KeyDown += OnKeyDown;
+            // KeyDown += OnKeyDown;
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -249,6 +252,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private void OnMouseDown(object sender, MouseButtonEventArgs e)
         {
             if (e.LeftButton != MouseButtonState.Pressed) return;
+
+            if (_autoRotState != AutoRotationState.Off)
+            {
+                // Si l'autorotation est active, on la désactive au clic pour
+                // donner le contrôle à l'utilisateur.
+                _autoRotState = AutoRotationState.Off;
+                btnAutoRotate.Content = "⏸ Off";
+            }
 
             _isMouseDown = true;
             var pos = e.GetPosition(this);
@@ -280,44 +291,61 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             MarquerMouvement();
         }
 
-        private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+        private async void OnMouseWheel(object sender, MouseWheelEventArgs e)
         {
             double delta = e.Delta > 0 ? -FovZoomStep : FovZoomStep;
             double newFov = Clamp(_camera.FieldOfView + delta, FovMin, FovMax);
             _camera.FieldOfView = newFov;
             txtFov.Text = string.Format("(FOV: {0:F0}°)", newFov);
-        }
+            
+            // 2. On passe le texte en blanc
+            txtFov.Foreground = new SolidColorBrush(Colors.White);
 
-        private void OnKeyDown(object sender, KeyEventArgs e)
-        {
-            switch (e.Key)
+            // 3. On incrémente le compteur à chaque coup de molette et on garde la valeur locale
+            int currentEventId = ++_scrollEventId;
+
+            // 4. On attend X millisecondes (ex: 1500 ms = 1.5 secondes) de manière asynchrone
+            await Task.Delay(1500);
+
+            // 5. Si la valeur locale est toujours égale à la valeur globale, 
+            // cela veut dire qu'il n'y a pas eu de nouveau coup de molette entre-temps.
+            if (currentEventId == _scrollEventId)
             {
-                case Key.Left:
-                    _horizontalRotation.Angle += KeyRotationDelta;
-                    MarquerMouvement();
-                    break;
-                case Key.Right:
-                    _horizontalRotation.Angle -= KeyRotationDelta;
-                    MarquerMouvement();
-                    break;
-                case Key.Up:
-                    ClampVertical(_verticalRotation.Angle + KeyRotationDelta);
-                    MarquerMouvement();
-                    break;
-                case Key.Down:
-                    ClampVertical(_verticalRotation.Angle - KeyRotationDelta);
-                    MarquerMouvement();
-                    break;
-                case Key.Add:
-                case Key.OemPlus:
-                    OnMouseWheel(this, new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, 120));
-                    break;
-                case Key.Subtract:
-                case Key.OemMinus:
-                    OnMouseWheel(this, new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120));
-                    break;
+                // On remet la couleur grise (#999999 correspond à R:153, G:153, B:153)
+                txtFov.Foreground = new SolidColorBrush(Color.FromRgb(153, 153, 153));
             }
         }
+
+        //private void OnKeyDown(object sender, KeyEventArgs e)
+        //{
+        //    switch (e.Key)
+        //    {
+        //        case Key.Left:
+        //            _horizontalRotation.Angle += KeyRotationDelta;
+        //            MarquerMouvement();
+        //            break;
+        //        case Key.Right:
+        //            _horizontalRotation.Angle -= KeyRotationDelta;
+        //            MarquerMouvement();
+        //            break;
+        //        case Key.Up:
+        //            ClampVertical(_verticalRotation.Angle + KeyRotationDelta);
+        //            MarquerMouvement();
+        //            break;
+        //        case Key.Down:
+        //            ClampVertical(_verticalRotation.Angle - KeyRotationDelta);
+        //            MarquerMouvement();
+        //            break;
+        //        case Key.Add:
+        //        case Key.OemPlus:
+        //            OnMouseWheel(this, new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, 120));
+        //            break;
+        //        case Key.Subtract:
+        //        case Key.OemMinus:
+        //            OnMouseWheel(this, new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120));
+        //            break;
+        //    }
+        //}
 
         // ─────────────────────────────────────────────────────────────────────
         // BOUCLE DE RENDU — appelée à chaque frame WPF
@@ -435,7 +463,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         /// <summary>
         /// Gestionnaire du clic sur le bouton "AutoRotate".
         /// À chaque clic, l'état avance dans le cycle :
-        ///   Off  →  Rapide  →  Lent  →  Off  → …
+        ///   Off  →  Lent  →  Rapide  →  Off  → …
         /// Le libellé du bouton est mis à jour pour refléter l'état courant.
         /// </summary>
         private void BtnAutoRotate_Click(object sender, RoutedEventArgs e)
@@ -444,18 +472,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             switch (_autoRotState)
             {
                 case AutoRotationState.Off:
-                    _autoRotState = AutoRotationState.Rapide;
-                    btnAutoRotate.Content = "⏩ Rapide";
-                    break;
-
-                case AutoRotationState.Rapide:
                     _autoRotState = AutoRotationState.Lent;
                     btnAutoRotate.Content = "🐢 Lent";
                     break;
 
-                case AutoRotationState.Lent:
+                case AutoRotationState.Rapide:
                     _autoRotState = AutoRotationState.Off;
                     btnAutoRotate.Content = "⏸ Off";
+                    break;
+
+                case AutoRotationState.Lent:
+                    _autoRotState = AutoRotationState.Rapide;
+                    btnAutoRotate.Content = "⏩ Rapide";
                     break;
             }
 
