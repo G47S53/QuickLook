@@ -18,7 +18,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // RÉSUMÉ DES MODIFICATIONS (Guillaume)
 // ───────────────────────────────────────────────────────────────────────────
-// 1. AUTOROTATION (3 états : Off / Rapide / Lent)
+// 1. AUTOROTATION (3 états : Off / Lent / Rapide)
 //    - Enum AutoRotationState avec les 3 valeurs.
 //    - Constantes AutoRotateFastSeconds (durée d'un tour complet en mode Rapide)
 //      et AutoRotateSlowSeconds (durée en mode Lent).
@@ -121,9 +121,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         /// <summary>
         /// Énumération des 3 états possibles pour l'autorotation.
-        /// L'ordre définit le cycle : Off → Rapide → Lent → Off → …
+        /// L'ordre définit le cycle : Off → Lent → Rapide → Off → …
         /// </summary>
-        private enum AutoRotationState { Off, Rapide, Lent }
+        private enum AutoRotationState { Off, Lent, Rapide }
 
         // État courant de l'autorotation (commence arrêté).
         private AutoRotationState _autoRotState = AutoRotationState.Off;
@@ -285,7 +285,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             double delta = e.Delta > 0 ? -FovZoomStep : FovZoomStep;
             double newFov = Clamp(_camera.FieldOfView + delta, FovMin, FovMax);
             _camera.FieldOfView = newFov;
-            txtFov.Text = string.Format("FOV: {0:F0}°", newFov);
+            txtFov.Text = string.Format("(FOV: {0:F0}°)", newFov);
         }
 
         private void OnKeyDown(object sender, KeyEventArgs e)

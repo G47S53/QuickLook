@@ -53,7 +53,7 @@
         <StackPanel
             x:Name="barreBtn"
             Orientation="Horizontal"
-            HorizontalAlignment="Left"
+            HorizontalAlignment="Center"
             VerticalAlignment="Bottom"
             Margin="12,0,0,12"
             Opacity="1">
@@ -75,6 +75,7 @@
                     <ToggleButton
                         x:Name="btnSpaceMouse"
                         Content="🖱 SpaceMouse"
+                        Width="105"
                         Margin="0,0,6,0"
                         Padding="8,4"
                         Foreground="White"
@@ -116,7 +117,7 @@
 
                     <!-- Séparateur vertical léger -->
                     <Separator
-                        Width="1"
+                        Width="3"
                         Height="18"
                         Background="#55FFFFFF"
                         Margin="0,0,6,0" />
@@ -128,7 +129,7 @@
                     -->
                     <TextBlock
                         x:Name="txtFov"
-                        Text="FOV: 90°"
+                        Text="(FOV: 90°)"
                         Foreground="White"
                         FontSize="13"
                         VerticalAlignment="Center"
@@ -137,7 +138,7 @@
 
                     <!-- Séparateur vertical léger -->
                     <Separator
-                        Width="1"
+                        Width="3"
                         Height="18"
                         Background="#55FFFFFF"
                         Margin="0,0,6,0" />
@@ -147,7 +148,7 @@
                         Ce bouton cycle entre 3 états à chaque clic :
                           Off  →  Rapide  →  Lent  →  Off  → …
                         
-                        Le texte affiché ("⏸ Off", "⏩ Rapide", "🐢 Lent") est
+                        Le texte affiché ("⏸ Off", "🐢 Lent", "⏩ Rapide") est
                         mis à jour dans BtnAutoRotate_Click() dans le code-behind.
                         
                         x:Name="btnAutoRotate" est référencé dans le code-behind.
@@ -157,8 +158,9 @@
                         Content="⏸ Off"
                         Padding="8,4"
                         Foreground="White"
+                        Width="105"
                         Cursor="Hand"
-                        ToolTip="Autorotation : Off → Rapide → Lent → Off"
+                        ToolTip="Autorotation : Off → Lent → Rapide → Off"
                         Click="BtnAutoRotate_Click">
                         <Button.Style>
                             <Style TargetType="Button">
