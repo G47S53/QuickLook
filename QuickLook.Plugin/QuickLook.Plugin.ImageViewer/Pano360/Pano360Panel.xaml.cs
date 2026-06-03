@@ -60,7 +60,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // Constantes — paramètres de la sphère et de la navigation
         // ─────────────────────────────────────────────────────────────────────
         private const int SphereSlices = 72;
-        private const int SphereStacks = 36;
+        private const int SphereStacks = 36; 
 
         private const double FovMin = 30.0;
         private const double FovMax = 120.0;
@@ -132,6 +132,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // État courant de l'autorotation (commence arrêté).
         private AutoRotationState _autoRotState = AutoRotationState.Off;
 
+        // ── Variables pour l'autorotation haute précision ───────────────────
+        private System.Diagnostics.Stopwatch _autoRotateStopwatch = new System.Diagnostics.Stopwatch();
+        private double _angleAuDemarrage = 0;
+
         // ─────────────────────────────────────────────────────────────────────
         // Opacité progressive
         // ─────────────────────────────────────────────────────────────────────
@@ -159,6 +163,20 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         public Pano360Panel(QuickLook.Common.Plugin.ContextObject context, string imagePath)
         {
+            // ── Forcer la priorité haute pour éliminer les micro-saccades Windows ──
+            try
+            {
+                using (var currentProcess = System.Diagnostics.Process.GetCurrentProcess())
+                {
+                    // On passe en priorité haute pour garantir la synchronisation thread UI / Render
+                    currentProcess.PriorityClass = System.Diagnostics.ProcessPriorityClass.High;
+                }
+            }
+            catch
+            {
+                // Sécurité au cas où Windows refuserait le changement de priorité
+            }
+
             InitializeComponent();
             _context = context;
             _imagePath = imagePath;
@@ -259,16 +277,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             if (_context != null) _context.BlocageShowCaption = true;
 
-            if (e.MiddleButton == MouseButtonState.Pressed) Window.GetWindow(this)?.Close();  // Clic molette → fermer le panneau (fonctionnalité perdue de l'assembly principal)
+            if (e.MiddleButton == MouseButtonState.Pressed) Window.GetWindow(this)?.Close();
 
             if (e.LeftButton != MouseButtonState.Pressed) return;
 
             if (_autoRotState != AutoRotationState.Off)
             {
-                // Si l'autorotation est active, on la désactive au clic pour
-                // donner le contrôle à l'utilisateur.
+                // Si l'autorotation est active, on la désactive et on arrête le chrono
                 _autoRotState = AutoRotationState.Off;
                 btnAutoRotate.Content = "⏸ Off";
+                _autoRotateStopwatch.Stop();
             }
 
             _isMouseDown = true;
@@ -277,7 +295,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _lastMouseY = _startMouseY = pos.Y;
             Mouse.Capture(this);
 
-            // Signale le début d'un mouvement (pour le fondu de la barre)
             MarquerMouvement();
         }
 
@@ -327,6 +344,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             double elapsed = (args.RenderingTime - _lastRenderTime).TotalSeconds;
             _lastRenderTime = args.RenderingTime;
 
+            // --- LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
+            // pour forcer un rythme de 60 FPS maximum (1 frame toutes les ~16ms) ---
+            if (elapsed < 0.016) return;
+
+            _lastRenderTime = args.RenderingTime;
+
             // Protection contre les délais aberrants (ex. : fenêtre minimisée)
             if (elapsed > 0.1) return;
 
@@ -343,23 +366,23 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 ClampVertical(_verticalRotation.Angle - speedY);
             }
 
-            // ── Autorotation ───────────────────────────────────────────────
-            // Si l'autorotation est active ET que l'utilisateur ne navigue pas
-            // manuellement, on fait tourner la sphère en continu.
+            // ── Autorotation (Solution Haute Précision) ────────────────────
             if (_autoRotState != AutoRotationState.Off && !_isMouseDown)
             {
-                // Calcule la vitesse angulaire en degrés/seconde :
-                //   360° ÷ durée_d_un_tour
                 double secondsPerTurn = (_autoRotState == AutoRotationState.Rapide)
                     ? AutoRotateFastSeconds
                     : AutoRotateSlowSeconds;
 
-                double degreesPerSecond = 360.0 / secondsPerTurn;
+                // Calcul mathématique rigide basé sur le temps total du chrono
+                double tempsTotalEcoule = _autoRotateStopwatch.Elapsed.TotalSeconds;
+                double nouvelAngle = _angleAuDemarrage + (360.0 * (tempsTotalEcoule / secondsPerTurn));
 
-                _horizontalRotation.Angle += degreesPerSecond * elapsed;
+                // On applique l'angle parfait (le % 360 évite que le chiffre grandisse à l'infini)
+                _horizontalRotation.Angle = nouvelAngle % 360;
 
                 MarquerMouvement(); // Indique à la boucle que l'autorotation compte comme un mouvement
             }
+
             // APPPEL DE NOTRE MÉTHODE DE GESTION DE LA BARRE
             UpdateBarreOpacity();
         }
@@ -385,24 +408,29 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 case AutoRotationState.Off:
                     _autoRotState = AutoRotationState.Lent;
                     btnAutoRotate.Content = "🐢 Lent";
-                    break;
 
-                case AutoRotationState.Rapide:
-                    _autoRotState = AutoRotationState.Off;
-                    btnAutoRotate.Content = "⏸ Off";
+                    // On mémorise l'angle actuel et on démarre le chrono
+                    _angleAuDemarrage = _horizontalRotation.Angle;
+                    _autoRotateStopwatch.Restart();
                     break;
 
                 case AutoRotationState.Lent:
                     _autoRotState = AutoRotationState.Rapide;
                     btnAutoRotate.Content = "⏩ Rapide";
-                    break;
-            }
 
-            // Si on vient de désactiver l'autorotation, on note que le mouvement
-            // vient de s'arrêter pour déclencher la temporisation de réapparition.
-            if (_autoRotState == AutoRotationState.Off)
-            {
-                _lastMovementTime = DateTime.Now;
+                    // On mémorise le nouvel angle et on réinitialise le chrono
+                    _angleAuDemarrage = _horizontalRotation.Angle;
+                    _autoRotateStopwatch.Restart();
+                    break;
+
+                case AutoRotationState.Rapide:
+                    _autoRotState = AutoRotationState.Off;
+                    btnAutoRotate.Content = "⏸ Off";
+
+                    // On arrête le chrono
+                    _autoRotateStopwatch.Stop();
+                    _lastMovementTime = DateTime.Now;
+                    break;
             }
         }
 
@@ -556,6 +584,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 TileMode = TileMode.FlipX,
                 Stretch = Stretch.Fill
             };
+
+            // Force un filtrage fluide et matériel de la texture (dernière modifi de gemini, peut-etre pas utile)
+            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.Linear);
 
             return new DiffuseMaterial(brush);
         }
