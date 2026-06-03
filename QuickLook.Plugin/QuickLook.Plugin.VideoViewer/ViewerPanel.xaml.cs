@@ -40,7 +40,7 @@ using System.Windows.Threading;
 using UtfUnknown;
 using WPFMediaKit.DirectShow.Controls;
 using WPFMediaKit.DirectShow.MediaPlayers;
-using Newtonsoft.Json;  // GUILLAUME: Ajout de Newtonsoft.Json pour la sérialisation/désérialisation des paramètres personnalisés de l'utilisateur dans un fichier JSON.
+using Newtonsoft.Json;  // Ajout G47S53: Ajout de Newtonsoft.Json pour la sérialisation/désérialisation des paramètres personnalisés de l'utilisateur dans un fichier JSON.
 
 namespace QuickLook.Plugin.VideoViewer;
 
@@ -58,17 +58,17 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
     private bool _shouldLoop;
     private bool _useHardwareAcceleration;
 
-    // Guillaume: Ajout d'une configuration, avec persistance dans un fichier JSON, pour la molette de défilement et l'auto-fermeture à la fin de la vidéo.
+    // Ajout G47S53: Ajout d'une configuration, avec persistance dans un fichier JSON, pour la molette de défilement et l'auto-fermeture à la fin de la vidéo.
     private readonly string configPath = Path.Combine(
                                          Environment.GetFolderPath(
                                          Environment.SpecialFolder.ApplicationData),
                                          "QuickLook",
                                          "VideoViewerSettings.json");
     
-    // Guillaume: Ajout d'un objet de settings pour stocker les configurations personnalisées de l'utilisateur, avec sérialisation/désérialisation JSON.
+    // Ajout G47S53: Ajout d'un objet de settings pour stocker les configurations personnalisées de l'utilisateur, avec sérialisation/désérialisation JSON.
     private VideoViewerSettings settings;
 
-    // Guillaume: Ajout d'une propriété pour activer/désactiver l'auto-fermeture à la fin de la vidéo, avec mise à jour de l'interface utilisateur en conséquence.
+    // Ajout G47S53: Ajout d'une propriété pour activer/désactiver l'auto-fermeture à la fin de la vidéo, avec mise à jour de l'interface utilisateur en conséquence.
     public bool AutoCloseEnabled;
 
     public ViewerPanel(ContextObject context)
@@ -112,13 +112,13 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         buttonMute.Click += (_, _) => volumeSliderLayer.Visibility = Visibility.Visible;
         volumeSliderLayer.MouseDown += (_, _) => volumeSliderLayer.Visibility = Visibility.Collapsed;
 
-        // Guillaume: Chargement des paramètres personnalisés de l'utilisateur depuis un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème de lecture ou de format.
+        // Ajout G47S53: Chargement des paramètres personnalisés de l'utilisateur depuis un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème de lecture ou de format.
         LoadSettings();
 
-        // Guillaume: Attribution de la commande de changement de mode de seek à la fois au clic sur le bouton dédié de l'interface et à la molette de la souris, avec mise à jour de l'interface utilisateur et persistance du choix dans les paramètres.
+        // Ajout G47S53: Attribution de la commande de changement de mode de seek à la fois au clic sur le bouton dédié de l'interface et à la molette de la souris, avec mise à jour de l'interface utilisateur et persistance du choix dans les paramètres.
         buttonSeekMode.Click += ButtonSeekMode_Click;
 
-        // Guillaume: Attribution de la commande d'activation/désactivation de l'auto-fermeture à la fin de la vidéo au clic sur le bouton dédié de l'interface, avec mise à jour de l'interface utilisateur et persistance du choix dans les paramètres.
+        // Ajout G47S53: Attribution de la commande d'activation/désactivation de l'auto-fermeture à la fin de la vidéo au clic sur le bouton dédié de l'interface, avec mise à jour de l'interface utilisateur et persistance du choix dans les paramètres.
         buttonAutoClose.Click += (_, _) =>
         {
             AutoCloseEnabled = !AutoCloseEnabled;
@@ -129,7 +129,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             SaveSettings();
         };
 
-        // Guillaume: Ajout de la gestion du clic gauche sur la vidéo pour basculer entre lecture et pause, avec affichage d'une info-bulle indiquant le temps actuel et la durée totale de la vidéo lors de la pause.
+        // Ajout G47S53: Ajout de la gestion du clic gauche sur la vidéo pour basculer entre lecture et pause, avec affichage d'une info-bulle indiquant le temps actuel et la durée totale de la vidéo lors de la pause.
         mediaElement.MouseLeftButtonDown += (_, e) =>
         {
             if (mediaElement.IsPlaying)
@@ -145,7 +145,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             e.Handled = true;
         };
 
-        // Guillaume: Ajout de la gestion du clic et du glissement sur la barre de progression pour permettre à l'utilisateur de naviguer dans la vidéo, avec mise en pause pendant le glissement et reprise de la lecture à la fin du glissement si la vidéo était en cours de lecture.
+        // Ajout G47S53: Ajout de la gestion du clic et du glissement sur la barre de progression pour permettre à l'utilisateur de naviguer dans la vidéo, avec mise en pause pendant le glissement et reprise de la lecture à la fin du glissement si la vidéo était en cours de lecture.
         sliderProgress.PreviewMouseDown += (_, e) =>
         {
             _wasPlaying = mediaElement.IsPlaying;
@@ -177,10 +177,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             e.Handled = true;
         };
 
-        // Guillaume: Lignes ci-dessous commentée pour éviter les conflits avec la commande de changement de mode de seek attribuée à la molette de la souris.
+        // Ajout G47S53: Lignes ci-dessous commentée pour éviter les conflits avec la commande de changement de mode de seek attribuée à la molette de la souris.
         //PreviewMouseWheel += (_, e) => ChangeVolume(e.Delta / 120d * 0.04d);
 
-        // Guillaume: Ajout de la gestion de la molette de la souris pour permettre à l'utilisateur de naviguer dans la vidéo en fonction du mode de seek sélectionné (5% de la durée totale, 1 seconde ou 5 secondes), avec mise à jour de l'interface utilisateur pour afficher le temps actuel et la durée totale lors du changement de position, et fermeture automatique de la fenêtre si l'option est activée et que la fin de la vidéo est atteinte.
+        // Ajout G47S53: Ajout de la gestion de la molette de la souris pour permettre à l'utilisateur de naviguer dans la vidéo en fonction du mode de seek sélectionné (5% de la durée totale, 1 seconde ou 5 secondes), avec mise à jour de l'interface utilisateur pour afficher le temps actuel et la durée totale lors du changement de position, et fermeture automatique de la fenêtre si l'option est activée et que la fin de la vidéo est atteinte.
         PreviewMouseWheel += (_, e) =>
         {
             if (mediaElement == null)
@@ -224,9 +224,11 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
             e.Handled = true;
         };
+        // Ajout G47S53: Clic droit → bascule plein écran
+        MouseRightButtonUp += (s, e) => ToggleFullscreen();
     }
 
-    // Guillaume: Ajout d'une méthode pour charger les paramètres personnalisés de l'utilisateur depuis un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème de lecture ou de format, et mise à jour de l'interface utilisateur en conséquence.
+    // Ajout G47S53: Ajout d'une méthode pour charger les paramètres personnalisés de l'utilisateur depuis un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème de lecture ou de format, et mise à jour de l'interface utilisateur en conséquence.
     private void LoadSettings()
     {
         try
@@ -254,7 +256,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         }
     }
 
-    // Guillaume: Ajout d'une méthode pour sauvegarder les paramètres personnalisés de l'utilisateur dans un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème d'écriture.
+    // Ajout G47S53: Ajout d'une méthode pour sauvegarder les paramètres personnalisés de l'utilisateur dans un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème d'écriture.
     private void SaveSettings()
     {
         try
@@ -276,16 +278,16 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         }
     }
 
-    // Guillaume: Ajout d'un champ pour stocker le mode de seek sélectionné par l'utilisateur (0 pour 5% de la durée totale, 1 pour 1 seconde, 2 pour 5 secondes).
+    // Ajout G47S53: Ajout d'un champ pour stocker le mode de seek sélectionné par l'utilisateur (0 pour 5% de la durée totale, 1 pour 1 seconde, 2 pour 5 secondes).
     private int seekMode = 0;
 
-    // Guillaume: Ajout d'une méthode pour gérer le clic sur le bouton de changement de mode de seek.
+    // Ajout G47S53: Ajout d'une méthode pour gérer le clic sur le bouton de changement de mode de seek.
     private void ButtonSeekMode_Click(object sender, RoutedEventArgs e)
     {
         CycleSeekMode();
     }
 
-    // Guillaume: Ajout d'une méthode pour faire défiler les modes de seek disponibles (5% de la durée totale, 1 seconde, 5 secondes) à chaque appel.
+    // Ajout G47S53: Ajout d'une méthode pour faire défiler les modes de seek disponibles (5% de la durée totale, 1 seconde, 5 secondes) à chaque appel.
     private void CycleSeekMode()
     {
         seekMode++;
@@ -300,14 +302,14 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         SaveSettings();
     }
 
-    // Guillaume: Ajout d'une méthode pour mettre à jour l'interface utilisateur en fonction de l'état de l'option d'auto-fermeture à la fin de la vidéo, en modifiant l'opacité du bouton dédié et en ajoutant une décoration de texte barré au label associé lorsque l'option est désactivée.
+    // Ajout G47S53: Ajout d'une méthode pour mettre à jour l'interface utilisateur en fonction de l'état de l'option d'auto-fermeture à la fin de la vidéo, en modifiant l'opacité du bouton dédié et en ajoutant une décoration de texte barré au label associé lorsque l'option est désactivée.
     private void UpdateAutoCloseUI()
     {
         buttonAutoClose.Opacity = AutoCloseEnabled ? 1d : 0.5d;
         textAutoClose.TextDecorations = AutoCloseEnabled ? null : TextDecorations.Strikethrough;
     }
 
-    // Guillaume: Ajout d'une méthode pour mettre à jour l'interface utilisateur en fonction du mode de seek sélectionné.
+    // Ajout G47S53: Ajout d'une méthode pour mettre à jour l'interface utilisateur en fonction du mode de seek sélectionné.
     private void UpdateSeekModeUI()
     {
         switch (seekMode)
@@ -327,7 +329,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         }
     }
 
-    // Guillaume: Ajout d'une méthode pour mettre à jour silencieusement l'interface utilisateur en fonction du mode de seek sélectionné, sans afficher d'info-bulle.
+    // Ajout G47S53: Ajout d'une méthode pour mettre à jour silencieusement l'interface utilisateur en fonction du mode de seek sélectionné, sans afficher d'info-bulle.
     // Utile pour le chargement initial des paramètres sans afficher d'info-bulle inutile.
     private void UpdateSeekModeUISilencieux()
     {
@@ -345,7 +347,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         }
     }
 
-    // Guillaume: Ajout d'une méthode pour afficher une info-bulle au centre de la vidéo avec un texte personnalisé.
+    // Ajout G47S53: Ajout d'une méthode pour afficher une info-bulle au centre de la vidéo avec un texte personnalisé.
     private void ShowVideoInfo(string text)
     {
         videoInfoText.Text = text;
@@ -356,7 +358,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         storyboard.Begin();
     }
 
-    // Guillaume: Ajout d'une classe pour stocker les paramètres personnalisés de l'utilisateur.
+    // Ajout G47S53: Ajout d'une classe pour stocker les paramètres personnalisés de l'utilisateur.
     public class VideoViewerSettings
     {
         public bool CloseWhenFinished { get; set; } = false;
@@ -463,7 +465,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             wnd?.DragMove();
         }
 
-        // GUILLAUME: Utilisation de la molette de la souris pour changer le mode de seek (5%, 1s, 5s)
+        // Ajout G47S53: Utilisation de la molette de la souris pour changer le mode de seek (5%, 1s, 5s)
         // La commande est annulée pour éviter les conflits avec la  commande générale de fermeture de l'application
 
         /*if (e.ChangedButton == MouseButton.Middle)
@@ -516,7 +518,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
             mediaElement.Pause();
 
-            // GUILLAUME: Ferme la fenêtre si l'option Autoclose est activée et que la vidéo est arrivée à sa fin.
+            // Ajout G47S53: Ferme la fenêtre si l'option Autoclose est activée et que la vidéo est arrivée à sa fin.
             if (AutoCloseEnabled)
                 Window.GetWindow(this)?.Close();
         }
@@ -701,7 +703,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             {
                 // No source loaded yet – just store the flag for the next Open
 
-                // GUILLAUME: Lignes ci-dessous commentée pour éviter une exception de cross-threading, car le player n'est pas encore initialisé et ne peut pas recevoir d'invocation.
+                // Ajout G47S53: Lignes ci-dessous commentée pour éviter une exception de cross-threading, car le player n'est pas encore initialisé et ne peut pas recevoir d'invocation.
                 
                 /*player.Dispatcher.BeginInvoke(() =>
                 //    player.EnableLAVHardwareAcceleration = enable);*/
@@ -760,5 +762,25 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
     protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+    // ─────────────────────────────────────────────────────────────────────
+    // Bascule plein écran (G47S53)
+    // ─────────────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Invoque la méthode ToggleFullscreen() de la fenêtre parente par
+    /// réflexion, car elle n'est pas exposée dans une interface publique.
+    /// </summary>
+    private void ToggleFullscreen()
+    {
+        var window = Window.GetWindow(this);
+        if (window == null) return;
+
+        var method = window.GetType().GetMethod(
+            "ToggleFullscreen",
+            System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.Public |
+            System.Reflection.BindingFlags.NonPublic);
+
+        method?.Invoke(window, null);
     }
 }

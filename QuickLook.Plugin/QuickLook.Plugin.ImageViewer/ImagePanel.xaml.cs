@@ -97,7 +97,7 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         viewPanel.ManipulationStarting += ViewPanel_ManipulationStarting;
         viewPanel.ManipulationDelta += ViewPanel_ManipulationDelta;
 
-        // Guillaume: J'ai ajouté ce code pour permettre de basculer en plein écran en cliquant avec le bouton droit de la souris.
+        // Ajout G47S53: J'ai ajouté ce code pour permettre de basculer en plein écran en cliquant avec le bouton droit de la souris.
         MouseRightButtonUp += (s, e) =>
         {
             ToggleFullscreen();
@@ -661,7 +661,7 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         var hide = (Storyboard)buttonsContainer.FindResource("HideButtonsStoryboard");
         hide.Begin();
     }
-    // Guillaume: J'ai ajouté ce code pour permettre de basculer en plein écran.
+    // Ajout G47S53: J'ai ajouté ce code pour permettre de basculer en plein écran.
     private void ToggleFullscreen()
     {
         var window = Window.GetWindow(this);

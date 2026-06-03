@@ -16,7 +16,7 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 // ═══════════════════════════════════════════════════════════════════════════
-// RÉSUMÉ DES MODIFICATIONS (Guillaume)
+// RÉSUMÉ DES MODIFICATIONS (G47S53)
 // ───────────────────────────────────────────────────────────────────────────
 // 1. AUTOROTATION (3 états : Off / Lent / Rapide)
 //    - Enum AutoRotationState avec les 3 valeurs.
@@ -54,6 +54,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 {
     public partial class Pano360Panel : UserControl, IDisposable
     {
+        #region Constantes et Déclarations de champs
+
         // ─────────────────────────────────────────────────────────────────────
         // Constantes — paramètres de la sphère et de la navigation
         // ─────────────────────────────────────────────────────────────────────
@@ -140,11 +142,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // Sert à détecter le passage repos ↔ mouvement sans heuristique trop lourde.
         private bool _isMoving = false;
 
+        private bool _isBarreFadeOutActive = false;
+        private bool _isBarreMasquee = false;
+        private bool _isMouseOverBarre = false;
+
         // ─────────────────────────────────────────────────────────────────────
         // Référence au contexte QuickLook et au chemin du fichier image
         // ─────────────────────────────────────────────────────────────────────
         private readonly QuickLook.Common.Plugin.ContextObject _context;
         private readonly string _imagePath;
+
+        #endregion
 
         // ─────────────────────────────────────────────────────────────────────
         // Constructeur
@@ -159,7 +167,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             Loaded += (s, e) => InitScene();
             Unloaded += (s, e) => Dispose();
 
-            // Clic droit → bascule plein écran (fonctionnalité Guillaume originale)
+            // Clic droit → bascule plein écran
             MouseRightButtonUp += (s, e) => ToggleFullscreen();
         }
 
@@ -249,7 +257,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void OnMouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (_context != null) _context.IsPluginInteracting = true;
+            if (_context != null) _context.BlocageShowCaption = true;
 
             if (e.MiddleButton == MouseButtonState.Pressed) Window.GetWindow(this)?.Close();  // Clic molette → fermer le panneau (fonctionnalité perdue de l'assembly principal)
 
@@ -275,7 +283,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private void OnMouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (_context != null) _context.IsPluginInteracting = false;
+            if (_context != null) _context.BlocageShowCaption = false;
 
             _isMouseDown = false;
             Mouse.Capture(null);
@@ -350,71 +358,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 _horizontalRotation.Angle += degreesPerSecond * elapsed;
 
-                // L'autorotation est un mouvement continu : on met à jour l'horodatage
-                MarquerMouvement();
+                MarquerMouvement(); // Indique à la boucle que l'autorotation compte comme un mouvement
             }
-
-            // ── Mise à jour de l'opacité de la barre de boutons ───────────
-            UpdateBarreOpacity(elapsed);
+            // APPPEL DE NOTRE MÉTHODE DE GESTION DE LA BARRE
+            UpdateBarreOpacity();
         }
-
-        // ─────────────────────────────────────────────────────────────────────
-        // OPACITÉ PROGRESSIVE — cœur de la logique d'effacement/réapparition
-        // ─────────────────────────────────────────────────────────────────────
-        /// <summary>
-        /// Appelée à chaque frame. Calcule si le panorama est en mouvement
-        /// et ajuste progressivement l'opacité de la barre de boutons.
-        ///
-        /// Logique :
-        ///   • Mouvement en cours  → fondu vers OpacityMin  (barre discrète)
-        ///   • Repos depuis > InactivityDelay s → fondu vers OpacityFull (barre visible)
-        ///
-        /// Le fondu est proportionnel au temps écoulé (elapsed) * FadeSpeed,
-        /// ce qui donne une transition fluide indépendante du taux de rafraîchissement.
-        /// </summary>
-        private void UpdateBarreOpacity(double elapsed)
-        {
-            double timeSinceLastMove = (DateTime.Now - _lastMovementTime).TotalSeconds;
-
-            // Détermine si l'on est actuellement "en mouvement"
-            bool movingNow = _isMouseDown
-                          || _autoRotState != AutoRotationState.Off
-                          || _spaceMouseEnabled;  // SpaceMouse peut bouger à tout moment
-
-            double targetOpacity;
-
-            if (movingNow || timeSinceLastMove < InactivityDelay)
-            {
-                // Mouvement actif (ou encore dans la fenêtre d'inactivité) → on cache
-                targetOpacity = OpacityMin;
-            }
-            else
-            {
-                // Repos prolongé → on réaffiche
-                targetOpacity = OpacityFull;
-            }
-
-            // Interpolation linéaire vers la cible (Lerp)
-            // Math.Sign(…) donne la direction, Math.Min(…) évite de dépasser la cible
-            double current = barreBtn.Opacity;
-            double diff = targetOpacity - current;
-
-            if (Math.Abs(diff) > 0.005)   // Seuil pour éviter les micro-oscillations
-            {
-                double step = FadeSpeed * elapsed;
-                // On avance vers la cible sans la dépasser
-                barreBtn.Opacity = current + Math.Sign(diff) * Math.Min(Math.Abs(diff), step);
-            }
-            else
-            {
-                barreBtn.Opacity = targetOpacity;
-            }
-        }
-
-        /// <summary>
         /// Méthode utilitaire : note l'heure courante comme "dernier mouvement détecté".
         /// À appeler dès qu'une action de navigation est détectée.
-        /// </summary>
         private void MarquerMouvement()
         {
             _lastMovementTime = DateTime.Now;
@@ -423,12 +373,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // BOUTON AUTOROTATION — cycle entre les 3 états
         // ─────────────────────────────────────────────────────────────────────
-        /// <summary>
         /// Gestionnaire du clic sur le bouton "AutoRotate".
         /// À chaque clic, l'état avance dans le cycle :
         ///   Off  →  Lent  →  Rapide  →  Off  → …
         /// Le libellé du bouton est mis à jour pour refléter l'état courant.
-        /// </summary>
         private void BtnAutoRotate_Click(object sender, RoutedEventArgs e)
         {
             // Passage à l'état suivant dans le cycle
@@ -623,7 +571,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // Bascule plein écran (Guillaume)
+        // Bascule plein écran (G47S53)
         // ─────────────────────────────────────────────────────────────────────
         /// <summary>
         /// Invoque la méthode ToggleFullscreen() de la fenêtre parente par
@@ -642,6 +590,57 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             method?.Invoke(window, null);
         }
+        private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
+        {
+            _isMouseOverBarre = true;
+            UpdateBarreOpacity(); // Force la réapparition immédiate
+        }
 
+        private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
+        {
+            _isMouseOverBarre = false;
+            // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
+            // MarquerMouvement();
+        }
+        private void UpdateBarreOpacity()
+        {
+            // Si la souris est physiquement au-dessus de la barre, on la force visible
+            if (_isMouseOverBarre)
+            {
+                if (_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    _isBarreMasquee = false;
+                }
+                return;
+            }
+
+            // Détermination si le panorama est considéré "en mouvement"
+            // 1. Soit la souris est enfoncée (drag)
+            // 2. Soit l'autorotation est active
+            // 3. Soit le dernier mouvement enregistré est plus récent que le délai d'inactivité
+            bool isActuellementEnMouvement = _isMouseDown ||
+                                             (_autoRotState != AutoRotationState.Off) ||
+                                             (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
+
+            if (isActuellementEnMouvement)
+            {
+                // Le panorama bouge : on applique le fondu transparent (FadeOut)
+                if (!_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    _isBarreMasquee = true;
+                }
+            }
+            else
+            {
+                // Le panorama est à l'arrêt complet depuis un moment : on réaffiche (FadeIn)
+                if (_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    _isBarreMasquee = false;
+                }
+            }
+        }
     }
 }

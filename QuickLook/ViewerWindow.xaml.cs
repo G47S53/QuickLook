@@ -49,7 +49,7 @@ public partial class ViewerWindow : Window
     private FileSystemWatcher _autoReloadWatcher;
     private readonly bool _autoReload;
 
-    // Guillaume: cette propriété est utilisée pour indiquer que le plugin est en train d'interagir avec l'utilisateur.
+    // Ajout G47S53: cette propriété est utilisée pour indiquer que le plugin est en train d'interagir avec l'utilisateur.
     //private ContextObject _context;
 
     internal ViewerWindow()
@@ -81,7 +81,7 @@ public partial class ViewerWindow : Window
 
         ShowInTaskbar = SettingHelper.Get("ShowInTaskbar", false);
 
-        // --                 Modification Guillaume                   --
+        // --                 Modification G47S53                      --
         // -- Ajout d'actions aux boutons droit et milieu de la souris --
         MouseDown += (sender, e) =>
         {
@@ -92,7 +92,7 @@ public partial class ViewerWindow : Window
                 this.ToggleFullscreen();
             }*/
         };
-        // --           Fin de la modification Guillaume               --
+        // --           Fin de la modification G47S53                  --
 
         Deactivated += (_, _) =>
         {
@@ -482,9 +482,10 @@ public partial class ViewerWindow : Window
 
     private void ShowWindowCaptionContainer(object sender, MouseEventArgs e)
     {
+        
+        // Modification G47S52: Permet de bloquer l'affichage de la barre haute
         // Si le plugin dit qu'il est en train d'interagir, on bloque !
-
-        if (ContextObject?.IsPluginInteracting == true)
+        if (ContextObject?.BlocageShowCaption == true)
         {
             return;
         }
