@@ -188,9 +188,9 @@
                     <!-- ── Bouton AUTOROTATION (3 états) ─────────────────── -->
                     <!--
                         Ce bouton cycle entre 3 états à chaque clic :
-                          Off  →  Rapide  →  Lent  →  Off  → …
+                          Off  →  Lent  → Normal →  Rapide  →  Off  → …
                         
-                        Le texte affiché ("⏸ Off", "🐢 Lent", "⏩ Rapide") est
+                        Le texte affiché ("⏸ Off", "🐢 Lent", ," normal", "⏩ Rapide") est
                         mis à jour dans BtnAutoRotate_Click() dans le code-behind.
                         
                         x:Name="btnAutoRotate" est référencé dans le code-behind.
@@ -202,7 +202,7 @@
                         Foreground="White"
                         Width="105"
                         Cursor="Hand"
-                        ToolTip="Autorotation : Off → Lent → Rapide → Off"
+                        ToolTip="Autorotation : Off → Lent → Normal → Rapide → Off"
                         Click="BtnAutoRotate_Click">
                         <Button.Style>
                             <Style TargetType="Button">

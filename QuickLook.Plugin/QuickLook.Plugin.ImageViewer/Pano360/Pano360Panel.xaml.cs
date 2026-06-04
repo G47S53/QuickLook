@@ -18,8 +18,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // RÉSUMÉ DES MODIFICATIONS (G47S53)
 // ───────────────────────────────────────────────────────────────────────────
-// 1. AUTOROTATION (3 états : Off / Lent / Rapide)
-//    - Enum AutoRotationState avec les 3 valeurs.
+// 1. AUTOROTATION (4 états : Off / Lent / Normal / Rapide)
+//    - Enum AutoRotationState avec les 4 valeurs.
 //    - Constantes AutoRotateFastSeconds (durée d'un tour complet en mode Rapide)
 //      et AutoRotateSlowSeconds (durée en mode Lent).
 //    - BtnAutoRotate_Click() : cycle les états et met à jour le libellé du bouton.
@@ -39,7 +39,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 using System;
-using System.Threading.Tasks;
+//using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -78,8 +78,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // Durée d'un tour complet (360°) en secondes.
         // Changez ces valeurs pour accélérer ou ralentir chaque mode.
-        private const double AutoRotateFastSeconds = 20.0;  // Tour rapide : 20 s
-        private const double AutoRotateSlowSeconds = 60.0;  // Tour lent   : 60 s
+        private const double AutoRotateFastSeconds = 10.0;   // Tour rapide   : 10 s
+        private const double AutoRotateNormalSeconds = 20.0; // Tour normal   : 20 s
+        private const double AutoRotateSlowSeconds = 60.0;   // Tour lent     : 60 s
 
         // ─────────────────────────────────────────────────────────────────────
         // Opacité progressive de la barre de boutons
@@ -114,12 +115,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // Autorotation
         // ─────────────────────────────────────────────────────────────────────
-
-        /// <summary>
         /// Énumération des 3 états possibles pour l'autorotation.
-        /// L'ordre définit le cycle : Off → Lent → Rapide → Off → …
-        /// </summary>
-        private enum AutoRotationState { Off, Lent, Rapide }
+        /// L'ordre définit le cycle : Off → Lent → Normal → Rapide → Off → …
+
+        private enum AutoRotationState { Off, Lent, Normal, Rapide }
 
         // État courant de l'autorotation (commence arrêté).
         private AutoRotationState _autoRotState = AutoRotationState.Off;
@@ -177,6 +176,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Clic droit → bascule plein écran
             MouseRightButtonUp += (s, e) => ToggleFullscreen();
+            
+            //Active la spacemouse par défaut
+            btnSpaceMouse.IsChecked = true;
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -330,13 +332,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             var args = (RenderingEventArgs)e;
             double elapsed = (args.RenderingTime - _lastRenderTime).TotalSeconds;
+            
             _lastRenderTime = args.RenderingTime;
 
             // --- LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
             // pour forcer un rythme de 60 FPS maximum (1 frame toutes les ~16ms) ---
             if (elapsed < 0.016) return;
-
-            _lastRenderTime = args.RenderingTime;
 
             // Protection contre les délais aberrants (ex. : fenêtre minimisée)
             if (elapsed > 0.1) return;
@@ -357,9 +358,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // ── Autorotation (Solution Haute Précision) ────────────────────
             if (_autoRotState != AutoRotationState.Off && !_isMouseDown)
             {
-                double secondsPerTurn = (_autoRotState == AutoRotationState.Rapide)
-                    ? AutoRotateFastSeconds
-                    : AutoRotateSlowSeconds;
+                double secondsPerTurn;
+
+                if (_autoRotState == AutoRotationState.Lent)
+                    secondsPerTurn = AutoRotateSlowSeconds;
+                else if (_autoRotState == AutoRotationState.Normal)
+                    secondsPerTurn = AutoRotateNormalSeconds;
+                else // Rapide
+                    secondsPerTurn = AutoRotateFastSeconds;
 
                 // Calcul mathématique rigide basé sur le temps total du chrono
                 double tempsTotalEcoule = _autoRotateStopwatch.Elapsed.TotalSeconds;
@@ -368,7 +374,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // On applique l'angle parfait (le % 360 évite que le chiffre grandisse à l'infini)
                 _horizontalRotation.Angle = nouvelAngle % 360;
 
-                if (_context != null) _context.BlocageShowCaption = true;
+                if (_context != null && !_context.BlocageShowCaption)
+                {
+                    _context.BlocageShowCaption = true;
+                }
 
                 MarquerMouvement(); // Indique à la boucle que l'autorotation compte comme un mouvement
             }
@@ -405,8 +414,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     break;
 
                 case AutoRotationState.Lent:
+                    _autoRotState = AutoRotationState.Normal;
+                    btnAutoRotate.Content = "▶️ Normal";
+
+                    // On mémorise le nouvel angle et on réinitialise le chrono
+                    _angleAuDemarrage = _horizontalRotation.Angle;
+                    _autoRotateStopwatch.Restart();
+                    break;
+
+                case AutoRotationState.Normal:
                     _autoRotState = AutoRotationState.Rapide;
-                    btnAutoRotate.Content = "⏩ Rapide";
+                    btnAutoRotate.Content = "▶️▶️ Rapide";
 
                     // On mémorise le nouvel angle et on réinitialise le chrono
                     _angleAuDemarrage = _horizontalRotation.Angle;
