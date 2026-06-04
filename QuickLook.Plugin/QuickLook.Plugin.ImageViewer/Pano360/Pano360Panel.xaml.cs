@@ -69,13 +69,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private const double MouseSensitivity = 1.0;
         private const double MouseDeadZone = 5.0;
-        private const double KeyRotationDelta = 2.0;
 
         private const double VerticalAngleMin = -90.0;
         private const double VerticalAngleMax = 45.0;
 
         // ─────────────────────────────────────────────────────────────────────
-        // NOUVELLES CONSTANTES — Autorotation
+        // Autorotation
         // ─────────────────────────────────────────────────────────────────────
         // Durée d'un tour complet (360°) en secondes.
         // Changez ces valeurs pour accélérer ou ralentir chaque mode.
@@ -83,17 +82,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double AutoRotateSlowSeconds = 60.0;  // Tour lent   : 60 s
 
         // ─────────────────────────────────────────────────────────────────────
-        // NOUVELLES CONSTANTES — Opacité progressive de la barre de boutons
+        // Opacité progressive de la barre de boutons
         // ─────────────────────────────────────────────────────────────────────
-        // Opacité cible quand le panorama EST en mouvement (presque invisible).
-        private const double OpacityMin = 0.15;
-        // Opacité cible quand le panorama est au REPOS (pleinement visible).
-        private const double OpacityFull = 1.0;
         // Délai d'inactivité (en secondes) avant de réafficher les boutons.
         private const double InactivityDelay = 0.5;
-        // Vitesse du fondu (en unités d'opacité par seconde).
-        // Plus la valeur est grande, plus la transition est rapide.
-        private const double FadeSpeed = 2.5;
 
         // ─────────────────────────────────────────────────────────────────────
         // Champs 3D
@@ -144,9 +136,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         // Indique si un mouvement était actif au frame précédent.
         // Sert à détecter le passage repos ↔ mouvement sans heuristique trop lourde.
-        private bool _isMoving = false;
 
-        private bool _isBarreFadeOutActive = false;
         private bool _isBarreMasquee = false;
         private bool _isMouseOverBarre = false;
 
@@ -304,8 +294,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             _isMouseDown = false;
             Mouse.Capture(null);
-            // Pas besoin de changer l'opacité ici ; UpdateBarreOpacity() le fera
-            // automatiquement après InactivityDelay secondes sans mouvement.
         }
 
         private void OnMouseMove(object sender, MouseEventArgs e)
@@ -327,7 +315,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _camera.FieldOfView = newFov;
             txtFov.Text = string.Format("(FOV: {0:F0}°)", newFov);
             
-            // 2. On récupère et on lance l'animation XAML
+            // On lance l'animation XAML
             if (txtFov.Resources["FadeFovStoryboard"] is Storyboard sb)
             {
                 // On applique le storyboard spécifiquement sur le txtFov
@@ -379,6 +367,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 // On applique l'angle parfait (le % 360 évite que le chiffre grandisse à l'infini)
                 _horizontalRotation.Angle = nouvelAngle % 360;
+
+                if (_context != null) _context.BlocageShowCaption = true;
 
                 MarquerMouvement(); // Indique à la boucle que l'autorotation compte comme un mouvement
             }
@@ -629,9 +619,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
         {
-            _isMouseOverBarre = false;
             // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
-            // MarquerMouvement();
+            _isMouseOverBarre = false;
         }
         private void UpdateBarreOpacity()
         {
