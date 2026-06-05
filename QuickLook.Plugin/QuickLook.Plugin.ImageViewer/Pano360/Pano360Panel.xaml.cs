@@ -15,29 +15,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-// ═══════════════════════════════════════════════════════════════════════════
-// RÉSUMÉ DES MODIFICATIONS (G47S53)
-// ───────────────────────────────────────────────────────────────────────────
-// 1. AUTOROTATION (4 états : Off / Lent / Normal / Rapide)
-//    - Enum AutoRotationState avec les 4 valeurs.
-//    - Constantes AutoRotateFastSeconds (durée d'un tour complet en mode Rapide)
-//      et AutoRotateSlowSeconds (durée en mode Lent).
-//    - BtnAutoRotate_Click() : cycle les états et met à jour le libellé du bouton.
-//    - Dans OnRendering() : si une rotation est active, on incrémente
-//      _horizontalRotation.Angle proportionnellement au temps écoulé.
-//
-// 2. OPACITÉ PROGRESSIVE sur mouvement (remplace barreBtn.Opacity = 0 / 1)
-//    - _lastMovementTime : horodatage de la dernière détection de mouvement.
-//    - _isMoving : indique si le panorama était en mouvement au dernier frame.
-//    - UpdateBarreOpacity() : appelé à chaque frame dans OnRendering().
-//      → Si mouvement détecté → fade-out vers OpacityMin.
-//      → Si repos depuis InactivityDelay secondes → fade-in vers OpacityFull.
-//    - "Mouvement" = souris pressée, autorotation active, ou SpaceMouse actif
-//      avec déplacement détectable.
-//    - Toutes les lignes "barreBtn.Opacity = 0/1" du code original ont été
-//      supprimées ; c'est UpdateBarreOpacity() qui gère tout.
-// ═══════════════════════════════════════════════════════════════════════════
-
 using System;
 //using System.Threading.Tasks;
 using System.Windows;
@@ -57,7 +34,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         #region Constantes et Déclarations de champs
 
         // ─────────────────────────────────────────────────────────────────────
-        // Constantes — paramètres de la sphère et de la navigation
+        // > Constantes — paramètres de la sphère et de la navigation
         // ─────────────────────────────────────────────────────────────────────
         private const int SphereSlices = 72;
         private const int SphereStacks = 36; 
@@ -74,7 +51,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double VerticalAngleMax = 45.0;
 
         // ─────────────────────────────────────────────────────────────────────
-        // Autorotation
+        // > Autorotation
         // ─────────────────────────────────────────────────────────────────────
         // Durée d'un tour complet (360°) en secondes.
         // Changez ces valeurs pour accélérer ou ralentir chaque mode.
@@ -83,20 +60,20 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double AutoRotateSlowSeconds = 60.0;   // Tour lent     : 60 s
 
         // ─────────────────────────────────────────────────────────────────────
-        // Opacité progressive de la barre de boutons
+        // > Opacité progressive de la barre de boutons
         // ─────────────────────────────────────────────────────────────────────
         // Délai d'inactivité (en secondes) avant de réafficher les boutons.
         private const double InactivityDelay = 0.5;
 
         // ─────────────────────────────────────────────────────────────────────
-        // Champs 3D
+        // > Champs 3D
         // ─────────────────────────────────────────────────────────────────────
         private PerspectiveCamera _camera = new PerspectiveCamera();
         private AxisAngleRotation3D _horizontalRotation = new AxisAngleRotation3D();
         private AxisAngleRotation3D _verticalRotation = new AxisAngleRotation3D();
 
         // ─────────────────────────────────────────────────────────────────────
-        // Champs navigation souris
+        // > Champs navigation souris
         // ─────────────────────────────────────────────────────────────────────
         private bool _isMouseDown = false;
         private double _startMouseX;
@@ -106,29 +83,26 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private TimeSpan _lastRenderTime;
 
         // ─────────────────────────────────────────────────────────────────────
-        // Champs SpaceMouse 3Dconnexion
+        // > Champs SpaceMouse 3Dconnexion
         // ─────────────────────────────────────────────────────────────────────
         private Device _smDevice;
         private Sensor _smSensor;
         private bool _spaceMouseEnabled = false;
 
         // ─────────────────────────────────────────────────────────────────────
-        // Autorotation
+        // > Autorotation
         // ─────────────────────────────────────────────────────────────────────
-        /// Énumération des 3 états possibles pour l'autorotation.
-        /// L'ordre définit le cycle : Off → Lent → Normal → Rapide → Off → …
-
         private enum AutoRotationState { Off, Lent, Normal, Rapide }
 
         // État courant de l'autorotation (commence arrêté).
         private AutoRotationState _autoRotState = AutoRotationState.Off;
 
         // ── Variables pour l'autorotation haute précision ───────────────────
-        private System.Diagnostics.Stopwatch _autoRotateStopwatch = new System.Diagnostics.Stopwatch();
+        private System.Diagnostics.Stopwatch _autoRotateStopwatch = new ();
         private double _angleAuDemarrage = 0;
 
         // ─────────────────────────────────────────────────────────────────────
-        // Opacité progressive
+        // > Opacité progressive
         // ─────────────────────────────────────────────────────────────────────
         // Horodatage du dernier mouvement détecté (souris OU autorotation OU SpaceMouse).
         private DateTime _lastMovementTime = DateTime.MinValue;
@@ -140,7 +114,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _isMouseOverBarre = false;
 
         // ─────────────────────────────────────────────────────────────────────
-        // Référence au contexte QuickLook et au chemin du fichier image
+        // > Référence au contexte QuickLook et au chemin du fichier image
         // ─────────────────────────────────────────────────────────────────────
         private readonly QuickLook.Common.Plugin.ContextObject _context;
         private readonly string _imagePath;
@@ -155,11 +129,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // ── Forcer la priorité haute pour éliminer les micro-saccades Windows ──
             try
             {
-                using (var currentProcess = System.Diagnostics.Process.GetCurrentProcess())
-                {
-                    // On passe en priorité haute pour garantir la synchronisation thread UI / Render
-                    currentProcess.PriorityClass = System.Diagnostics.ProcessPriorityClass.High;
-                }
+                using var currentProcess = System.Diagnostics.Process.GetCurrentProcess();
+                // On passe en priorité haute pour garantir la synchronisation thread UI / Render
+                currentProcess.PriorityClass = System.Diagnostics.ProcessPriorityClass.High;
             }
             catch
             {
@@ -176,7 +148,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Clic droit → bascule plein écran
             MouseRightButtonUp += (s, e) => ToggleFullscreen();
-            
+
             //Active la spacemouse par défaut
             btnSpaceMouse.IsChecked = true;
         }
@@ -382,22 +354,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 MarquerMouvement(); // Indique à la boucle que l'autorotation compte comme un mouvement
             }
 
-            // APPPEL DE NOTRE MÉTHODE DE GESTION DE LA BARRE
+            // Gestion de la barre haute
             UpdateBarreOpacity();
         }
-        /// Méthode utilitaire : note l'heure courante comme "dernier mouvement détecté".
-        /// À appeler dès qu'une action de navigation est détectée.
         private void MarquerMouvement()
         {
+            // Note l'heure courante comme "dernier mouvement détecté".
             _lastMovementTime = DateTime.Now;
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // BOUTON AUTOROTATION — cycle entre les 3 états
+        // BOUTON AUTOROTATION — cycle entre les 4 états
         // ─────────────────────────────────────────────────────────────────────
         /// Gestionnaire du clic sur le bouton "AutoRotate".
         /// À chaque clic, l'état avance dans le cycle :
-        ///   Off  →  Lent  →  Rapide  →  Off  → …
+        ///   Off  →  Lent  →  Normal →  Rapide  →  Off  → …
         /// Le libellé du bouton est mis à jour pour refléter l'état courant.
         private void BtnAutoRotate_Click(object sender, RoutedEventArgs e)
         {
@@ -407,36 +378,28 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 case AutoRotationState.Off:
                     _autoRotState = AutoRotationState.Lent;
                     btnAutoRotate.Content = "🐢 Lent";
-
-                    // On mémorise l'angle actuel et on démarre le chrono
-                    _angleAuDemarrage = _horizontalRotation.Angle;
+                    _angleAuDemarrage = _horizontalRotation.Angle;  // On mémorise le nouvel angle et on réinitialise le chrono
                     _autoRotateStopwatch.Restart();
                     break;
 
                 case AutoRotationState.Lent:
                     _autoRotState = AutoRotationState.Normal;
                     btnAutoRotate.Content = "▶️ Normal";
-
-                    // On mémorise le nouvel angle et on réinitialise le chrono
-                    _angleAuDemarrage = _horizontalRotation.Angle;
+                    _angleAuDemarrage = _horizontalRotation.Angle;  // On mémorise le nouvel angle et on réinitialise le chrono
                     _autoRotateStopwatch.Restart();
                     break;
 
                 case AutoRotationState.Normal:
                     _autoRotState = AutoRotationState.Rapide;
                     btnAutoRotate.Content = "▶️▶️ Rapide";
-
-                    // On mémorise le nouvel angle et on réinitialise le chrono
-                    _angleAuDemarrage = _horizontalRotation.Angle;
+                    _angleAuDemarrage = _horizontalRotation.Angle;  // On mémorise le nouvel angle et on réinitialise le chrono
                     _autoRotateStopwatch.Restart();
                     break;
 
                 case AutoRotationState.Rapide:
                     _autoRotState = AutoRotationState.Off;
                     btnAutoRotate.Content = "⏸ Off";
-
-                    // On arrête le chrono
-                    _autoRotateStopwatch.Stop();
+                    _autoRotateStopwatch.Stop();  // On arrête le chrono
                     _lastMovementTime = DateTime.Now;
                     break;
             }
@@ -470,6 +433,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     btnSpaceMouse.IsChecked = false;
                     btnSpaceMouse.IsEnabled = false;
+                    btnSpaceMouse.Foreground = new SolidColorBrush(Colors.Gray); // ToDo: a changer plus tard par un texte barré                   
                     btnSpaceMouse.ToolTip = "SpaceMouse non disponible";
                 });
             }
@@ -493,6 +457,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             double rx = _smSensor.Rotation.X;
             double ry = _smSensor.Rotation.Y;
 
+            // ToDo: A remplacer par quelque chose de plus performant car on observe des saccades
             Dispatcher.Invoke(() =>
             {
                 _horizontalRotation.Angle -= ry;
