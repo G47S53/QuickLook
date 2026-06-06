@@ -433,7 +433,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     btnSpaceMouse.IsChecked = false;
                     btnSpaceMouse.IsEnabled = false;
-                    btnSpaceMouse.Foreground = new SolidColorBrush(Colors.Gray); // ToDo: a changer plus tard par un texte barré                   
+                    btnSpaceMouse.Foreground = new SolidColorBrush(Color.FromRgb(210, 210, 210));
+                    txtSpaceMouse.TextDecorations = TextDecorations.Strikethrough;
                     btnSpaceMouse.ToolTip = "SpaceMouse non disponible";
                 });
             }

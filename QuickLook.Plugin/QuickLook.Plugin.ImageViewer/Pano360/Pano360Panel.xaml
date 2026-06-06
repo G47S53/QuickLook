@@ -1,25 +1,3 @@
-<!--
-    Pano360Panel.xaml — Vue XAML de la visionneuse 360°
-    
-    Modifications apportées (G47S53) :
-    ─────────────────────────────────────────────────────────────────────────────
-    1. BOUTON AUTOROTATION (3 états)
-       Un ToggleButton nommé "btnAutoRotate" est ajouté à droite du bouton FOV.
-       Le texte du bouton change selon l'état (Off / Rapide / Lent) via le
-       code-behind (voir Pano360Panel.xaml.cs).
-
-    2. FOND SEMI-TRANSPARENT ARRONDI
-       Les 3 boutons (SpaceMouse, FOV, AutoRotate) sont maintenant encapsulés
-       dans une Border avec CornerRadius et Background semi-transparent.
-       Cela garantit la lisibilité quelle que soit l'image affichée.
-
-    3. OPACITÉ PILOTÉE PAR LE MOUVEMENT
-       L'attribut Opacity="..." qui était codé en dur dans le code-behind a été
-       retiré. L'opacité est désormais gérée dynamiquement par la méthode
-       UpdateBarreOpacity() dans le code-behind, qui réagit à tout mouvement
-       (souris, SpaceMouse, autorotation).
-    ─────────────────────────────────────────────────────────────────────────────
--->
 <UserControl
     x:Class="QuickLook.Plugin.ImageViewer.Pano360.Pano360Panel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -86,7 +64,6 @@
                     <!-- ── Bouton SpaceMouse ─────────────────────────────── -->
                     <ToggleButton
                         x:Name="btnSpaceMouse"
-                        Content="🖱 3D Mouse"
                         Width="105"
                         Margin="0,0,6,0"
                         Padding="8,4"
@@ -97,6 +74,7 @@
                         ToolTip="Activer / désactiver la SpaceMouse 3Dconnexion"
                         Checked="BtnSpaceMouse_Checked"
                         Unchecked="BtnSpaceMouse_Unchecked">
+                        <TextBlock x:Name="txtSpaceMouse" Text="🖱 3D Mouse" />
                         <ToggleButton.Style>
                             <Style TargetType="ToggleButton">
                                 <Setter Property="Template">
