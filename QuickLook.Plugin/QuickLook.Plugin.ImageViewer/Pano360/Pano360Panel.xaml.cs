@@ -89,6 +89,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private Sensor _smSensor;
         private bool _spaceMouseEnabled = false;
 
+        // Vitesse accumulée par la SpaceMouse à appliquer à la prochaine frame
+        private double _spaceMouseSpeedX = 0;
+        private double _spaceMouseSpeedY = 0;
+
         // ─────────────────────────────────────────────────────────────────────
         // > Autorotation
         // ─────────────────────────────────────────────────────────────────────
@@ -327,6 +331,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 ClampVertical(_verticalRotation.Angle - speedY);
             }
 
+            // ── Navigation SpaceMouse synchronisée ───────────────────────
+            // On vérifie si la SpaceMouse envoie des données
+            if (_spaceMouseSpeedX != 0 || _spaceMouseSpeedY != 0)
+            {
+                // On applique le déplacement pondéré par le temps écoulé (elapsed) 
+                // Tu pourras ajuster le multiplicateur (ex: * 0.5 ou * 2.0) si c'est trop lent/rapide
+                _horizontalRotation.Angle -= _spaceMouseSpeedY * elapsed * 10;
+                ClampVertical(_verticalRotation.Angle + (_spaceMouseSpeedX * elapsed * 10));
+
+                // TRÈS IMPORTANT : On applique un amorti (friction) ou on remet à zéro 
+                // pour éviter que la caméra continue de tourner si la souris ne renvoie pas de 0.
+                _spaceMouseSpeedX = 0;
+                _spaceMouseSpeedY = 0;
+            }
+
             // ── Autorotation (Solution Haute Précision) ────────────────────
             if (_autoRotState != AutoRotationState.Off && !_isMouseDown)
             {
@@ -455,18 +474,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             if (_smSensor == null) return;
 
-            double rx = _smSensor.Rotation.X;
-            double ry = _smSensor.Rotation.Y;
+            // On récupère les valeurs brutes (sans bloquer le thread avec un Invoke)
+            _spaceMouseSpeedX = _smSensor.Rotation.X;
+            _spaceMouseSpeedY = _smSensor.Rotation.Y;
 
-            // ToDo: A remplacer par quelque chose de plus performant car on observe des saccades
-            Dispatcher.Invoke(() =>
+            // Si la SpaceMouse bouge, on signale le mouvement pour la barre d'outils
+            if (_spaceMouseSpeedX != 0 || _spaceMouseSpeedY != 0)
             {
-                _horizontalRotation.Angle -= ry;
-                ClampVertical(_verticalRotation.Angle + rx);
-
-                // La SpaceMouse est en train de bouger → on marque le mouvement
+                // DateTime.Now est thread-safe, on peut l'appeler d'ici
                 MarquerMouvement();
-            });
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────────
