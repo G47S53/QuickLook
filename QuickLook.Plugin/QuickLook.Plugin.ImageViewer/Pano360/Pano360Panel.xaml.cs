@@ -16,7 +16,6 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 using System;
-//using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -37,7 +36,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // > Constantes — paramètres de la sphère et de la navigation
         // ─────────────────────────────────────────────────────────────────────
         private const int SphereSlices = 72;
-        private const int SphereStacks = 36; 
+        private const int SphereStacks = 36;
 
         private const double FovMin = 30.0;
         private const double FovMax = 120.0;
@@ -88,8 +87,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private Device _smDevice;
         private Sensor _smSensor;
 
-        //private SpaceMouseManager _spaceMouseManager;
-
         private bool _spaceMouseEnabled = false;
 
         // Vitesse accumulée par la SpaceMouse à appliquer à la prochaine frame
@@ -110,7 +107,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private AutoRotationState _autoRotState = AutoRotationState.Off;
 
         // ── Variables pour l'autorotation haute précision ───────────────────
-        private System.Diagnostics.Stopwatch _autoRotateStopwatch = new ();
+        private System.Diagnostics.Stopwatch _autoRotateStopwatch = new();
         private double _angleAuDemarrage = 0;
 
         // ─────────────────────────────────────────────────────────────────────
@@ -304,7 +301,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             double newFov = Clamp(_camera.FieldOfView + delta, FovMin, FovMax);
             _camera.FieldOfView = newFov;
             txtFov.Text = string.Format("(FOV: {0:F0}°)", newFov);
-            
+
             // On lance l'animation XAML
             if (txtFov.Resources["FadeFovStoryboard"] is Storyboard sb)
             {
@@ -382,7 +379,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                     _rawSpaceMouseX = axeX * intensite;
                     _rawSpaceMouseY = axeY * intensite;
-                    _rawSpaceMouseZ = axeZ * intensite; 
+                    _rawSpaceMouseZ = axeZ * intensite;
                 }
             }
             catch
@@ -440,7 +437,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             var args = (RenderingEventArgs)e;
             double elapsed = (args.RenderingTime - _lastRenderTime).TotalSeconds;
-            
+
             _lastRenderTime = args.RenderingTime;
 
             // --- LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
@@ -480,11 +477,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // Sensibilité fine à ajuster au besoin
                 double sensibilite = 0.05;
 
-                // OPTION A (Recommandée d'après tes logs) : Utiliser l'inclinaison latérale (Y) pour tourner à gauche/droite
+                // OPTION A : Utiliser l'inclinaison latérale (Y) pour tourner à gauche/droite
                 _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibilite;
 
-                // OPTION B : Si tu préfères utiliser la torsion pure (Z) pour tourner à gauche/droite,
-                // commente la ligne du dessus (Option A) et décommente celle du dessous :
+                // OPTION B : Utiliser la torsion pure (Z) pour tourner à gauche/droite,
                 // _horizontalRotation.Angle -= spaceMouseSpeedZ * elapsed * sensibilite;
 
                 // Rotation verticale (Haut/Bas) liée à l'inclinaison avant/arrière (Axe X)
