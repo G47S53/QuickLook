@@ -87,11 +87,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private Device _smDevice;
         private Sensor _smSensor;
+
+        //private SpaceMouseManager _spaceMouseManager;
+
         private bool _spaceMouseEnabled = false;
 
         // Vitesse accumulée par la SpaceMouse à appliquer à la prochaine frame
         private double _spaceMouseSpeedX = 0;
         private double _spaceMouseSpeedY = 0;
+
+        private readonly object _spaceMouseLock = new object();
+        private double _rawSpaceMouseX = 0;
+        private double _rawSpaceMouseY = 0;
+        private double _rawSpaceMouseZ = 0;
 
         // ─────────────────────────────────────────────────────────────────────
         // > Autorotation
@@ -156,6 +164,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             //Active la spacemouse par défaut
             btnSpaceMouse.IsChecked = true;
         }
+
+        #region Initilisation de la scène 3D
 
         // ─────────────────────────────────────────────────────────────────────
         // Initialisation de la scène
@@ -223,8 +233,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             viewport3D.Children.Add(new ModelVisual3D { Content = model });
         }
 
+        #endregion Fin de l'initialisation de la scène 3D
+
         // ─────────────────────────────────────────────────────────────────────
-        // Enregistrement des gestionnaires d'événements
+        // Gestionnaires d'événements
         // ─────────────────────────────────────────────────────────────────────
         private void SetupEventHandlers()
         {
@@ -302,84 +314,81 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // BOUCLE DE RENDU — appelée à chaque frame WPF
+        // Gestion de la SpaceMouse 3Dconnexion
         // ─────────────────────────────────────────────────────────────────────
-        private void OnRendering(object sender, EventArgs e)
+        private void BtnSpaceMouse_Checked(object sender, RoutedEventArgs e)
+            => ConnecterSpaceMouse();
+
+        private void BtnSpaceMouse_Unchecked(object sender, RoutedEventArgs e)
+            => DeconnecterSpaceMouse();
+
+        private void ConnecterSpaceMouse()
         {
-            var args = (RenderingEventArgs)e;
-            double elapsed = (args.RenderingTime - _lastRenderTime).TotalSeconds;
-            
-            _lastRenderTime = args.RenderingTime;
+            if (_spaceMouseEnabled) return;
 
-            // --- LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
-            // pour forcer un rythme de 60 FPS maximum (1 frame toutes les ~16ms) ---
-            if (elapsed < 0.016) return;
-
-            // Protection contre les délais aberrants (ex. : fenêtre minimisée)
-            if (elapsed > 0.1) return;
-
-            // ── Navigation souris ──────────────────────────────────────────
-            if (_isMouseDown)
+            try
             {
-                double deltaX = _lastMouseX - _startMouseX;
-                double deltaY = _lastMouseY - _startMouseY;
+                _smDevice = new Device();
+                _smSensor = _smDevice.Sensor;
+                _smDevice.Connect();
 
-                double speedX = Math.Abs(deltaX) < MouseDeadZone ? 0 : deltaX * MouseSensitivity * elapsed;
-                double speedY = Math.Abs(deltaY) < MouseDeadZone ? 0 : deltaY * MouseSensitivity * elapsed;
-
-                _horizontalRotation.Angle += speedX;
-                ClampVertical(_verticalRotation.Angle - speedY);
+                // On s'abonne à l'événement natif de la V1
+                _smSensor.SensorInput += OnSpaceMouseMouvement;
+                _spaceMouseEnabled = true;
+                System.Diagnostics.Debug.WriteLine("[Pano Panel] SpaceMouse connectée en direct !");
             }
-
-            // ── Navigation SpaceMouse synchronisée ───────────────────────
-            // On vérifie si la SpaceMouse envoie des données
-            if (_spaceMouseSpeedX != 0 || _spaceMouseSpeedY != 0)
+            catch (Exception ex)
             {
-                // On applique le déplacement pondéré par le temps écoulé (elapsed) 
-                // Tu pourras ajuster le multiplicateur (ex: * 0.5 ou * 2.0) si c'est trop lent/rapide
-                _horizontalRotation.Angle -= _spaceMouseSpeedY * elapsed * 10;
-                ClampVertical(_verticalRotation.Angle + (_spaceMouseSpeedX * elapsed * 10));
-
-                // TRÈS IMPORTANT : On applique un amorti (friction) ou on remet à zéro 
-                // pour éviter que la caméra continue de tourner si la souris ne renvoie pas de 0.
-                _spaceMouseSpeedX = 0;
-                _spaceMouseSpeedY = 0;
+                System.Diagnostics.Debug.WriteLine("[Pano Panel] Échec connexion SpaceMouse : " + ex.Message);
             }
-
-            // ── Autorotation (Solution Haute Précision) ────────────────────
-            if (_autoRotState != AutoRotationState.Off && !_isMouseDown)
-            {
-                double secondsPerTurn;
-
-                if (_autoRotState == AutoRotationState.Lent)
-                    secondsPerTurn = AutoRotateSlowSeconds;
-                else if (_autoRotState == AutoRotationState.Normal)
-                    secondsPerTurn = AutoRotateNormalSeconds;
-                else // Rapide
-                    secondsPerTurn = AutoRotateFastSeconds;
-
-                // Calcul mathématique rigide basé sur le temps total du chrono
-                double tempsTotalEcoule = _autoRotateStopwatch.Elapsed.TotalSeconds;
-                double nouvelAngle = _angleAuDemarrage + (360.0 * (tempsTotalEcoule / secondsPerTurn));
-
-                // On applique l'angle parfait (le % 360 évite que le chiffre grandisse à l'infini)
-                _horizontalRotation.Angle = nouvelAngle % 360;
-
-                if (_context != null && !_context.BlocageShowCaption)
-                {
-                    _context.BlocageShowCaption = true;
-                }
-
-                MarquerMouvement(); // Indique à la boucle que l'autorotation compte comme un mouvement
-            }
-
-            // Gestion de la barre haute
-            UpdateBarreOpacity();
         }
-        private void MarquerMouvement()
+
+        private void DeconnecterSpaceMouse()
         {
-            // Note l'heure courante comme "dernier mouvement détecté".
-            _lastMovementTime = DateTime.Now;
+            if (!_spaceMouseEnabled) return;
+
+            try
+            {
+                if (_smSensor != null)
+                    _smSensor.SensorInput -= OnSpaceMouseMouvement;
+
+                if (_smDevice != null && _smDevice.IsConnected)
+                    _smDevice.Disconnect();
+            }
+            catch { }
+            finally
+            {
+                _smDevice = null;
+                _smSensor = null;
+                _spaceMouseEnabled = false;
+            }
+        }
+
+        private void OnSpaceMouseMouvement()
+        {
+            if (_smSensor == null) return;
+
+            try
+            {
+                lock (_spaceMouseLock)
+                {
+                    double axeX = _smSensor.Rotation.X;
+                    double axeY = _smSensor.Rotation.Y;
+                    double axeZ = _smSensor.Rotation.Z;
+                    double intensite = _smSensor.Rotation.Angle;
+
+                    // Debug complet avec les 3 axes pour y voir clair
+                    System.Diagnostics.Debug.WriteLine($"SpaceMouse -> X:{axeX:F0} | Y:{axeY:F0} | Z:{axeZ:F0} | Angle:{intensite:F0}");
+
+                    _rawSpaceMouseX = axeX * intensite;
+                    _rawSpaceMouseY = axeY * intensite;
+                    _rawSpaceMouseZ = axeZ * intensite; 
+                }
+            }
+            catch
+            {
+                // Sécurité COM
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -425,65 +434,99 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // SpaceMouse 3Dconnexion
+        // BOUCLE DE RENDU — appelée à chaque frame WPF
         // ─────────────────────────────────────────────────────────────────────
-        private void BtnSpaceMouse_Checked(object sender, RoutedEventArgs e)
-            => ConnecterSpaceMouse();
-
-        private void BtnSpaceMouse_Unchecked(object sender, RoutedEventArgs e)
-            => DeconnecterSpaceMouse();
-
-        private void ConnecterSpaceMouse()
+        private void OnRendering(object sender, EventArgs e)
         {
-            if (_spaceMouseEnabled) return;
+            var args = (RenderingEventArgs)e;
+            double elapsed = (args.RenderingTime - _lastRenderTime).TotalSeconds;
+            
+            _lastRenderTime = args.RenderingTime;
 
-            try
+            // --- LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
+            // pour forcer un rythme de 60 FPS maximum (1 frame toutes les ~16ms) ---
+            if (elapsed < 0.016) return;
+
+            // Protection contre les délais aberrants (ex. : fenêtre minimisée)
+            if (elapsed > 0.1) return;
+
+            // ── Navigation souris ──────────────────────────────────────────
+            if (_isMouseDown)
             {
-                _smDevice = (Device)Activator.CreateInstance(
-                    Type.GetTypeFromProgID("TDxInput.Device"));
-                _smSensor = _smDevice.Sensor;
-                _smSensor.SensorInput += OnSpaceMouseMouvement;
-                _smDevice.Connect();
-                _spaceMouseEnabled = true;
+                double deltaX = _lastMouseX - _startMouseX;
+                double deltaY = _lastMouseY - _startMouseY;
+
+                double speedX = Math.Abs(deltaX) < MouseDeadZone ? 0 : deltaX * MouseSensitivity * elapsed;
+                double speedY = Math.Abs(deltaY) < MouseDeadZone ? 0 : deltaY * MouseSensitivity * elapsed;
+
+                _horizontalRotation.Angle += speedX;
+                ClampVertical(_verticalRotation.Angle - speedY);
             }
-            catch
+
+            // ── Navigation SpaceMouse synchronisée ───────────────────────
+            double spaceMouseSpeedX = 0;
+            double spaceMouseSpeedY = 0;
+            double spaceMouseSpeedZ = 0;
+
+            lock (_spaceMouseLock)
             {
-                Dispatcher.Invoke(() =>
-                {
-                    btnSpaceMouse.IsChecked = false;
-                    btnSpaceMouse.IsEnabled = false;
-                    btnSpaceMouse.Foreground = new SolidColorBrush(Color.FromRgb(210, 210, 210));
-                    txtSpaceMouse.TextDecorations = TextDecorations.Strikethrough;
-                    btnSpaceMouse.ToolTip = "SpaceMouse non disponible";
-                });
+                spaceMouseSpeedX = _rawSpaceMouseX;
+                spaceMouseSpeedY = _rawSpaceMouseY;
+                spaceMouseSpeedZ = _rawSpaceMouseZ;
             }
-        }
 
-        private void DeconnecterSpaceMouse()
-        {
-            if (!_spaceMouseEnabled || _smDevice == null) return;
-
-            _smSensor.SensorInput -= OnSpaceMouseMouvement;
-            _smDevice.Disconnect();
-            _smDevice = null;
-            _smSensor = null;
-            _spaceMouseEnabled = false;
-        }
-
-        private void OnSpaceMouseMouvement()
-        {
-            if (_smSensor == null) return;
-
-            // On récupère les valeurs brutes (sans bloquer le thread avec un Invoke)
-            _spaceMouseSpeedX = _smSensor.Rotation.X;
-            _spaceMouseSpeedY = _smSensor.Rotation.Y;
-
-            // Si la SpaceMouse bouge, on signale le mouvement pour la barre d'outils
-            if (_spaceMouseSpeedX != 0 || _spaceMouseSpeedY != 0)
+            if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
             {
-                // DateTime.Now est thread-safe, on peut l'appeler d'ici
+                // Sensibilité fine à ajuster au besoin
+                double sensibilite = 0.05;
+
+                // OPTION A (Recommandée d'après tes logs) : Utiliser l'inclinaison latérale (Y) pour tourner à gauche/droite
+                _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibilite;
+
+                // OPTION B : Si tu préfères utiliser la torsion pure (Z) pour tourner à gauche/droite,
+                // commente la ligne du dessus (Option A) et décommente celle du dessous :
+                // _horizontalRotation.Angle -= spaceMouseSpeedZ * elapsed * sensibilite;
+
+                // Rotation verticale (Haut/Bas) liée à l'inclinaison avant/arrière (Axe X)
+                ClampVertical(_verticalRotation.Angle + (spaceMouseSpeedX * elapsed * sensibilite));
+
                 MarquerMouvement();
             }
+
+            // ── Autorotation (Solution Haute Précision) ────────────────────
+            if (_autoRotState != AutoRotationState.Off && !_isMouseDown)
+            {
+                double secondsPerTurn;
+
+                if (_autoRotState == AutoRotationState.Lent)
+                    secondsPerTurn = AutoRotateSlowSeconds;
+                else if (_autoRotState == AutoRotationState.Normal)
+                    secondsPerTurn = AutoRotateNormalSeconds;
+                else // Rapide
+                    secondsPerTurn = AutoRotateFastSeconds;
+
+                // Calcul mathématique rigide basé sur le temps total du chrono
+                double tempsTotalEcoule = _autoRotateStopwatch.Elapsed.TotalSeconds;
+                double nouvelAngle = _angleAuDemarrage + (360.0 * (tempsTotalEcoule / secondsPerTurn));
+
+                // On applique l'angle parfait (le % 360 évite que le chiffre grandisse à l'infini)
+                _horizontalRotation.Angle = nouvelAngle % 360;
+
+                if (_context != null && !_context.BlocageShowCaption)
+                {
+                    _context.BlocageShowCaption = true;
+                }
+
+                MarquerMouvement(); // Indique à la boucle que l'autorotation compte comme un mouvement
+            }
+
+            // Gestion de la barre haute
+            UpdateBarreOpacity();
+        }
+        private void MarquerMouvement()
+        {
+            // Note l'heure courante comme "dernier mouvement détecté".
+            _lastMovementTime = DateTime.Now;
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -588,7 +631,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         public void Dispose()
         {
             CompositionTarget.Rendering -= OnRendering;
-            DeconnecterSpaceMouse();
+            DeconnecterSpaceMouse();  // Coupe la connexion proprement
+
+            //_spaceMouseManager?.Dispose();
+
             viewport3D.Children.Clear();
         }
 
