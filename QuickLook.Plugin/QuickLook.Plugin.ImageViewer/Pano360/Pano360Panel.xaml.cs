@@ -103,16 +103,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private AutoRotationState _autoRotState = AutoRotationState.Off;
 
         // ── Variables pour l'autorotation haute précision ───────────────────
-        private System.Diagnostics.Stopwatch _autoRotateStopwatch = new();
-        private double _angleAuDemarrage = 0;
+        //private System.Diagnostics.Stopwatch _autoRotateStopwatch = new();
+        //private double _angleAuDemarrage = 0;
 
         // ─────────────────────────────────────────────────────────────────────
-        // > AutoClose
+        // > AutoClose - Moteur Physique "La Jamais Contente" 🏎️ (Accélération / Décélération)
         // ─────────────────────────────────────────────────────────────────────
+        private double _currentRotationSpeed = 0.0;   // Vitesse angulaire actuelle (°/s)
+        private const double AccelerationRate = 18.0; // Taux d'accélération (°/s²)
+        private const double DecelerationRate = 45.0; // Taux de freinage/décélération (°/s²)
+
         private bool _autoCloseActive = false;
         private double _autoCloseTargetAngle = -1;
         private double _autoCloseStartAngle = -1;
-        private bool _hasLeftStartZone = false; // Sécurité pour éviter la fermeture instantanée au clic
+        private bool _hasLeftStartZone = false;       // Sécurité pour éviter la fermeture instantanée au clic
+        private bool _isAutoClosingPhase = false;     // True quand le tour est fini et qu'on freine avant fermeture
 
         // ─────────────────────────────────────────────────────────────────────
         // > Opacité progressive
@@ -267,10 +272,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (_autoRotState != AutoRotationState.Off)
             {
-                // Si l'autorotation est active, on la désactive et on arrête le chrono
                 _autoRotState = AutoRotationState.Off;
                 btnAutoRotate.Content = "⏸ Off";
-                _autoRotateStopwatch.Stop();
                 MajEtatAutoClose();
             }
 
@@ -405,34 +408,26 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         /// Le libellé du bouton est mis à jour pour refléter l'état courant.
         private void BtnAutoRotate_Click(object sender, RoutedEventArgs e)
         {
-            // Passage à l'état suivant dans le cycle
             switch (_autoRotState)
             {
                 case AutoRotationState.Off:
                     _autoRotState = AutoRotationState.Lent;
                     btnAutoRotate.Content = "🐢 Lent";
-                    _angleAuDemarrage = _horizontalRotation.Angle;  // On mémorise le nouvel angle et on réinitialise le chrono
-                    _autoRotateStopwatch.Restart();
                     break;
 
                 case AutoRotationState.Lent:
                     _autoRotState = AutoRotationState.Normal;
                     btnAutoRotate.Content = "▶️ Normal";
-                    _angleAuDemarrage = _horizontalRotation.Angle;  // On mémorise le nouvel angle et on réinitialise le chrono
-                    _autoRotateStopwatch.Restart();
                     break;
 
                 case AutoRotationState.Normal:
                     _autoRotState = AutoRotationState.Rapide;
                     btnAutoRotate.Content = "▶️▶️ Rapide";
-                    _angleAuDemarrage = _horizontalRotation.Angle;  // On mémorise le nouvel angle et on réinitialise le chrono
-                    _autoRotateStopwatch.Restart();
                     break;
 
                 case AutoRotationState.Rapide:
                     _autoRotState = AutoRotationState.Off;
                     btnAutoRotate.Content = "⏸ Off";
-                    _autoRotateStopwatch.Stop();  // On arrête le chrono
                     _lastMovementTime = DateTime.Now;
                     break;
             }
@@ -468,15 +463,15 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             if (_autoRotState == AutoRotationState.Off)
             {
-                // Désactivation complète de l'AutoClose
                 _autoCloseActive = false;
+                _isAutoClosingPhase = false;
                 _autoCloseTargetAngle = -1;
                 _autoCloseStartAngle = -1;
                 _hasLeftStartZone = false;
 
                 btnAutoClose.IsEnabled = false;
                 txtAutoClose.Text = "🚪 AutoClose: Off";
-                txtAutoClose.TextDecorations = TextDecorations.Strikethrough; // Texte barré
+                txtAutoClose.TextDecorations = TextDecorations.Strikethrough;
                 txtAutoClose.Opacity = 0.5;
             }
             else
@@ -570,7 +565,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Protection contre les délais aberrants (ex. : fenêtre minimisée)
             if (elapsed > 0.1) return;
 
-            // ── Navigation souris ──────────────────────────────────────────
+            // ──────────────────────────────────────────────────────────────────────
+            // ── Navigation souris ─────────────────────────────────────────────────
             if (_isMouseDown)
             {
                 double deltaX = _lastMouseX - _startMouseX;
@@ -583,7 +579,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 ClampVertical(_verticalRotation.Angle - speedY);
             }
 
-            // ── Navigation SpaceMouse synchronisée ───────────────────────
+            // ──────────────────────────────────────────────────────────────────────
+            // ── Navigation SpaceMouse synchronisée ────────────────────────────────
             double spaceMouseSpeedX = 0;
             double spaceMouseSpeedY = 0;
             double spaceMouseSpeedZ = 0;
@@ -612,65 +609,82 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 MarquerMouvement();
             }
 
-            // ── Autorotation (Solution Haute Précision) ────────────────────
-            if (_autoRotState != AutoRotationState.Off && !_isMouseDown)
+            // ────────────────────────────────────────────────────────────────────── 
+            // ── MOTEUR DE ROTATION PHYSIQUE (Accélération & Décélération fluide) ──
+            double targetSpeed = 0;
+
+            // Détermination de la vitesse cible selon l'état actuel
+            if (!_isMouseDown && !_isAutoClosingPhase)
             {
-                double secondsPerTurn;
-
                 if (_autoRotState == AutoRotationState.Lent)
-                    secondsPerTurn = AutoRotateSlowSeconds;
+                    targetSpeed = 360.0 / AutoRotateSlowSeconds;
                 else if (_autoRotState == AutoRotationState.Normal)
-                    secondsPerTurn = AutoRotateNormalSeconds;
-                else // Rapide
-                    secondsPerTurn = AutoRotateFastSeconds;
+                    targetSpeed = 360.0 / AutoRotateNormalSeconds;
+                else if (_autoRotState == AutoRotationState.Rapide)
+                    targetSpeed = 360.0 / AutoRotateFastSeconds;
+            }
+            // Si la souris est enfoncée ou qu'on est en freinage AutoClose, targetSpeed reste à 0.
 
-                // Calcul mathématique rigide basé sur le temps total du chrono
-                double tempsTotalEcoule = _autoRotateStopwatch.Elapsed.TotalSeconds;
-                double nouvelAngle = _angleAuDemarrage + (360.0 * (tempsTotalEcoule / secondsPerTurn));
+            // Rapprochement fluide de la vitesse actuelle vers la vitesse cible
+            if (_currentRotationSpeed < targetSpeed)
+            {
+                // Accélération linéaire
+                _currentRotationSpeed += AccelerationRate * elapsed;
+                if (_currentRotationSpeed > targetSpeed) _currentRotationSpeed = targetSpeed;
+            }
+            else if (_currentRotationSpeed > targetSpeed)
+            {
+                // Décélération / Freinage linéaire
+                _currentRotationSpeed -= DecelerationRate * elapsed;
+                if (_currentRotationSpeed < targetSpeed) _currentRotationSpeed = targetSpeed;
+            }
 
-                // On applique l'angle parfait (le % 360 évite que le chiffre grandisse à l'infini)
-                _horizontalRotation.Angle = nouvelAngle % 360;
-
-                // ── Vérification AutoClose (Fermeture après 1 tour) ──────────
-                if (_autoCloseActive && _autoCloseTargetAngle >= 0)
-                {
-                    double angleActuel = _horizontalRotation.Angle;
-
-                    // Calcul de la distance angulaire par rapport à l'angle de départ.
-                    // Comme l'angle est compris entre 0 et 360 (grâce au % 360),
-                    // on regarde de combien on s'est éloigné.
-                    double diffAngulaire = Math.Abs(angleActuel - _autoCloseStartAngle);
-
-                    // Si la différence est significative (ex: plus de 5 degrés), 
-                    // cela signifie qu'on a bien quitté la zone de départ.
-                    if (!_hasLeftStartZone && (diffAngulaire > 5.0 && diffAngulaire < 355.0))
-                    {
-                        _hasLeftStartZone = true;
-                    }
-
-                    // Si on a quitté la zone de départ et qu'on revient très près de l'angle initial,
-                    // le tour est bouclé ! (Marge de tolérance de 1.5° selon la vitesse de frame)
-                    if (_hasLeftStartZone && diffAngulaire <= 1.5)
-                    {
-                        // On coupe tout par sécurité avant de fermer
-                        _autoCloseActive = false;
-                        _autoRotState = AutoRotationState.Off;
-
-                        // Fermeture propre de la fenêtre QuickLook
-                        Window.GetWindow(this)?.Close();
-                        return;
-                    }
-                }
+            // Si le panorama est en mouvement (vitesse > 0), on applique la rotation
+            if (_currentRotationSpeed > 0)
+            {
+                _horizontalRotation.Angle = (_horizontalRotation.Angle + (_currentRotationSpeed * elapsed)) % 360;
 
                 if (_context != null && !_context.BlocageShowCaption)
                 {
                     _context.BlocageShowCaption = true;
                 }
 
-                MarquerMouvement(); // Indique à la boucle que l'autorotation compte comme un mouvement
+                MarquerMouvement();
+
+                // ── Analyse de l'AutoClose en cours de route ──────────────────
+                if (_autoCloseActive && _autoCloseTargetAngle >= 0 && !_isAutoClosingPhase)
+                {
+                    double angleActuel = _horizontalRotation.Angle;
+                    double diffAngulaire = Math.Abs(angleActuel - _autoCloseStartAngle);
+
+                    // Sécurité pour s'assurer qu'on s'est éloigné de l'origine
+                    if (!_hasLeftStartZone && (diffAngulaire > 6.0 && diffAngulaire < 354.0))
+                    {
+                        _hasLeftStartZone = true;
+                    }
+
+                    // Si le tour est accompli (retour proche de la ligne d'arrivée)
+                    // On augmente légèrement la tolérance à 2.0° pour capter le passage même à pleine vitesse
+                    if (_hasLeftStartZone && diffAngulaire <= 2.0)
+                    {
+                        _isAutoClosingPhase = true; // On coupe l'injection, place au freinage !
+                    }
+                }
             }
 
-            // Gestion de la barre haute
+            // ── Arrêt final de l'AutoClose : la fenêtre se ferme une fois immobilisée
+            if (_isAutoClosingPhase && _currentRotationSpeed <= 0)
+            {
+                _autoCloseActive = false;
+                _isAutoClosingPhase = false;
+                _autoRotState = AutoRotationState.Off;
+
+                Window.GetWindow(this)?.Close();
+                return;
+            }
+
+            // ──────────────────────────────────────────────────────────────────────
+            // ─── Gestion de la barre haute ────────────────────────────────────────
             UpdateBarreOpacity();
         }
         private void MarquerMouvement()
