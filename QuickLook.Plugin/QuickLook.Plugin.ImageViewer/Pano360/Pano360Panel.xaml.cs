@@ -104,10 +104,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // État courant de l'autorotation (commence arrêté).
         private AutoRotationState _autoRotState = AutoRotationState.Off;
 
-        // ── Variables pour l'autorotation haute précision ───────────────────
-        //private System.Diagnostics.Stopwatch _autoRotateStopwatch = new();
-        //private double _angleAuDemarrage = 0;
-
         // ─────────────────────────────────────────────────────────────────────
         // > AutoClose - Moteur Physique "La Jamais Contente" 🏎️ (Accélération / Décélération)
         // ─────────────────────────────────────────────────────────────────────
@@ -473,7 +469,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _hasLeftStartZone = false;
 
                 btnAutoClose.IsEnabled = false;
-                txtAutoClose.Text = "🚪 AutoClose: Off";
+                txtAutoClose.Text = "AutoClose: Off";
                 txtAutoClose.TextDecorations = TextDecorations.Strikethrough;
                 txtAutoClose.Opacity = 0.5;
 
@@ -487,13 +483,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 if (_autoCloseActive)
                 {
-                    txtAutoClose.Text = "🚪 Close après 1 tour";
+                    txtAutoClose.Text = "AutoClose: On";
                     txtAutoClose.TextDecorations = null;                      // Pas barré
                     panelAutoCloseProgress.Visibility = Visibility.Visible;   // 🟢 Visible si AutoClose Actif
                 }
                 else
                 {
-                    txtAutoClose.Text = "🚪 AutoClose: Off";
+                    txtAutoClose.Text = "AutoClose: Off";
                     txtAutoClose.TextDecorations = null;                      // Pas barré
                     panelAutoCloseProgress.Visibility = Visibility.Collapsed; // 🛑 Masqué si désactivé
                 }
@@ -710,7 +706,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         if (tempsRestant <= 1.5) // Déclenchement à T-1.5s exacts !
                         {
                             _isPopupShown = true;
-                            txtInfoPopup.Text = "🚪 AutoClose...";
+                            txtInfoPopup.Text = "Fermeture automatique...";
                             (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                         }
                     }

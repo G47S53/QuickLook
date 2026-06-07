@@ -28,18 +28,25 @@
              ── x:Name="barreBtn" permet au code-behind de piloter l'Opacity.
              ── L'Opacity initiale est 1 ; elle sera animée par UpdateBarreOpacity().
         ══════════════════════════════════════════════════════════════════════ -->
-        <StackPanel Orientation="Horizontal" 
-                    HorizontalAlignment="Center" 
-                    VerticalAlignment="Bottom" 
-                    Margin="0,0,0,12">
+        <Grid HorizontalAlignment="Center" 
+              VerticalAlignment="Bottom" 
+              Height="56"
+              Margin="0,0,0,12">
 
-            <StackPanel
-                x:Name="barreBtn"
-                Orientation="Horizontal"
-                Margin="0"
-                Opacity="1"
-                MouseEnter="BarreBtn_MouseEnter"
-                MouseLeave="BarreBtn_MouseLeave">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="70" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="70" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel x:Name="barreBtn"
+                        Grid.Column="1"
+                        Orientation="Horizontal"
+                        Margin="0,0,0,8"
+                        Opacity="1"
+                        VerticalAlignment="Bottom"
+                        MouseEnter="BarreBtn_MouseEnter"
+                        MouseLeave="BarreBtn_MouseLeave">
 
                 <StackPanel.Resources>
                     <Storyboard x:Key="FadeOutBarreBtn">
@@ -49,27 +56,11 @@
                         <DoubleAnimation Storyboard.TargetName="barreBtn" Storyboard.TargetProperty="Opacity" To="1" Duration="0:0:0.3" />
                     </Storyboard>
                 </StackPanel.Resources>
-                <!--
-                BORDURE ARRONDIE semi-transparente qui englobe les 3 boutons.
-                ── Background : noir à 45 % d'opacité → lisible sur toute image.
-                ── CornerRadius="10" : coins arrondis pour un look "pill".
-                ── Padding interne pour ne pas coller les boutons aux bords.
-            -->
+
                 <Border Background="#73000000" CornerRadius="10" Padding="8,4">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- ── Bouton SpaceMouse ─────────────────────────────── -->
-                        <ToggleButton
-                        x:Name="btnSpaceMouse"
-                        Width="105"
-                        Margin="0,0,6,0"
-                        Padding="8,4"
-                        Foreground="White"
-                        Background="Transparent"
-                        BorderThickness="0"
-                        Cursor="Hand"
-                        ToolTip="Activer / désactiver la SpaceMouse 3Dconnexion"
-                        Checked="BtnSpaceMouse_Checked"
-                        Unchecked="BtnSpaceMouse_Unchecked">
+                        <ToggleButton x:Name="btnSpaceMouse" Width="105" Margin="0,0,6,0" Padding="8,4" Foreground="White" Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Active / désactive la SpaceMouse 3Dconnexion" Checked="BtnSpaceMouse_Checked" Unchecked="BtnSpaceMouse_Unchecked">
                             <TextBlock x:Name="txtSpaceMouse" Text="🖱 3D Mouse" />
                             <ToggleButton.Style>
                                 <Style TargetType="ToggleButton">
@@ -77,14 +68,8 @@
                                         <Setter.Value>
                                             <ControlTemplate TargetType="ToggleButton">
                                                 <!-- Fond légèrement teinté quand IsChecked -->
-                                                <Border
-                                                x:Name="bd"
-                                                Background="Transparent"
-                                                CornerRadius="6"
-                                                Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center" />
+                                                <Border x:Name="bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsChecked" Value="True">
@@ -100,27 +85,10 @@
                                 </Style>
                             </ToggleButton.Style>
                         </ToggleButton>
-
                         <!-- Séparateur vertical léger -->
-                        <Separator
-                        Width="3"
-                        Height="18"
-                        Background="#55FFFFFF"
-                        Margin="0,0,6,0" />
-
-                        <!-- ── Affichage FOV ──────────────────────────────────── -->
-                        <!--
-                        txtFov affiche la valeur courante du champ de vision.
-                        Il est mis à jour dans OnMouseWheel() et OnKeyDown().
-                    -->
-                        <TextBlock
-                        x:Name="txtFov"
-                        Text="(FOV: 90°)"
-                        Foreground="#999999"
-                        FontSize="13"
-                        VerticalAlignment="Center"
-                        Margin="0,0,8,0"
-                        ToolTip="Molette pour le zoom">
+                        <Separator Width="3" Height="18" Background="#55FFFFFF" Margin="0,0,6,0" />
+                        <!-- ── Affichage FOV ─────────────────────────────────── -->
+                        <TextBlock x:Name="txtFov" Text="(FOV: 90°)" Foreground="#999999" FontSize="13" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="Molette pour le zoom">
                             <TextBlock.Resources>
                                 <Storyboard x:Key="FadeFovStoryboard">
                                     <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="(TextBlock.Foreground).(SolidColorBrush.Color)">
@@ -128,69 +96,20 @@
                                         <LinearColorKeyFrame KeyTime="0:0:1.5" Value="White" />
                                         <LinearColorKeyFrame KeyTime="0:0:2.0" Value="#999999" />
                                     </ColorAnimationUsingKeyFrames>
-                                    <!-- 
-                                <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="FontSize">
-                                    <DiscreteDoubleKeyFrame KeyTime="0:0:0" Value="13" />
-                                    <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="13" />
-                                    <LinearDoubleKeyFrame KeyTime="0:0:2.0" Value="12" />
-                                </DoubleAnimationUsingKeyFrames>
-                                
-                                <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="FontWeight">
-                                    <DiscreteObjectKeyFrame KeyTime="0:0:0">
-                                        <DiscreteObjectKeyFrame.Value>
-                                            <FontWeight>Bold</FontWeight>
-                                        </DiscreteObjectKeyFrame.Value>
-                                    </DiscreteObjectKeyFrame>
-
-                                    <DiscreteObjectKeyFrame KeyTime="0:0:1.5">
-                                        <DiscreteObjectKeyFrame.Value>
-                                            <FontWeight>Normal</FontWeight>
-                                        </DiscreteObjectKeyFrame.Value>
-                                    </DiscreteObjectKeyFrame>
-                                </ObjectAnimationUsingKeyFrames>  -->
                                 </Storyboard>
                             </TextBlock.Resources>
                         </TextBlock>
-
                         <!-- Séparateur vertical léger -->
-                        <Separator
-                        Width="3"
-                        Height="18"
-                        Background="#55FFFFFF"
-                        Margin="0,0,6,0" />
-
-                        <!-- ── Bouton AUTOROTATION (3 états) ─────────────────── -->
-                        <!--
-                        Ce bouton cycle entre 3 états à chaque clic :
-                          Off  →  Lent  → Normal →  Rapide  →  Off  → …
-                        
-                        Le texte affiché ("⏸ Off", "🐢 Lent", ," normal", "⏩ Rapide") est
-                        mis à jour dans BtnAutoRotate_Click() dans le code-behind.
-                        
-                        x:Name="btnAutoRotate" est référencé dans le code-behind.
-                    -->
-                        <Button
-                        x:Name="btnAutoRotate"
-                        Content="⏸ Off"
-                        Padding="8,4"
-                        Foreground="White"
-                        Width="105"
-                        Cursor="Hand"
-                        ToolTip="Autorotation : Off → Lent → Normal → Rapide → Off"
-                        Click="BtnAutoRotate_Click">
+                        <Separator Width="3" Height="18" Background="#55FFFFFF" Margin="0,0,6,0" />
+                        <!-- ── Bouton AUTOROTATION ───────────────────────────── -->
+                        <Button x:Name="btnAutoRotate" Content="⏸ Off" Padding="8,4" Foreground="White" Width="105" Cursor="Hand" ToolTip="Autorotation : Off → Lent → Normal → Rapide → Off" Click="BtnAutoRotate_Click">
                             <Button.Style>
                                 <Style TargetType="Button">
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
-                                                <Border
-                                                x:Name="bd"
-                                                Background="Transparent"
-                                                CornerRadius="6"
-                                                Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center" />
+                                                <Border x:Name="bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
@@ -206,36 +125,18 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Separator
-                        Width="3"
-                        Height="18"
-                        Background="#55FFFFFF"
-                        Margin="0,0,6,0" />
-
-                        <Button
-                        x:Name="btnAutoClose"
-                        Width="120"
-                        Padding="8,4"
-                        Foreground="White"
-                        Cursor="Hand"
-                        ToolTip="Fermer automatiquement la fenêtre après un tour complet (Disponible uniquement si l'autorotation est active)"
-                        Click="BtnAutoClose_Click">
-
-                            <TextBlock x:Name="txtAutoClose" Text="🚪 AutoClose: Off" VerticalAlignment="Center" HorizontalAlignment="Center"/>
-
+                        <!-- Séparateur vertical léger -->
+                        <Separator Width="3" Height="18" Background="#55FFFFFF" Margin="0,0,6,0" />
+                        <!-- ── Bouton AUTOCLOSE ──────────────────────────────── -->
+                        <Button x:Name="btnAutoClose" Width="120" Padding="8,4" Foreground="White" Cursor="Hand" ToolTip="Ferme la fenêtre après un tour complet" Click="BtnAutoClose_Click">
+                            <TextBlock x:Name="txtAutoClose" Text="AutoClose: Off" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                             <Button.Style>
                                 <Style TargetType="Button">
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
-                                                <Border
-                                                x:Name="bd"
-                                                Background="Transparent"
-                                                CornerRadius="6"
-                                                Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center" />
+                                                <Border x:Name="bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                 </Border>
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
@@ -259,11 +160,12 @@
             </StackPanel>
 
             <Grid x:Name="panelAutoCloseProgress" 
+                  Grid.Column="2"
                   Width="56" Height="56" 
-                  Margin="14,0,0,0" 
-                  VerticalAlignment="Center"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Bottom"
                   Visibility="Collapsed"
-                  Opacity="0.4">
+                  Opacity="1">
 
                 <Grid.Resources>
                     <Storyboard x:Key="FadeOutProgress">
@@ -277,7 +179,6 @@
                 <Border Background="#73000000" CornerRadius="28" BorderBrush="#22FFFFFF" BorderThickness="1">
                     <Grid Margin="6">
                         <Ellipse Stroke="#33FFFFFF" StrokeThickness="2.5" />
-
                         <Grid RenderTransformOrigin="0.5,0.5">
                             <Grid.RenderTransform>
                                 <RotateTransform x:Name="rectProgressTransform" Angle="0" />
@@ -288,13 +189,11 @@
                                 </Ellipse.Effect>
                             </Ellipse>
                         </Grid>
-
                         <TextBlock Text="⏳" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1"/>
                     </Grid>
                 </Border>
             </Grid>
-
-        </StackPanel>
+        </Grid>
         <!-- ── Fin barreBtn ──────────────────────────────────────────────── -->
         <Border x:Name="infoPopup"
                 Padding="20,10,20,10"
@@ -315,7 +214,7 @@
                        FontSize="26"
                        FontWeight="SemiBold"
                        Foreground="White"
-                       Text="🚪 AutoClose..." />
+                       Text="Fermeture automatique..." />
 
             <Border.Resources>
                 <Storyboard x:Key="StoryboardShowInfo">
