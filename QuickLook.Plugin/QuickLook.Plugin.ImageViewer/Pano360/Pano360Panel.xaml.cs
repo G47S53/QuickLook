@@ -81,6 +81,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double _lastMouseY;
         private TimeSpan _lastRenderTime;
         private bool _isMouseInertia = false; // Indique si le mouvement résiduel vient d'un lancer de souris
+        private bool _isPopupShown = false; // Évite les déclenchements multiples du popup avant la fermeture
 
         // ─────────────────────────────────────────────────────────────────────
         // > Champs SpaceMouse 3Dconnexion
@@ -450,6 +451,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _autoCloseStartAngle = _horizontalRotation.Angle;
                 _autoCloseTargetAngle = _autoCloseStartAngle;
                 _hasLeftStartZone = false; // On vient juste d'arriver sur l'angle
+                _isPopupShown = false; // 🔄 Réinitialisation
             }
             else
             {
@@ -474,6 +476,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 txtAutoClose.Text = "🚪 AutoClose: Off";
                 txtAutoClose.TextDecorations = TextDecorations.Strikethrough;
                 txtAutoClose.Opacity = 0.5;
+
+                panelAutoCloseProgress.Visibility = Visibility.Collapsed; // 🛑 Masqué si rotation Off
             }
             else
             {
@@ -484,12 +488,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (_autoCloseActive)
                 {
                     txtAutoClose.Text = "🚪 Close après 1 tour";
-                    txtAutoClose.TextDecorations = null; // Pas barré
+                    txtAutoClose.TextDecorations = null;                      // Pas barré
+                    panelAutoCloseProgress.Visibility = Visibility.Visible;   // 🟢 Visible si AutoClose Actif
                 }
                 else
                 {
                     txtAutoClose.Text = "🚪 AutoClose: Off";
-                    txtAutoClose.TextDecorations = null; // Pas barré
+                    txtAutoClose.TextDecorations = null;                      // Pas barré
+                    panelAutoCloseProgress.Visibility = Visibility.Collapsed; // 🛑 Masqué si désactivé
                 }
             }
         }
@@ -515,6 +521,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (_isBarreMasquee)
                 {
                     (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
                     _isBarreMasquee = false;
                 }
                 return;
@@ -534,6 +541,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (!_isBarreMasquee)
                 {
                     (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
                     _isBarreMasquee = true;
                 }
             }
@@ -543,6 +551,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (_isBarreMasquee)
                 {
                     (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
                     _isBarreMasquee = false;
                 }
             }
@@ -663,7 +672,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
 
             // ──────────────────────────────────────────────────────────────────────
-            // ── 4. APPLICATION DE LA ENERGIE CINÉTIQUE HORIZONTALE ────────────────
+            // ── 4. APPLICATION DE L'ÉNERGIE CINÉTIQUE HORIZONTALE ─────────────────
             if (Math.Abs(_currentRotationSpeed) > 0.01)
             {
                 _horizontalRotation.Angle = (_horizontalRotation.Angle + (_currentRotationSpeed * elapsed)) % 360;
@@ -683,18 +692,33 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     double angleActuel = _horizontalRotation.Angle;
                     double diffAngulaire = Math.Abs(angleActuel - _autoCloseStartAngle);
 
+                    // 🎯 Calcul linéaire parfait du parcours de 0° à 360° pour l'icône de l'anneau
+                    double angleParcouru = (angleActuel - _autoCloseStartAngle + 360) % 360;
+                    rectProgressTransform.Angle = angleParcouru;
+
                     if (!_hasLeftStartZone && (diffAngulaire > 6.0 && diffAngulaire < 354.0))
                     {
                         _hasLeftStartZone = true;
                     }
 
+                    // ⏱️ GESTION DU POPUP TEMPOREL (Anticipation de 1.5 seconde avant l'arrêt)
+                    if (_hasLeftStartZone && !_isPopupShown && _currentRotationSpeed > 0)
+                    {
+                        double angleRestant = 360.0 - angleParcouru;
+                        double tempsRestant = angleRestant / _currentRotationSpeed;
+
+                        if (tempsRestant <= 1.5) // Déclenchement à T-1.5s exacts !
+                        {
+                            _isPopupShown = true;
+                            txtInfoPopup.Text = "🚪 AutoClose...";
+                            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                        }
+                    }
+
+                    // Seuil d'entrée physique dans la zone d'arrêt (inchangé)
                     if (_hasLeftStartZone && diffAngulaire <= 2.0)
                     {
-                        _isAutoClosingPhase = true; // Déclenchement des freins (doux, car _isMouseInertia sera false ici)
-
-                        // Lancement du Popup XAML
-                        txtInfoPopup.Text = "🚪 AutoClose...";
-                        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                        _isAutoClosingPhase = true;
                     }
                 }
             }
