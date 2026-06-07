@@ -263,6 +263,40 @@
 
         </StackPanel>
         <!-- ── Fin barreBtn ──────────────────────────────────────────────── -->
+        <Border x:Name="infoPopup"
+                Padding="20,10,20,10"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="#CC222222"
+                CornerRadius="8"
+                IsHitTestVisible="False"
+                Opacity="0">
 
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="15"
+                                  ShadowDepth="0"
+                                  Opacity="0.7"/>
+            </Border.Effect>
+
+            <TextBlock x:Name="txtInfoPopup"
+                       FontSize="26"
+                       FontWeight="SemiBold"
+                       Foreground="White"
+                       Text="🚪 AutoClose..." />
+
+            <Border.Resources>
+                <Storyboard x:Key="StoryboardShowInfo">
+                    <DoubleAnimationUsingKeyFrames
+                        Storyboard.Target="{Binding Source={x:Reference infoPopup}}"
+                        Storyboard.TargetProperty="Opacity">
+
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.1" Value="0.9" />
+                        <LinearDoubleKeyFrame KeyTime="0:0:1.0" Value="0.9" />
+                        <LinearDoubleKeyFrame KeyTime="0:0:1.4" Value="0" />
+
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
+            </Border.Resources>
+        </Border>
     </Grid>
 </UserControl>

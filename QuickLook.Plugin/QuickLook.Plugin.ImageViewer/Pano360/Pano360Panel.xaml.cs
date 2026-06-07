@@ -80,6 +80,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double _lastMouseX;
         private double _lastMouseY;
         private TimeSpan _lastRenderTime;
+        private bool _isMouseInertia = false; // Indique si le mouvement résiduel vient d'un lancer de souris
 
         // ─────────────────────────────────────────────────────────────────────
         // > Champs SpaceMouse 3Dconnexion
@@ -288,7 +289,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private void OnMouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (_context != null) _context.BlocageShowCaption = false;
+            //if (_context != null) _context.BlocageShowCaption = false;
 
             _isMouseDown = false;
             Mouse.Capture(null);
@@ -566,21 +567,25 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             if (elapsed > 0.1) return;
 
             // ──────────────────────────────────────────────────────────────────────
-            // ── Navigation souris ─────────────────────────────────────────────────
+            // ── 1. NAVIGATION SOURIS (Capture de la vitesse pour l'inertie) ───────
             if (_isMouseDown)
             {
                 double deltaX = _lastMouseX - _startMouseX;
                 double deltaY = _lastMouseY - _startMouseY;
 
-                double speedX = Math.Abs(deltaX) < MouseDeadZone ? 0 : deltaX * MouseSensitivity * elapsed;
-                double speedY = Math.Abs(deltaY) < MouseDeadZone ? 0 : deltaY * MouseSensitivity * elapsed;
+                // Mode Souris : La vitesse horizontale devient proportionnelle à l'écart de drag.
+                _currentRotationSpeed = Math.Abs(deltaX) < MouseDeadZone ? 0 : deltaX * MouseSensitivity;
 
-                _horizontalRotation.Angle += speedX;
+                // 🎯 On active le drapeau : la vitesse courante appartient à la souris
+                _isMouseInertia = true;
+
+                // La rotation verticale reste en direct (pas d'inertie verticale)
+                double speedY = Math.Abs(deltaY) < MouseDeadZone ? 0 : deltaY * MouseSensitivity * elapsed;
                 ClampVertical(_verticalRotation.Angle - speedY);
             }
 
             // ──────────────────────────────────────────────────────────────────────
-            // ── Navigation SpaceMouse synchronisée ────────────────────────────────
+            // ── 2. NAVIGATION SPACEMOUSE (Directe & Instinctive) ──────────────────
             double spaceMouseSpeedX = 0;
             double spaceMouseSpeedY = 0;
             double spaceMouseSpeedZ = 0;
@@ -594,26 +599,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
             {
-                // Sensibilité fine à ajuster au besoin
                 double sensibilite = 0.05;
 
-                // OPTION A : Utiliser l'inclinaison latérale (Y) pour tourner à gauche/droite
                 _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibilite;
-
-                // OPTION B : Utiliser la torsion pure (Z) pour tourner à gauche/droite,
-                // _horizontalRotation.Angle -= spaceMouseSpeedZ * elapsed * sensibilite;
-
-                // Rotation verticale (Haut/Bas) liée à l'inclinaison avant/arrière (Axe X)
                 ClampVertical(_verticalRotation.Angle + (spaceMouseSpeedX * elapsed * sensibilite));
 
                 MarquerMouvement();
             }
 
             // ────────────────────────────────────────────────────────────────────── 
-            // ── MOTEUR DE ROTATION PHYSIQUE (Accélération & Décélération fluide) ──
+            // ── 3. MOTEUR PHYSIQUE (Accélération & Décélération) ──────────────────
             double targetSpeed = 0;
 
-            // Détermination de la vitesse cible selon l'état actuel
             if (!_isMouseDown && !_isAutoClosingPhase)
             {
                 if (_autoRotState == AutoRotationState.Lent)
@@ -623,26 +620,55 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 else if (_autoRotState == AutoRotationState.Rapide)
                     targetSpeed = 360.0 / AutoRotateFastSeconds;
             }
-            // Si la souris est enfoncée ou qu'on est en freinage AutoClose, targetSpeed reste à 0.
 
-            // Rapprochement fluide de la vitesse actuelle vers la vitesse cible
-            if (_currentRotationSpeed < targetSpeed)
+            // Application des forces de freinage ou d'accélération
+            if (!_isMouseDown)
             {
-                // Accélération linéaire
-                _currentRotationSpeed += AccelerationRate * elapsed;
-                if (_currentRotationSpeed > targetSpeed) _currentRotationSpeed = targetSpeed;
-            }
-            else if (_currentRotationSpeed > targetSpeed)
-            {
-                // Décélération / Freinage linéaire
-                _currentRotationSpeed -= DecelerationRate * elapsed;
-                if (_currentRotationSpeed < targetSpeed) _currentRotationSpeed = targetSpeed;
+                // 🛑 LE FREIN AÉRODYNAMIQUE DE LA JAMAIS CONTENTE :
+                double actuelDecelRate = DecelerationRate;
+
+                if (_isMouseInertia)
+                {
+                    double vitesseAbsolue = Math.Abs(_currentRotationSpeed);
+
+                    // Formule physique : Frein linéaire de base + (Coefficient * Vitesse²)
+                    // Le coefficient 0.02 est notre "profil aérodynamique" à ajuster.
+                    actuelDecelRate = DecelerationRate + (0.02 * vitesseAbsolue * vitesseAbsolue);
+                }
+
+                if (_currentRotationSpeed < targetSpeed)
+                {
+                    // Si la vitesse est négative (élan de la souris vers la gauche), 
+                    // on applique notre super-frein dynamique pour remonter vers 0
+                    double rate = (_currentRotationSpeed < 0) ? actuelDecelRate : AccelerationRate;
+                    _currentRotationSpeed += rate * elapsed;
+
+                    if (_currentRotationSpeed >= targetSpeed)
+                    {
+                        _currentRotationSpeed = targetSpeed;
+                        _isMouseInertia = false; // L'élan de la souris est totalement amorti
+                    }
+                }
+                else if (_currentRotationSpeed > targetSpeed)
+                {
+                    // Freinage standard (élan vers la droite ou décélération d'autorotation)
+                    _currentRotationSpeed -= actuelDecelRate * elapsed;
+
+                    if (_currentRotationSpeed <= targetSpeed)
+                    {
+                        _currentRotationSpeed = targetSpeed;
+                        _isMouseInertia = false; // L'élan de la souris est totalement amorti
+                    }
+                }
             }
 
-            // Si le panorama est en mouvement (vitesse > 0), on applique la rotation
-            if (_currentRotationSpeed > 0)
+            // ──────────────────────────────────────────────────────────────────────
+            // ── 4. APPLICATION DE LA ENERGIE CINÉTIQUE HORIZONTALE ────────────────
+            if (Math.Abs(_currentRotationSpeed) > 0.01)
             {
                 _horizontalRotation.Angle = (_horizontalRotation.Angle + (_currentRotationSpeed * elapsed)) % 360;
+
+                if (_horizontalRotation.Angle < 0) _horizontalRotation.Angle += 360;
 
                 if (_context != null && !_context.BlocageShowCaption)
                 {
@@ -657,23 +683,24 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     double angleActuel = _horizontalRotation.Angle;
                     double diffAngulaire = Math.Abs(angleActuel - _autoCloseStartAngle);
 
-                    // Sécurité pour s'assurer qu'on s'est éloigné de l'origine
                     if (!_hasLeftStartZone && (diffAngulaire > 6.0 && diffAngulaire < 354.0))
                     {
                         _hasLeftStartZone = true;
                     }
 
-                    // Si le tour est accompli (retour proche de la ligne d'arrivée)
-                    // On augmente légèrement la tolérance à 2.0° pour capter le passage même à pleine vitesse
                     if (_hasLeftStartZone && diffAngulaire <= 2.0)
                     {
-                        _isAutoClosingPhase = true; // On coupe l'injection, place au freinage !
+                        _isAutoClosingPhase = true; // Déclenchement des freins (doux, car _isMouseInertia sera false ici)
+
+                        // Lancement du Popup XAML
+                        txtInfoPopup.Text = "🚪 AutoClose...";
+                        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                     }
                 }
             }
 
-            // ── Arrêt final de l'AutoClose : la fenêtre se ferme une fois immobilisée
-            if (_isAutoClosingPhase && _currentRotationSpeed <= 0)
+            // ── 5. ARRÊT DE L'AUTOCLOSE (Fermeture de la fenêtre une fois au stand) ──
+            if (_isAutoClosingPhase && Math.Abs(_currentRotationSpeed) <= 0.05)
             {
                 _autoCloseActive = false;
                 _isAutoClosingPhase = false;
@@ -682,14 +709,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 Window.GetWindow(this)?.Close();
                 return;
             }
-
+            if (_currentRotationSpeed == 0 && _context != null && _context.BlocageShowCaption)
+            {
+                _context.BlocageShowCaption = false;
+            }
             // ──────────────────────────────────────────────────────────────────────
-            // ─── Gestion de la barre haute ────────────────────────────────────────
+            // ─── 6. GESTION DE LA BARRE DE BOUTONS ────────────────────────────────
             UpdateBarreOpacity();
         }
+        // Note l'heure courante comme "dernier mouvement détecté".
         private void MarquerMouvement()
         {
-            // Note l'heure courante comme "dernier mouvement détecté".
             _lastMovementTime = DateTime.Now;
         }
 
