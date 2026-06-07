@@ -89,10 +89,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private bool _spaceMouseEnabled = false;
 
-        // Vitesse accumulée par la SpaceMouse à appliquer à la prochaine frame
-        private double _spaceMouseSpeedX = 0;
-        private double _spaceMouseSpeedY = 0;
-
         private readonly object _spaceMouseLock = new object();
         private double _rawSpaceMouseX = 0;
         private double _rawSpaceMouseY = 0;
@@ -109,6 +105,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ── Variables pour l'autorotation haute précision ───────────────────
         private System.Diagnostics.Stopwatch _autoRotateStopwatch = new();
         private double _angleAuDemarrage = 0;
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > AutoClose
+        // ─────────────────────────────────────────────────────────────────────
+        private bool _autoCloseActive = false;
+        private double _autoCloseTargetAngle = -1;
+        private double _autoCloseStartAngle = -1;
+        private bool _hasLeftStartZone = false; // Sécurité pour éviter la fermeture instantanée au clic
 
         // ─────────────────────────────────────────────────────────────────────
         // > Opacité progressive
@@ -160,6 +164,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             //Active la spacemouse par défaut
             btnSpaceMouse.IsChecked = true;
+
+            // AutoClose désactivé par défaut au démarrage
+            MajEtatAutoClose();
         }
 
         #region Initilisation de la scène 3D
@@ -264,6 +271,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _autoRotState = AutoRotationState.Off;
                 btnAutoRotate.Content = "⏸ Off";
                 _autoRotateStopwatch.Stop();
+                MajEtatAutoClose();
             }
 
             _isMouseDown = true;
@@ -428,10 +436,125 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     _lastMovementTime = DateTime.Now;
                     break;
             }
+            MajEtatAutoClose();
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // BOUTON AUTOCLOSE 
+        // ─────────────────────────────────────────────────────────────────────
+        private void BtnAutoClose_Click(object sender, RoutedEventArgs e)
+        {
+            // Sécurité : ne fait rien si l'autorotation est coupée
+            if (_autoRotState == AutoRotationState.Off) return;
+
+            _autoCloseActive = !_autoCloseActive;
+
+            if (_autoCloseActive)
+            {
+                // On mémorise l'angle actuel exact de la rotation horizontale
+                _autoCloseStartAngle = _horizontalRotation.Angle;
+                _autoCloseTargetAngle = _autoCloseStartAngle;
+                _hasLeftStartZone = false; // On vient juste d'arriver sur l'angle
+            }
+            else
+            {
+                _autoCloseTargetAngle = -1;
+                _autoCloseStartAngle = -1;
+                _hasLeftStartZone = false;
+            }
+
+            MajEtatAutoClose();
+        }
+        private void MajEtatAutoClose()
+        {
+            if (_autoRotState == AutoRotationState.Off)
+            {
+                // Désactivation complète de l'AutoClose
+                _autoCloseActive = false;
+                _autoCloseTargetAngle = -1;
+                _autoCloseStartAngle = -1;
+                _hasLeftStartZone = false;
+
+                btnAutoClose.IsEnabled = false;
+                txtAutoClose.Text = "🚪 AutoClose: Off";
+                txtAutoClose.TextDecorations = TextDecorations.Strikethrough; // Texte barré
+                txtAutoClose.Opacity = 0.5;
+            }
+            else
+            {
+                // Le bouton devient accessible car l'autorotation tourne
+                btnAutoClose.IsEnabled = true;
+                txtAutoClose.Opacity = 1.0;
+
+                if (_autoCloseActive)
+                {
+                    txtAutoClose.Text = "🚪 Close après 1 tour";
+                    txtAutoClose.TextDecorations = null; // Pas barré
+                }
+                else
+                {
+                    txtAutoClose.Text = "🚪 AutoClose: Off";
+                    txtAutoClose.TextDecorations = null; // Pas barré
+                }
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // Barre de BOUTONS - Gestion de l'opacité
+        // ─────────────────────────────────────────────────────────────────────
+        private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
+        {
+            _isMouseOverBarre = true;
+            UpdateBarreOpacity(); // Force la réapparition immédiate
         }
 
+        private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
+        {
+            // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
+            _isMouseOverBarre = false;
+        }
+        private void UpdateBarreOpacity()
+        {
+            // Si la souris est physiquement au-dessus de la barre, on la force visible
+            if (_isMouseOverBarre)
+            {
+                if (_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    _isBarreMasquee = false;
+                }
+                return;
+            }
+
+            // Détermination si le panorama est considéré "en mouvement"
+            // 1. Soit la souris est enfoncée (drag)
+            // 2. Soit l'autorotation est active
+            // 3. Soit le dernier mouvement enregistré est plus récent que le délai d'inactivité
+            bool isActuellementEnMouvement = _isMouseDown ||
+                                             (_autoRotState != AutoRotationState.Off) ||
+                                             (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
+
+            if (isActuellementEnMouvement)
+            {
+                // Le panorama bouge : on applique le fondu transparent (FadeOut)
+                if (!_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    _isBarreMasquee = true;
+                }
+            }
+            else
+            {
+                // Le panorama est à l'arrêt complet depuis un moment : on réaffiche (FadeIn)
+                if (_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    _isBarreMasquee = false;
+                }
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
         // ─────────────────────────────────────────────────────────────────────
         // BOUCLE DE RENDU — appelée à chaque frame WPF
+        // ─────────────────────────────────────────────────────────────────────
         // ─────────────────────────────────────────────────────────────────────
         private void OnRendering(object sender, EventArgs e)
         {
@@ -507,6 +630,37 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 // On applique l'angle parfait (le % 360 évite que le chiffre grandisse à l'infini)
                 _horizontalRotation.Angle = nouvelAngle % 360;
+
+                // ── Vérification AutoClose (Fermeture après 1 tour) ──────────
+                if (_autoCloseActive && _autoCloseTargetAngle >= 0)
+                {
+                    double angleActuel = _horizontalRotation.Angle;
+
+                    // Calcul de la distance angulaire par rapport à l'angle de départ.
+                    // Comme l'angle est compris entre 0 et 360 (grâce au % 360),
+                    // on regarde de combien on s'est éloigné.
+                    double diffAngulaire = Math.Abs(angleActuel - _autoCloseStartAngle);
+
+                    // Si la différence est significative (ex: plus de 5 degrés), 
+                    // cela signifie qu'on a bien quitté la zone de départ.
+                    if (!_hasLeftStartZone && (diffAngulaire > 5.0 && diffAngulaire < 355.0))
+                    {
+                        _hasLeftStartZone = true;
+                    }
+
+                    // Si on a quitté la zone de départ et qu'on revient très près de l'angle initial,
+                    // le tour est bouclé ! (Marge de tolérance de 1.5° selon la vitesse de frame)
+                    if (_hasLeftStartZone && diffAngulaire <= 1.5)
+                    {
+                        // On coupe tout par sécurité avant de fermer
+                        _autoCloseActive = false;
+                        _autoRotState = AutoRotationState.Off;
+
+                        // Fermeture propre de la fenêtre QuickLook
+                        Window.GetWindow(this)?.Close();
+                        return;
+                    }
+                }
 
                 if (_context != null && !_context.BlocageShowCaption)
                 {
@@ -653,57 +807,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Reflection.BindingFlags.NonPublic);
 
             method?.Invoke(window, null);
-        }
-        private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
-        {
-            _isMouseOverBarre = true;
-            UpdateBarreOpacity(); // Force la réapparition immédiate
-        }
-
-        private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
-        {
-            // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
-            _isMouseOverBarre = false;
-        }
-        private void UpdateBarreOpacity()
-        {
-            // Si la souris est physiquement au-dessus de la barre, on la force visible
-            if (_isMouseOverBarre)
-            {
-                if (_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    _isBarreMasquee = false;
-                }
-                return;
-            }
-
-            // Détermination si le panorama est considéré "en mouvement"
-            // 1. Soit la souris est enfoncée (drag)
-            // 2. Soit l'autorotation est active
-            // 3. Soit le dernier mouvement enregistré est plus récent que le délai d'inactivité
-            bool isActuellementEnMouvement = _isMouseDown ||
-                                             (_autoRotState != AutoRotationState.Off) ||
-                                             (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
-
-            if (isActuellementEnMouvement)
-            {
-                // Le panorama bouge : on applique le fondu transparent (FadeOut)
-                if (!_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    _isBarreMasquee = true;
-                }
-            }
-            else
-            {
-                // Le panorama est à l'arrêt complet depuis un moment : on réaffiche (FadeIn)
-                if (_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    _isBarreMasquee = false;
-                }
-            }
         }
     }
 }

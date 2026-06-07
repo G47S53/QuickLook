@@ -210,6 +210,54 @@
                             </Style>
                         </Button.Style>
                     </Button>
+                    <Separator
+                        Width="3"
+                        Height="18"
+                        Background="#55FFFFFF"
+                        Margin="0,0,6,0" />
+
+                    <Button
+                        x:Name="btnAutoClose"
+                        Width="120"
+                        Padding="8,4"
+                        Foreground="White"
+                        Cursor="Hand"
+                        ToolTip="Fermer automatiquement la fenêtre après un tour complet (Disponible uniquement si l'autorotation est active)"
+                        Click="BtnAutoClose_Click">
+
+                        <TextBlock x:Name="txtAutoClose" Text="🚪 AutoClose: Off" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border
+                                                x:Name="bd"
+                                                Background="Transparent"
+                                                CornerRadius="6"
+                                                Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="bd" Property="Background" Value="#33FFFFFF" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter TargetName="bd" Property="Background" Value="#55FFFFFF" />
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter TargetName="bd" Property="Background" Value="Transparent" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </StackPanel>
             </Border>
 
