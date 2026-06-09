@@ -60,10 +60,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double AutoRotateSlowSeconds = 60.0;   // Tour lent     : 60 s
 
         // ─────────────────────────────────────────────────────────────────────
-        // > Opacité progressive de la barre de boutons
+        // > barre de boutons
         // ─────────────────────────────────────────────────────────────────────
         // Délai d'inactivité (en secondes) avant de réafficher les boutons.
         private const double InactivityDelay = 0.5;
+        private bool _isBarreCompactee = false;
 
         // ─────────────────────────────────────────────────────────────────────
         // > Champs 3D
@@ -147,6 +148,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _chkFullscreenSavedValue = false;
         private int _StartAutoRotate = 0;
         private bool _StartAutoCloseEnabled = false;
+        private double _optionFov = 90.0;
 
         private Pano360Settings settings;
 
@@ -160,6 +162,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             public double AutoRotateFastSeconds { get; set; } = 10.0;
             public int StartAutoRotate { get; set; } = 0;
             public bool StartAutoCloseEnabled { get; set; } = false;
+            public bool StartBarreReduite { get; set; } = false;
         }
 
         #endregion Constantes et Déclarations de champs
@@ -769,10 +772,30 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             _camera.FieldOfView = settings.DefaultFov;
                             sldFov.Value = _camera.FieldOfView;
                             txtFov.Text = string.Format("(FOV: {0:F0}°)", _camera.FieldOfView);
+                            _optionFov = settings.DefaultFov;
 
                             // Fullscreen
                             _chkFullscreenSavedValue = settings.FullscreenStartup;
                             if (_chkFullscreenSavedValue) ToggleFullscreen();
+
+                            // ── Application de la barre réduite au démarrage ─────────────────
+                            if (settings.StartBarreReduite)
+                            {
+                                _isBarreCompactee = true;
+
+                                // On bloque l'affichage de manière instantanée sans lancer l'animation
+                                grpBarreGauche.MaxWidth = 0;
+                                grpBarreDroite.MaxWidth = 0;
+                                grpBarreGauche.Opacity = 0;
+                                grpBarreDroite.Opacity = 0;
+
+                                grpBarreGauche.ClipToBounds = true;
+                                grpBarreDroite.ClipToBounds = true;
+                            }
+
+                            // On coche la case dans ton interface d'options pour refléter l'état sauvegardé
+                            chkBarreReduite.IsChecked = settings.StartBarreReduite;
+
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
                 }
@@ -799,13 +822,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     AutoRotateFastSeconds = (int)sldFast.Value,
                     StartAutoRotate = _StartAutoRotate,
                     StartAutoCloseEnabled = _StartAutoCloseEnabled,
+                    StartBarreReduite = chkBarreReduite.IsChecked ?? false // 👈 Sauvegarde de la Checkbox !
                 };
 
                 // Assigner les variables physiques locales pour exécution immédiate
                 AutoRotateSlowSeconds = sldSlow.Value;
                 AutoRotateNormalSeconds = sldNormal.Value;
                 AutoRotateFastSeconds = sldFast.Value;
-                //_chkFullscreenSavedValue = settings.FullscreenStartup;
+                // Assigner les variables pour les options
+                _optionFov = settings.DefaultFov;
+                _chkFullscreenSavedValue = settings.FullscreenStartup;
+                
 
                 string directory = System.IO.Path.GetDirectoryName(_configPath);
                 if (!System.IO.Directory.Exists(directory)) System.IO.Directory.CreateDirectory(directory);
@@ -827,13 +854,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Remplissage des contrôles graphiques avec les valeurs actuelles des constantes dynamiques
             chkFullscreen.IsChecked = _chkFullscreenSavedValue; // Sera déterminé par le LoadSettings
-            sldFov.Value = _camera.FieldOfView;
-
+            sldFov.Value = _optionFov;
+            
+            // 🎯 ON ALLUME LE FLOU DERRIÈRE : Un rayon de 15 rend le panorama magnifiquement flou
+            viewBlur.Radius = 15;
+            
             // Affichage de l'incrustation des options
             gridPreferences.Visibility = Visibility.Visible;
         }
         private void BtnCloseOptions_Click(object sender, RoutedEventArgs e)
         {
+            // 🎯 ON ÉTEINT LE FLOU : Le panorama redevient instantanément net
+            viewBlur.Radius = 0;
+
             // Masquage de la boîte
             gridPreferences.Visibility = Visibility.Collapsed;
 
@@ -918,6 +951,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private void SldFast_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (lblFast != null) lblFast.Text = string.Format("{0:F0}s", e.NewValue);
+        }
+        private void GridPreferences_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            // 🎯 On indique à WPF que l'événement s'arrête ici. 
+            // Le clic est "consommé" par le fond noir et ne traverse pas vers le panorama !
+            e.Handled = true;
+        }
+        private void GridPreferences_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // 🎯 On bloque aussi la molette de la souris pour empêcher le zoom en arrière-plan
+            e.Handled = true;
         }
         // ─────────────────────────────────────────────────────────────────────
         // BOUTON AUTOROTATION
@@ -1014,7 +1058,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
         }
         // ─────────────────────────────────────────────────────────────────────
-        // Barre de BOUTONS - Gestion de l'opacité
+        // Barre de BOUTONS
         // ─────────────────────────────────────────────────────────────────────
         private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
         {
@@ -1069,6 +1113,63 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 }
             }
         }
+        private void TxtFov_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                e.Handled = true;
+                MarquerMouvement();
+
+                _isBarreCompactee = !_isBarreCompactee;
+
+                // On active le ClipToBounds pour masquer proprement les boutons pendant qu'ils se font écraser
+                grpBarreGauche.ClipToBounds = true;
+                //grpBarreDroite.KeepInLayout = false; // Astuce facultative, gérée par le flux
+                grpBarreDroite.ClipToBounds = true;
+
+                // Détermination des dimensions de départ et d'arrivée
+                // Si on compacte, on part de la taille actuelle vers 0.
+                // Si on ouvre, on part de 0 vers 252 (la somme exacte de tes deux boutons de 120px + marges).
+                double maxGaucheStart = _isBarreCompactee ? grpBarreGauche.ActualWidth : 0;
+                double maxGaucheEnd = _isBarreCompactee ? 0 : 252;
+
+                double maxDroiteStart = _isBarreCompactee ? grpBarreDroite.ActualWidth : 0;
+                double maxDroiteEnd = _isBarreCompactee ? 0 : 252;
+
+                // Animation de l'opacité pour accompagner la glissière
+                double opaciteCible = _isBarreCompactee ? 0 : 1;
+
+                IEasingFunction fonctionDouce = new QuarticEase { EasingMode = EasingMode.EaseOut };
+                Duration dureeAnimation = new Duration(TimeSpan.FromMilliseconds(300));
+
+                // Création des animations de Largeur Maximale
+                DoubleAnimation animMaxGauche = new DoubleAnimation { From = maxGaucheStart, To = maxGaucheEnd, Duration = dureeAnimation, EasingFunction = fonctionDouce };
+                DoubleAnimation animMaxDroite = new DoubleAnimation { From = maxDroiteStart, To = maxDroiteEnd, Duration = dureeAnimation, EasingFunction = fonctionDouce };
+
+                DoubleAnimation animOpaciteG = new DoubleAnimation { To = opaciteCible, Duration = dureeAnimation };
+                DoubleAnimation animOpaciteD = new DoubleAnimation { To = opaciteCible, Duration = dureeAnimation };
+
+                // Libération des contraintes à la fin de l'ouverture pour garder l'adaptabilité du mode Auto
+                if (!_isBarreCompactee)
+                {
+                    animMaxGauche.Completed += (s, args) => {
+                        grpBarreGauche.BeginAnimation(StackPanel.MaxWidthProperty, null);
+                        grpBarreGauche.MaxWidth = 500; // Largeur max par défaut confortable
+                    };
+                    animMaxDroite.Completed += (s, args) => {
+                        grpBarreDroite.BeginAnimation(StackPanel.MaxWidthProperty, null);
+                        grpBarreDroite.MaxWidth = 500;
+                    };
+                }
+
+                // Exécution simultanée (un seul temps visuel)
+                grpBarreGauche.BeginAnimation(StackPanel.MaxWidthProperty, animMaxGauche);
+                grpBarreDroite.BeginAnimation(StackPanel.MaxWidthProperty, animMaxDroite);
+                grpBarreGauche.BeginAnimation(StackPanel.OpacityProperty, animOpaciteG);
+                grpBarreDroite.BeginAnimation(StackPanel.OpacityProperty, animOpaciteD);
+            }
+        }
+
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
