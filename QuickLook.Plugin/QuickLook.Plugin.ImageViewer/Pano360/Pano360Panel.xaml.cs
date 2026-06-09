@@ -85,12 +85,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double VerticalAngleMin = -90.0;
         private const double VerticalAngleMax = 45.0;
 
+        private const double RollMin = -10.0;
+        private const double RollMax = 10.0;
+        private const double RollReturnSpeed = 25.0;
+
         // ─────────────────────────────────────────────────────────────────────
         // > Champs 3D
         // ─────────────────────────────────────────────────────────────────────
         private PerspectiveCamera _camera = new PerspectiveCamera();
         private AxisAngleRotation3D _horizontalRotation = new AxisAngleRotation3D();
         private AxisAngleRotation3D _verticalRotation = new AxisAngleRotation3D();
+        private AxisAngleRotation3D _rollRotation = new AxisAngleRotation3D();
 
         // ─────────────────────────────────────────────────────────────────────
         // > Champs navigation souris
@@ -110,6 +115,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private Device _smDevice;
         private Sensor _smSensor;
         private TDxInput.Keyboard _keyboardSpaceMouse;
+
+        private double sensibiliteTangage = 0.05;     //X, Pitch
+        private double sensibiliteLacet = 0.05;       //Y, Yaw 
+        private double sensibiliteRoulis = 0.002;     //Z, Roll
 
         private bool _spaceMouseEnabled = false;
 
@@ -264,10 +273,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Deux rotations indépendantes : horizontale (axe Y) et verticale (axe X).
             _horizontalRotation = new AxisAngleRotation3D(new Media3D.Vector3D(0, 1, 0), 0);
             _verticalRotation = new AxisAngleRotation3D(new Media3D.Vector3D(1, 0, 0), 0);
+            _rollRotation = new AxisAngleRotation3D(new Media3D.Vector3D(0, 0, 1), 0);
 
             var transformGroup = new Transform3DGroup();
             transformGroup.Children.Add(new RotateTransform3D(_horizontalRotation));
             transformGroup.Children.Add(new RotateTransform3D(_verticalRotation));
+            transformGroup.Children.Add(new RotateTransform3D(_rollRotation));
+            
             model.Transform = transformGroup;
 
             viewport3D.Children.Add(new ModelVisual3D { Content = model });
@@ -400,12 +412,34 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
             {
-                double sensibilite = 0.05;
-
-                _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibilite;
-                ClampVertical(_verticalRotation.Angle + (spaceMouseSpeedX * elapsed * sensibilite));
+                _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
+                ClampVertical(_verticalRotation.Angle + (spaceMouseSpeedX * elapsed * sensibiliteTangage));
 
                 MarquerMouvement();
+            }
+
+            if (Math.Abs(spaceMouseSpeedZ) > 1)
+            {
+                _rollRotation.Angle = Clamp(
+                    _rollRotation.Angle -
+                    spaceMouseSpeedZ * elapsed * sensibiliteRoulis,
+                    RollMin,
+                    RollMax);
+            }
+            else
+            {
+                if (_rollRotation.Angle > 0)
+                {
+                    _rollRotation.Angle = Math.Max(
+                        0,
+                        _rollRotation.Angle - RollReturnSpeed * elapsed);
+                }
+                else if (_rollRotation.Angle < 0)
+                {
+                    _rollRotation.Angle = Math.Min(
+                        0,
+                        _rollRotation.Angle + RollReturnSpeed * elapsed);
+                }
             }
 
             // ──────────────────────────────────────────────────────────────────────
