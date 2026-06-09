@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "items": [
+    {
+      "name": "Plugin Image (Panorama 360)",
+      "children": [
+        {
+          "name": "Pano360Panel.xaml",
+          "path": "QuickLook.Plugin\\QuickLook.Plugin.ImageViewer\\Pano360\\Pano360Panel.xaml"
+        },
+        {
+          "name": "Pano360Panel.xaml.cs",
+          "path": "QuickLook.Plugin\\QuickLook.Plugin.ImageViewer\\Pano360\\Pano360Panel.xaml.cs"
+        }
+      ]
+    },
+    {
+      "name": "Plugin Video",
+      "children": [
+        {
+          "name": "ViewerPanel.xaml",
+          "path": "QuickLook.Plugin\\QuickLook.Plugin.VideoViewer\\ViewerPanel.xaml"
+        },
+        {
+          "name": "ViewerPanel.xaml.cs",
+          "path": "QuickLook.Plugin\\QuickLook.Plugin.VideoViewer\\ViewerPanel.xaml.cs"
+        }
+      ]
+    }
+  ]
+}

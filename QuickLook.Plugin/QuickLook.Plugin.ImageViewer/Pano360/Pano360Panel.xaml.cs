@@ -148,7 +148,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _chkFullscreenSavedValue = false;
         private int _StartAutoRotate = 0;
         private bool _StartAutoCloseEnabled = false;
-        private double _optionFov = 90.0;
+        private double _OptionFov = 90.0;
+        private bool _OptionOpen = false;
 
         private Pano360Settings settings;
 
@@ -645,7 +646,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void OnSpaceMouseMouvement()
         {
+            // Vérifie si le capteur de la SpaceMouse est disponible. Si le capteur est nul, on interrompt l'exécution pour éviter une erreur de référence nulle.
             if (_smSensor == null) return;
+
+            // Si le menu des options est ouvert, on interrompt l'exécution pour ignorer les mouvements de la SpaceMouse.
+            if (_OptionOpen) return;
 
             try
             {
@@ -772,7 +777,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             _camera.FieldOfView = settings.DefaultFov;
                             sldFov.Value = _camera.FieldOfView;
                             txtFov.Text = string.Format("(FOV: {0:F0}°)", _camera.FieldOfView);
-                            _optionFov = settings.DefaultFov;
+                            _OptionFov = settings.DefaultFov;
 
                             // Fullscreen
                             _chkFullscreenSavedValue = settings.FullscreenStartup;
@@ -830,7 +835,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 AutoRotateNormalSeconds = sldNormal.Value;
                 AutoRotateFastSeconds = sldFast.Value;
                 // Assigner les variables pour les options
-                _optionFov = settings.DefaultFov;
+                _OptionFov = settings.DefaultFov;
                 _chkFullscreenSavedValue = settings.FullscreenStartup;
                 
 
@@ -852,9 +857,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _autoCloseActive = false;
             MajEtatAutoClose();
 
+            // Indique que la boite de dialogue d'option est ouverte (utile pour désactiver la spacemouse)
+            _OptionOpen = true;
+
             // Remplissage des contrôles graphiques avec les valeurs actuelles des constantes dynamiques
             chkFullscreen.IsChecked = _chkFullscreenSavedValue; // Sera déterminé par le LoadSettings
-            sldFov.Value = _optionFov;
+            sldFov.Value = _OptionFov;
             
             // 🎯 ON ALLUME LE FLOU DERRIÈRE : Un rayon de 15 rend le panorama magnifiquement flou
             viewBlur.Radius = 15;
@@ -866,6 +874,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             // 🎯 ON ÉTEINT LE FLOU : Le panorama redevient instantanément net
             viewBlur.Radius = 0;
+
+            // Indique que la boite de dialogue d'option est fermée (utile pour activer la spacemouse)
+            _OptionOpen = false;
 
             // Masquage de la boîte
             gridPreferences.Visibility = Visibility.Collapsed;
