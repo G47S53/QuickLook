@@ -111,6 +111,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private Sensor _smSensor;
         private TDxInput.Keyboard _keyboardSpaceMouse;
 
+        private double sensibiliteTangage = 0.05;     //X, Pitch
+        private double sensibiliteLacet = 0.05;       //Y, Yaw 
+        //private double sensibiliteRoulis = 0.002;     //Z, Roll
+
         private bool _spaceMouseEnabled = false;
 
         private readonly object _spaceMouseLock = new object();
@@ -400,10 +404,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
             {
-                double sensibilite = 0.05;
-
-                _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibilite;
-                ClampVertical(_verticalRotation.Angle + (spaceMouseSpeedX * elapsed * sensibilite));
+                _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
+                ClampVertical(_verticalRotation.Angle + (spaceMouseSpeedX * elapsed * sensibiliteTangage));
 
                 MarquerMouvement();
             }
