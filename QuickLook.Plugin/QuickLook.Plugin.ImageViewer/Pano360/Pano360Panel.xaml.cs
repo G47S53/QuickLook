@@ -34,104 +34,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         #region Constantes et Déclarations de champs
 
         // ─────────────────────────────────────────────────────────────────────
-        // > Constantes — paramètres de la sphère et de la navigation
-        // ─────────────────────────────────────────────────────────────────────
-        private const int SphereSlices = 72;
-        private const int SphereStacks = 36;
-
-        private const double FovMin = 30.0;
-        private const double FovMax = 120.0;
-        private const double FovDefault = 90.0;
-        private const double FovZoomStep = 5.0;
-
-        private const double MouseSensitivity = 1.0;
-        private const double MouseDeadZone = 5.0;
-
-        private const double VerticalAngleMin = -90.0;
-        private const double VerticalAngleMax = 45.0;
-
-        // ─────────────────────────────────────────────────────────────────────
-        // > Autorotation
-        // ─────────────────────────────────────────────────────────────────────
-        // Durée d'un tour complet (360°) en secondes.
-        // Changez ces valeurs pour accélérer ou ralentir chaque mode.
-        private double AutoRotateFastSeconds = 10.0;   // Tour rapide   : 10 s
-        private double AutoRotateNormalSeconds = 20.0; // Tour normal   : 20 s
-        private double AutoRotateSlowSeconds = 60.0;   // Tour lent     : 60 s
-
-        // ─────────────────────────────────────────────────────────────────────
-        // > barre de boutons
-        // ─────────────────────────────────────────────────────────────────────
-        // Délai d'inactivité (en secondes) avant de réafficher les boutons.
-        private const double InactivityDelay = 0.5;
-        private bool _isBarreCompactee = false;
-
-        // ─────────────────────────────────────────────────────────────────────
-        // > Champs 3D
-        // ─────────────────────────────────────────────────────────────────────
-        private PerspectiveCamera _camera = new PerspectiveCamera();
-        private AxisAngleRotation3D _horizontalRotation = new AxisAngleRotation3D();
-        private AxisAngleRotation3D _verticalRotation = new AxisAngleRotation3D();
-
-        // ─────────────────────────────────────────────────────────────────────
-        // > Champs navigation souris
-        // ─────────────────────────────────────────────────────────────────────
-        private bool _isMouseDown = false;
-        private double _startMouseX;
-        private double _startMouseY;
-        private double _lastMouseX;
-        private double _lastMouseY;
-        private TimeSpan _lastRenderTime;
-        private bool _isMouseInertia = false; // Indique si le mouvement résiduel vient d'un lancer de souris
-        private bool _isPopupShown = false; // Évite les déclenchements multiples du popup avant la fermeture
-
-        // ─────────────────────────────────────────────────────────────────────
-        // > Champs SpaceMouse 3Dconnexion
-        // ─────────────────────────────────────────────────────────────────────
-        private Device _smDevice;
-        private Sensor _smSensor;
-
-        private bool _spaceMouseEnabled = false;
-
-        private readonly object _spaceMouseLock = new object();
-        private double _rawSpaceMouseX = 0;
-        private double _rawSpaceMouseY = 0;
-        private double _rawSpaceMouseZ = 0;
-
-        // ─────────────────────────────────────────────────────────────────────
-        // > Autorotation
-        // ─────────────────────────────────────────────────────────────────────
-        private enum AutoRotationState { Off, Lent, Normal, Rapide }
-
-        // État courant de l'autorotation (commence arrêté).
-        private AutoRotationState _autoRotState = AutoRotationState.Off;
-
-        // ─────────────────────────────────────────────────────────────────────
-        // > AutoClose - Moteur Physique "La Jamais Contente" 🏎️ (Accélération / Décélération)
-        // ─────────────────────────────────────────────────────────────────────
-        private double _currentRotationSpeed = 0.0;   // Vitesse angulaire actuelle (°/s)
-        private const double AccelerationRate = 18.0; // Taux d'accélération (°/s²)
-        private const double DecelerationRate = 45.0; // Taux de freinage/décélération (°/s²)
-
-        private bool _autoCloseActive = false;
-        private double _autoCloseTargetAngle = -1;
-        private double _autoCloseStartAngle = -1;
-        private bool _hasLeftStartZone = false;       // Sécurité pour éviter la fermeture instantanée au clic
-        private bool _isAutoClosingPhase = false;     // True quand le tour est fini et qu'on freine avant fermeture
-
-        // ─────────────────────────────────────────────────────────────────────
-        // > Opacité progressive
-        // ─────────────────────────────────────────────────────────────────────
-        // Horodatage du dernier mouvement détecté (souris OU autorotation OU SpaceMouse).
-        private DateTime _lastMovementTime = DateTime.MinValue;
-
-        // Indique si un mouvement était actif au frame précédent.
-        // Sert à détecter le passage repos ↔ mouvement sans heuristique trop lourde.
-
-        private bool _isBarreMasquee = false;
-        private bool _isMouseOverBarre = false;
-
-        // ─────────────────────────────────────────────────────────────────────
         // > Référence au contexte QuickLook et au chemin du fichier image
         // ─────────────────────────────────────────────────────────────────────
         private readonly QuickLook.Common.Plugin.ContextObject _context;
@@ -166,6 +68,111 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             public bool StartBarreReduite { get; set; } = false;
         }
 
+        // ─────────────────────────────────────────────────────────────────────
+        // > Constantes — paramètres de la sphère et de la navigation
+        // ─────────────────────────────────────────────────────────────────────
+        private const int SphereSlices = 72;
+        private const int SphereStacks = 36;
+
+        private const double FovMin = 30.0;
+        private const double FovMax = 135.0;
+        private const double FovDefault = 90.0;
+        private const double FovZoomStep = 5.0;
+
+        private const double MouseSensitivity = 1.0;
+        private const double MouseDeadZone = 5.0;
+
+        private const double VerticalAngleMin = -90.0;
+        private const double VerticalAngleMax = 45.0;
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > Champs 3D
+        // ─────────────────────────────────────────────────────────────────────
+        private PerspectiveCamera _camera = new PerspectiveCamera();
+        private AxisAngleRotation3D _horizontalRotation = new AxisAngleRotation3D();
+        private AxisAngleRotation3D _verticalRotation = new AxisAngleRotation3D();
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > Champs navigation souris
+        // ─────────────────────────────────────────────────────────────────────
+        private bool _isMouseDown = false;
+        private double _startMouseX;
+        private double _startMouseY;
+        private double _lastMouseX;
+        private double _lastMouseY;
+        private TimeSpan _lastRenderTime;
+        private bool _isMouseInertia = false; // Indique si le mouvement résiduel vient d'un lancer de souris
+        private bool _isPopupShown = false; // Évite les déclenchements multiples du popup avant la fermeture
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > Champs SpaceMouse 3Dconnexion
+        // ─────────────────────────────────────────────────────────────────────
+        private Device _smDevice;
+        private Sensor _smSensor;
+        private TDxInput.Keyboard _keyboardSpaceMouse;
+
+        private bool _spaceMouseEnabled = false;
+
+        private readonly object _spaceMouseLock = new object();
+        private double _rawSpaceMouseX = 0;
+        private double _rawSpaceMouseY = 0;
+        private double _rawSpaceMouseZ = 0;
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > Raccourcis clavier — navigation vers angle cible
+        // ─────────────────────────────────────────────────────────────────────
+        private double _targetHorizontalAngle = double.NaN; // NaN = pas de cible active
+        private double _targetVerticalAngle = double.NaN;
+        private const double KeySnapSpeed = 180.0;          // °/s de rotation animée
+        private double _homeHorizontalAngle = 0.0;          // Angle de départ mémorisé
+        private double _homeVerticalAngle = 0.0;
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > Autorotation
+        // ─────────────────────────────────────────────────────────────────────
+        private enum AutoRotationState { Off, Lent, Normal, Rapide }
+
+        // État courant de l'autorotation (commence arrêté).
+        private AutoRotationState _autoRotState = AutoRotationState.Off;
+
+        // Durée d'un tour complet (360°) en secondes.
+        // Changez ces valeurs pour accélérer ou ralentir chaque mode.
+        private double AutoRotateFastSeconds = 10.0;   // Tour rapide   : 10 s
+        private double AutoRotateNormalSeconds = 20.0; // Tour normal   : 20 s
+        private double AutoRotateSlowSeconds = 60.0;   // Tour lent     : 60 s
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > AutoClose - Moteur Physique "La Jamais Contente" 🏎️ (Accélération / Décélération)
+        // ─────────────────────────────────────────────────────────────────────
+        private double _currentRotationSpeed = 0.0;   // Vitesse angulaire actuelle (°/s)
+        private const double AccelerationRate = 18.0; // Taux d'accélération (°/s²)
+        private const double DecelerationRate = 45.0; // Taux de freinage/décélération (°/s²)
+
+        private bool _autoCloseActive = false;
+        private double _autoCloseTargetAngle = -1;
+        private double _autoCloseStartAngle = -1;
+        private bool _hasLeftStartZone = false;       // Sécurité pour éviter la fermeture instantanée au clic
+        private bool _isAutoClosingPhase = false;     // True quand le tour est fini et qu'on freine avant fermeture
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > barre de boutons
+        // ─────────────────────────────────────────────────────────────────────
+        // Délai d'inactivité (en secondes) avant de réafficher les boutons.
+        private const double InactivityDelay = 0.5;
+        private bool _isBarreCompactee = false;
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > Opacité progressive
+        // ─────────────────────────────────────────────────────────────────────
+        // Horodatage du dernier mouvement détecté (souris OU autorotation OU SpaceMouse).
+        private DateTime _lastMovementTime = DateTime.MinValue;
+
+        // Indique si un mouvement était actif au frame précédent.
+        // Sert à détecter le passage repos ↔ mouvement sans heuristique trop lourde.
+
+        private bool _isBarreMasquee = false;
+        private bool _isMouseOverBarre = false;
+
         #endregion Constantes et Déclarations de champs
 
         // ─────────────────────────────────────────────────────────────────────
@@ -196,9 +203,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Clic droit → bascule plein écran
             MouseRightButtonUp += (s, e) => ToggleFullscreen();
 
-            //Active la spacemouse par défaut
-            btnSpaceMouse.IsChecked = true;
-
             // AutoClose désactivé par défaut au démarrage
             MajEtatAutoClose();
 
@@ -216,10 +220,20 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             SetupSphere(material);
             SetupEventHandlers();
 
+            // ── Mémorisation de la vue "Home" ──
+            _homeHorizontalAngle = _horizontalRotation.Angle; // 0° au démarrage
+            _homeVerticalAngle = _verticalRotation.Angle;     // 0° au démarrage
+
             txtLoading.Visibility = Visibility.Collapsed;
             _context.IsBusy = false;  // Signale à QuickLook que le chargement est terminé
 
             Focus();
+
+            // ── Connexion SpaceMouse une fois la scène complètement prête ──
+            ConnecterSpaceMouse();
+            btnSpaceMouse.Checked -= BtnSpaceMouse_Checked;
+            btnSpaceMouse.IsChecked = true; // Reflète l'état visuel du bouton uniquement
+            btnSpaceMouse.Checked += BtnSpaceMouse_Checked;
         }
         private void SetupCamera()
         {
@@ -372,7 +386,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
 
             // ──────────────────────────────────────────────────────────────────────
-            // ── 2. NAVIGATION SPACEMOUSE (Directe & Instinctive) ──────────────────
+            // ── 1b. NAVIGATION SPACEMOUSE (Directe & Instinctive) ─────────────────
             double spaceMouseSpeedX = 0;
             double spaceMouseSpeedY = 0;
             double spaceMouseSpeedZ = 0;
@@ -394,8 +408,48 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 MarquerMouvement();
             }
 
+            // ──────────────────────────────────────────────────────────────────────
+            // ── 1c. SNAP CLAVIER — interpolation vers angle cible ─────────────────
+            if (!double.IsNaN(_targetHorizontalAngle))
+            {
+                double diff = AngleDiff(_targetHorizontalAngle, _horizontalRotation.Angle);
+
+                if (Math.Abs(diff) < 0.2)
+                {
+                    // Arrivé à destination : on verrouille et on efface la cible
+                    _horizontalRotation.Angle = _targetHorizontalAngle;
+                    _targetHorizontalAngle = double.NaN;
+                    _currentRotationSpeed = 0;
+                }
+                else
+                {
+                    // Interpolation exponentielle (ease-out naturel)
+                    double step = diff * Math.Min(KeySnapSpeed * elapsed / Math.Abs(diff), 1.0);
+                    _horizontalRotation.Angle = NormalizeAngle(_horizontalRotation.Angle + step);
+                    _currentRotationSpeed = 0; // Coupe l'inertie souris pendant le snap
+                    MarquerMouvement();
+                }
+            }
+
+            if (!double.IsNaN(_targetVerticalAngle))
+            {
+                double diff = _targetVerticalAngle - _verticalRotation.Angle;
+
+                if (Math.Abs(diff) < 0.2)
+                {
+                    _verticalRotation.Angle = _targetVerticalAngle;
+                    _targetVerticalAngle = double.NaN;
+                }
+                else
+                {
+                    double step = diff * Math.Min(KeySnapSpeed * elapsed / Math.Abs(diff), 1.0);
+                    ClampVertical(_verticalRotation.Angle + step);
+                    MarquerMouvement();
+                }
+            }
+
             // ────────────────────────────────────────────────────────────────────── 
-            // ── 3. MOTEUR PHYSIQUE (Accélération & Décélération) ──────────────────
+            // ── 2. MOTEUR PHYSIQUE (Accélération & Décélération) ──────────────────
             double targetSpeed = 0;
 
             if (!_isMouseDown && !_isAutoClosingPhase)
@@ -450,7 +504,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
 
             // ──────────────────────────────────────────────────────────────────────
-            // ── 4. APPLICATION DE L'ÉNERGIE CINÉTIQUE HORIZONTALE ─────────────────
+            // ── 3. APPLICATION DE L'ÉNERGIE CINÉTIQUE HORIZONTALE ─────────────────
             if (Math.Abs(_currentRotationSpeed) > 0.01)
             {
                 _horizontalRotation.Angle = (_horizontalRotation.Angle + (_currentRotationSpeed * elapsed)) % 360;
@@ -500,8 +554,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     }
                 }
             }
-
-            // ── 5. ARRÊT DE L'AUTOCLOSE (Fermeture de la fenêtre une fois au stand) ──
+            
+            // ──────────────────────────────────────────────────────────────────────
+            // ── 4. ARRÊT DE L'AUTOCLOSE (Fermeture de la fenêtre une fois au stand)
             if (_isAutoClosingPhase && Math.Abs(_currentRotationSpeed) <= 0.05)
             {
                 _autoCloseActive = false;
@@ -515,8 +570,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 _context.BlocageShowCaption = false;
             }
+            
             // ──────────────────────────────────────────────────────────────────────
-            // ─── 6. GESTION DE LA BARRE DE BOUTONS ────────────────────────────────
+            // ── 5. GESTION DE LA BARRE DE BOUTONS ─────────────────────────────────
             UpdateBarreOpacity();
         }
         private void MarquerMouvement()
@@ -545,7 +601,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             if (_context != null) _context.BlocageShowCaption = true;
 
-            if (e.MiddleButton == MouseButtonState.Pressed) Window.GetWindow(this)?.Close();
+            if (e.MiddleButton == MouseButtonState.Pressed)
+            {
+                e.Handled = true;
+                Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(this)?.Close()));
+                return; // On sort immédiatement du handler
+            }
 
             if (e.LeftButton != MouseButtonState.Pressed) return;
 
@@ -612,6 +673,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 _smDevice = new Device();
                 _smSensor = _smDevice.Sensor;
+
+                _keyboardSpaceMouse = _smDevice.Keyboard;
+                _keyboardSpaceMouse.KeyDown += OnSpaceMouseKeyDown;
+                _keyboardSpaceMouse.KeyUp += OnSpaceMouseKeyUp;
+
                 _smDevice.Connect();
 
                 // On s'abonne à l'événement natif de la V1
@@ -632,6 +698,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 if (_smSensor != null)
                     _smSensor.SensorInput -= OnSpaceMouseMouvement;
+
+                if (_keyboardSpaceMouse != null)
+                {
+                    _keyboardSpaceMouse.KeyDown -= OnSpaceMouseKeyDown;
+                    _keyboardSpaceMouse.KeyUp -= OnSpaceMouseKeyUp;
+                    _keyboardSpaceMouse = null;
+                }
 
                 if (_smDevice != null && _smDevice.IsConnected)
                     _smDevice.Disconnect();
@@ -674,6 +747,57 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // Sécurité COM
             }
         }
+        private void OnSpaceMouseKeyDown(int keyCode)
+        {
+            //Debug
+            System.Diagnostics.Debug.WriteLine($"[SpaceMouse] Touche pressée : {keyCode}");
+
+            // Ignore si le panneau d'options est ouvert
+            if (_OptionOpen) return;
+
+            Dispatcher.Invoke(() =>
+            {
+                // |──────────────────────────────────────────────────
+                // | Touches de la spacepilot pro (partie de droite) |
+                // |                                                 |
+                // |  ─────────────────────                          |
+                // |  | 9/10    |     3/7 |                          |
+                // |  |      ───────      |                          |
+                // |  ───────|11/12|──────|                          |
+                // |  |      ───────      |                          |
+                // |  |  6/8    |     5/4 |                          |
+                // |  ─────────────────────                          |
+                // |                                                 |
+                // |        Fit : 31 & 32                            |
+                // ───────────────────────────────────────────────────
+                switch (keyCode)
+                {
+                    case 9:
+                        _targetHorizontalAngle = NormalizeAngle((double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle) - 90.0);
+                        break;
+                    case 3:
+                        _targetHorizontalAngle = NormalizeAngle((double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle) + 90.0);
+                        break;
+                    case 6:
+                        _targetHorizontalAngle = NormalizeAngle((double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle) - _camera.FieldOfView);
+                        break;
+                    case 5:
+                        _targetHorizontalAngle = NormalizeAngle((double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle) + _camera.FieldOfView);
+                        break;
+                    case 32:
+                        _targetHorizontalAngle = _homeHorizontalAngle;
+                        _targetVerticalAngle = _homeVerticalAngle;
+                        //e.Handled = true;
+                        break;
+
+                }
+            });
+        }
+        private void OnSpaceMouseKeyUp(int keyCode)
+        {
+
+        }
+
         // ─────────────────────────────────────────────────────────────────────
         // BOUTONS OPTIONS
         // ─────────────────────────────────────────────────────────────────────
@@ -1190,6 +1314,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private void ClampVertical(double newAngle)
             // Applique la contrainte verticale à l'angle de la caméra.
             => _verticalRotation.Angle = Clamp(newAngle, VerticalAngleMin, VerticalAngleMax);
+        private static double NormalizeAngle(double angle)
+        {
+            // Ramène un angle dans [0, 360[
+            angle %= 360.0;
+            return angle < 0 ? angle + 360.0 : angle;
+        }
+        private static double AngleDiff(double target, double current)
+        {
+            // Retourne la différence signée la plus courte entre deux angles ([-180, +180])
+            double diff = (target - current + 540.0) % 360.0 - 180.0;
+            return diff;
+        }
         private void ToggleFullscreen()
         {
             var window = Window.GetWindow(this);
