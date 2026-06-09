@@ -81,6 +81,7 @@
         <PackageReference Include="fo-dicom.Imaging.Desktop" Version="5.2.6">
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
         <PackageReference Include="System.IO.Compression" Version="4.3.0" />
         <PackageReference Include="QuickLook.ImageGlass.WebP" Version="1.4.0">
             <PrivateAssets>all</PrivateAssets>

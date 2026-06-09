@@ -25,6 +25,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using TDxInput;
 using Media3D = System.Windows.Media.Media3D;
+using Newtonsoft.Json;
 
 namespace QuickLook.Plugin.ImageViewer.Pano360
 {
@@ -54,9 +55,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // Durée d'un tour complet (360°) en secondes.
         // Changez ces valeurs pour accélérer ou ralentir chaque mode.
-        private const double AutoRotateFastSeconds = 10.0;   // Tour rapide   : 10 s
-        private const double AutoRotateNormalSeconds = 20.0; // Tour normal   : 20 s
-        private const double AutoRotateSlowSeconds = 60.0;   // Tour lent     : 60 s
+        private double AutoRotateFastSeconds = 10.0;   // Tour rapide   : 10 s
+        private double AutoRotateNormalSeconds = 20.0; // Tour normal   : 20 s
+        private double AutoRotateSlowSeconds = 60.0;   // Tour lent     : 60 s
 
         // ─────────────────────────────────────────────────────────────────────
         // > Opacité progressive de la barre de boutons
@@ -135,7 +136,33 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private readonly QuickLook.Common.Plugin.ContextObject _context;
         private readonly string _imagePath;
 
-        #endregion
+        // ─────────────────────────────────────────────────────────────────────
+        // > Sauvegarde des préférences (OPTIONS)
+        // ─────────────────────────────────────────────────────────────────────
+        private readonly string _configPath = System.IO.Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "QuickLook",
+        "Pano360Settings.json");
+
+        private bool _chkFullscreenSavedValue = false;
+        private int _StartAutoRotate = 0;
+        private bool _StartAutoCloseEnabled = false;
+
+        private Pano360Settings settings;
+
+        // Structure pour le stockage des options
+        public class Pano360Settings
+        {
+            public bool FullscreenStartup { get; set; } = false;
+            public double DefaultFov { get; set; } = 90.0;
+            public double AutoRotateSlowSeconds { get; set; } = 60.0;
+            public double AutoRotateNormalSeconds { get; set; } = 20.0;
+            public double AutoRotateFastSeconds { get; set; } = 10.0;
+            public int StartAutoRotate { get; set; } = 0;
+            public bool StartAutoCloseEnabled { get; set; } = false;
+        }
+
+        #endregion Constantes et Déclarations de champs
 
         // ─────────────────────────────────────────────────────────────────────
         // Constructeur
@@ -170,12 +197,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // AutoClose désactivé par défaut au démarrage
             MajEtatAutoClose();
+
+            // Charger et appliquer les options utilisateurs
+            LoadSettings();
         }
-
-        #region Initilisation de la scène 3D
-
         // ─────────────────────────────────────────────────────────────────────
-        // Initialisation de la scène
+        // Scène 3D
         // ─────────────────────────────────────────────────────────────────────
         private void InitScene()
         {
@@ -190,10 +217,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             Focus();
         }
-
-        // ─────────────────────────────────────────────────────────────────────
-        // Mise en place de la caméra
-        // ─────────────────────────────────────────────────────────────────────
         private void SetupCamera()
         {
             _camera = new PerspectiveCamera
@@ -205,10 +228,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             };
             viewport3D.Camera = _camera;
         }
-
-        // ─────────────────────────────────────────────────────────────────────
-        // Lumière ambiante (éclaire uniformément toute la sphère)
-        // ─────────────────────────────────────────────────────────────────────
         private void SetupLight()
         {
             viewport3D.Children.Add(new ModelVisual3D
@@ -216,10 +235,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 Content = new AmbientLight(Colors.White)
             });
         }
-
-        // ─────────────────────────────────────────────────────────────────────
-        // Construction de la sphère et application du matériau (texture 360°)
-        // ─────────────────────────────────────────────────────────────────────
         private void SetupSphere(Material material)
         {
             var mesh = CreatePanoramaSphere();
@@ -239,323 +254,86 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             viewport3D.Children.Add(new ModelVisual3D { Content = model });
         }
-
-        #endregion Fin de l'initialisation de la scène 3D
-
         // ─────────────────────────────────────────────────────────────────────
-        // Gestionnaires d'événements
+        // Génération de la sphère 3D (mesh)
         // ─────────────────────────────────────────────────────────────────────
-        private void SetupEventHandlers()
+        private static MeshGeometry3D CreatePanoramaSphere()
         {
-            // CompositionTarget.Rendering est appelé à chaque frame WPF rendu.
-            // C'est ici que l'animation de rotation et le fondu de la barre sont gérés.
-            CompositionTarget.Rendering += OnRendering;
+            var mesh = new MeshGeometry3D();
 
-            MouseDown += OnMouseDown;
-            MouseUp += OnMouseUp;
-            MouseMove += OnMouseMove;
-            MouseWheel += OnMouseWheel;
-        }
-
-        // ─────────────────────────────────────────────────────────────────────
-        // Gestion de la souris
-        // ─────────────────────────────────────────────────────────────────────
-        private void OnMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            if (_context != null) _context.BlocageShowCaption = true;
-
-            if (e.MiddleButton == MouseButtonState.Pressed) Window.GetWindow(this)?.Close();
-
-            if (e.LeftButton != MouseButtonState.Pressed) return;
-
-            if (_autoRotState != AutoRotationState.Off)
+            // Calcul des sommets et des coordonnées de texture (uv-mapping sphérique)
+            for (int stack = 0; stack <= SphereStacks; stack++)
             {
-                _autoRotState = AutoRotationState.Off;
-                btnAutoRotate.Content = "⏸ Off";
-                MajEtatAutoClose();
+                double phi = Math.PI / SphereStacks * stack;
+                for (int slice = 0; slice <= SphereSlices; slice++)
+                {
+                    double theta = 2 * Math.PI / SphereSlices * slice;
+                    double x = Math.Sin(phi) * Math.Cos(theta);
+                    double y = Math.Cos(phi);
+                    double z = Math.Sin(phi) * Math.Sin(theta);
+
+                    mesh.Positions.Add(new Point3D(x, y, z));
+                    mesh.TextureCoordinates.Add(new Point(
+                        slice / (double)SphereSlices,
+                        phi / Math.PI));
+                }
             }
 
-            _isMouseDown = true;
-            var pos = e.GetPosition(this);
-            _lastMouseX = _startMouseX = pos.X;
-            _lastMouseY = _startMouseY = pos.Y;
-            Mouse.Capture(this);
-
-            MarquerMouvement();
-        }
-
-        private void OnMouseUp(object sender, MouseButtonEventArgs e)
-        {
-            //if (_context != null) _context.BlocageShowCaption = false;
-
-            _isMouseDown = false;
-            Mouse.Capture(null);
-        }
-
-        private void OnMouseMove(object sender, MouseEventArgs e)
-        {
-            if (!_isMouseDown) return;
-
-            var pos = e.GetPosition(this);
-            _lastMouseX = pos.X;
-            _lastMouseY = pos.Y;
-
-            // La souris bouge alors qu'elle est pressée → mouvement en cours
-            MarquerMouvement();
-        }
-
-        private void OnMouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            double delta = e.Delta > 0 ? -FovZoomStep : FovZoomStep;
-            double newFov = Clamp(_camera.FieldOfView + delta, FovMin, FovMax);
-            _camera.FieldOfView = newFov;
-            txtFov.Text = string.Format("(FOV: {0:F0}°)", newFov);
-
-            // On lance l'animation XAML
-            if (txtFov.Resources["FadeFovStoryboard"] is Storyboard sb)
+            // Construction des triangles (deux triangles par quad de la grille)
+            for (int stack = 0; stack < SphereStacks; stack++)
             {
-                // On applique le storyboard spécifiquement sur le txtFov
-                sb.Begin(txtFov);
+                for (int slice = 0; slice < SphereSlices; slice++)
+                {
+                    int i0 = stack * (SphereSlices + 1) + slice;
+                    int i1 = (stack + 1) * (SphereSlices + 1) + slice;
+                    int i2 = stack * (SphereSlices + 1) + slice + 1;
+                    int i3 = (stack + 1) * (SphereSlices + 1) + slice + 1;
+
+                    mesh.TriangleIndices.Add(i0);
+                    mesh.TriangleIndices.Add(i2);
+                    mesh.TriangleIndices.Add(i1);
+
+                    mesh.TriangleIndices.Add(i2);
+                    mesh.TriangleIndices.Add(i3);
+                    mesh.TriangleIndices.Add(i1);
+                }
             }
+
+            return mesh;
         }
-
         // ─────────────────────────────────────────────────────────────────────
-        // Gestion de la SpaceMouse 3Dconnexion
+        // Chargement de la texture panoramique
         // ─────────────────────────────────────────────────────────────────────
-        private void BtnSpaceMouse_Checked(object sender, RoutedEventArgs e)
-            => ConnecterSpaceMouse();
-
-        private void BtnSpaceMouse_Unchecked(object sender, RoutedEventArgs e)
-            => DeconnecterSpaceMouse();
-
-        private void ConnecterSpaceMouse()
+        private static Material CreatePanoramaMaterial(string imagePath)
         {
-            if (_spaceMouseEnabled) return;
-
+            var image = new BitmapImage();
             try
             {
-                _smDevice = new Device();
-                _smSensor = _smDevice.Sensor;
-                _smDevice.Connect();
-
-                // On s'abonne à l'événement natif de la V1
-                _smSensor.SensorInput += OnSpaceMouseMouvement;
-                _spaceMouseEnabled = true;
-                System.Diagnostics.Debug.WriteLine("[Pano Panel] SpaceMouse connectée en direct !");
+                image.BeginInit();
+                image.UriSource = new Uri(imagePath, UriKind.Absolute);
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.EndInit();
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine("[Pano Panel] Échec connexion SpaceMouse : " + ex.Message);
+                MessageBox.Show("Erreur chargement image 360° : " + ex.Message);
+                return new DiffuseMaterial(new SolidColorBrush(Colors.DimGray));
             }
+
+            var brush = new ImageBrush(image)
+            {
+                ViewportUnits = BrushMappingMode.RelativeToBoundingBox,
+                TileMode = TileMode.FlipX,
+                Stretch = Stretch.Fill
+            };
+
+            // Force un filtrage fluide et matériel de la texture (dernière modifi de gemini, peut-etre pas utile)
+            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.Linear);
+
+            return new DiffuseMaterial(brush);
         }
-
-        private void DeconnecterSpaceMouse()
-        {
-            if (!_spaceMouseEnabled) return;
-
-            try
-            {
-                if (_smSensor != null)
-                    _smSensor.SensorInput -= OnSpaceMouseMouvement;
-
-                if (_smDevice != null && _smDevice.IsConnected)
-                    _smDevice.Disconnect();
-            }
-            catch { }
-            finally
-            {
-                _smDevice = null;
-                _smSensor = null;
-                _spaceMouseEnabled = false;
-            }
-        }
-
-        private void OnSpaceMouseMouvement()
-        {
-            if (_smSensor == null) return;
-
-            try
-            {
-                lock (_spaceMouseLock)
-                {
-                    double axeX = _smSensor.Rotation.X;
-                    double axeY = _smSensor.Rotation.Y;
-                    double axeZ = _smSensor.Rotation.Z;
-                    double intensite = _smSensor.Rotation.Angle;
-
-                    // Debug complet avec les 3 axes pour y voir clair
-                    System.Diagnostics.Debug.WriteLine($"SpaceMouse -> X:{axeX:F0} | Y:{axeY:F0} | Z:{axeZ:F0} | Angle:{intensite:F0}");
-
-                    _rawSpaceMouseX = axeX * intensite;
-                    _rawSpaceMouseY = axeY * intensite;
-                    _rawSpaceMouseZ = axeZ * intensite;
-                }
-            }
-            catch
-            {
-                // Sécurité COM
-            }
-        }
-
-        // ─────────────────────────────────────────────────────────────────────
-        // BOUTON AUTOROTATION — cycle entre les 4 états
-        // ─────────────────────────────────────────────────────────────────────
-        /// Gestionnaire du clic sur le bouton "AutoRotate".
-        /// À chaque clic, l'état avance dans le cycle :
-        ///   Off  →  Lent  →  Normal →  Rapide  →  Off  → …
-        /// Le libellé du bouton est mis à jour pour refléter l'état courant.
-        private void BtnAutoRotate_Click(object sender, RoutedEventArgs e)
-        {
-            switch (_autoRotState)
-            {
-                case AutoRotationState.Off:
-                    _autoRotState = AutoRotationState.Lent;
-                    btnAutoRotate.Content = "🐢 Lent";
-                    break;
-
-                case AutoRotationState.Lent:
-                    _autoRotState = AutoRotationState.Normal;
-                    btnAutoRotate.Content = "▶️ Normal";
-                    break;
-
-                case AutoRotationState.Normal:
-                    _autoRotState = AutoRotationState.Rapide;
-                    btnAutoRotate.Content = "▶️▶️ Rapide";
-                    break;
-
-                case AutoRotationState.Rapide:
-                    _autoRotState = AutoRotationState.Off;
-                    btnAutoRotate.Content = "⏸ Off";
-                    _lastMovementTime = DateTime.Now;
-                    break;
-            }
-            MajEtatAutoClose();
-        }
-        // ─────────────────────────────────────────────────────────────────────
-        // BOUTON AUTOCLOSE 
-        // ─────────────────────────────────────────────────────────────────────
-        private void BtnAutoClose_Click(object sender, RoutedEventArgs e)
-        {
-            // Sécurité : ne fait rien si l'autorotation est coupée
-            if (_autoRotState == AutoRotationState.Off) return;
-
-            _autoCloseActive = !_autoCloseActive;
-
-            if (_autoCloseActive)
-            {
-                // On mémorise l'angle actuel exact de la rotation horizontale
-                _autoCloseStartAngle = _horizontalRotation.Angle;
-                _autoCloseTargetAngle = _autoCloseStartAngle;
-                _hasLeftStartZone = false; // On vient juste d'arriver sur l'angle
-                _isPopupShown = false; // 🔄 Réinitialisation
-            }
-            else
-            {
-                _autoCloseTargetAngle = -1;
-                _autoCloseStartAngle = -1;
-                _hasLeftStartZone = false;
-            }
-
-            MajEtatAutoClose();
-        }
-        private void MajEtatAutoClose()
-        {
-            if (_autoRotState == AutoRotationState.Off)
-            {
-                _autoCloseActive = false;
-                _isAutoClosingPhase = false;
-                _autoCloseTargetAngle = -1;
-                _autoCloseStartAngle = -1;
-                _hasLeftStartZone = false;
-
-                btnAutoClose.IsEnabled = false;
-                txtAutoClose.Text = "AutoClose: Off";
-                txtAutoClose.TextDecorations = TextDecorations.Strikethrough;
-                txtAutoClose.Opacity = 0.5;
-
-                panelAutoCloseProgress.Visibility = Visibility.Collapsed; // 🛑 Masqué si rotation Off
-            }
-            else
-            {
-                // Le bouton devient accessible car l'autorotation tourne
-                btnAutoClose.IsEnabled = true;
-                txtAutoClose.Opacity = 1.0;
-
-                if (_autoCloseActive)
-                {
-                    txtAutoClose.Text = "AutoClose: On";
-                    txtAutoClose.TextDecorations = null;                      // Pas barré
-                    panelAutoCloseProgress.Visibility = Visibility.Visible;   // 🟢 Visible si AutoClose Actif
-                }
-                else
-                {
-                    txtAutoClose.Text = "AutoClose: Off";
-                    txtAutoClose.TextDecorations = null;                      // Pas barré
-                    panelAutoCloseProgress.Visibility = Visibility.Collapsed; // 🛑 Masqué si désactivé
-                }
-            }
-        }
-        // ─────────────────────────────────────────────────────────────────────
-        // Barre de BOUTONS - Gestion de l'opacité
-        // ─────────────────────────────────────────────────────────────────────
-        private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
-        {
-            _isMouseOverBarre = true;
-            UpdateBarreOpacity(); // Force la réapparition immédiate
-        }
-
-        private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
-        {
-            // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
-            _isMouseOverBarre = false;
-        }
-        private void UpdateBarreOpacity()
-        {
-            // Si la souris est physiquement au-dessus de la barre, on la force visible
-            if (_isMouseOverBarre)
-            {
-                if (_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
-                    _isBarreMasquee = false;
-                }
-                return;
-            }
-
-            // Détermination si le panorama est considéré "en mouvement"
-            // 1. Soit la souris est enfoncée (drag)
-            // 2. Soit l'autorotation est active
-            // 3. Soit le dernier mouvement enregistré est plus récent que le délai d'inactivité
-            bool isActuellementEnMouvement = _isMouseDown ||
-                                             (_autoRotState != AutoRotationState.Off) ||
-                                             (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
-
-            if (isActuellementEnMouvement)
-            {
-                // Le panorama bouge : on applique le fondu transparent (FadeOut)
-                if (!_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
-                    _isBarreMasquee = true;
-                }
-            }
-            else
-            {
-                // Le panorama est à l'arrêt complet depuis un moment : on réaffiche (FadeIn)
-                if (_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
-                    _isBarreMasquee = false;
-                }
-            }
-        }
-        // ─────────────────────────────────────────────────────────────────────
         // ─────────────────────────────────────────────────────────────────────
         // BOUCLE DE RENDU — appelée à chaque frame WPF
-        // ─────────────────────────────────────────────────────────────────────
         // ─────────────────────────────────────────────────────────────────────
         private void OnRendering(object sender, EventArgs e)
         {
@@ -737,128 +515,569 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // ─── 6. GESTION DE LA BARRE DE BOUTONS ────────────────────────────────
             UpdateBarreOpacity();
         }
-        // Note l'heure courante comme "dernier mouvement détecté".
         private void MarquerMouvement()
         {
+            // Note l'heure courante comme "dernier mouvement détecté".
             _lastMovementTime = DateTime.Now;
         }
-
         // ─────────────────────────────────────────────────────────────────────
-        // Helpers
+        // Gestionnaires d'événements
         // ─────────────────────────────────────────────────────────────────────
-
-        /// <summary>Contraint une valeur entre un minimum et un maximum.</summary>
-        private static double Clamp(double value, double min, double max)
-            => value < min ? min : value > max ? max : value;
-
-        /// <summary>Applique la contrainte verticale à l'angle de la caméra.</summary>
-        private void ClampVertical(double newAngle)
-            => _verticalRotation.Angle = Clamp(newAngle, VerticalAngleMin, VerticalAngleMax);
-
-        // ─────────────────────────────────────────────────────────────────────
-        // Génération de la sphère 3D (mesh)
-        // ─────────────────────────────────────────────────────────────────────
-        private static MeshGeometry3D CreatePanoramaSphere()
+        private void SetupEventHandlers()
         {
-            var mesh = new MeshGeometry3D();
+            // CompositionTarget.Rendering est appelé à chaque frame WPF rendu.
+            // C'est ici que l'animation de rotation et le fondu de la barre sont gérés.
+            CompositionTarget.Rendering += OnRendering;
 
-            // Calcul des sommets et des coordonnées de texture (uv-mapping sphérique)
-            for (int stack = 0; stack <= SphereStacks; stack++)
+            MouseDown += OnMouseDown;
+            MouseUp += OnMouseUp;
+            MouseMove += OnMouseMove;
+            MouseWheel += OnMouseWheel;
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // Gestion de la souris
+        // ─────────────────────────────────────────────────────────────────────
+        private void OnMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_context != null) _context.BlocageShowCaption = true;
+
+            if (e.MiddleButton == MouseButtonState.Pressed) Window.GetWindow(this)?.Close();
+
+            if (e.LeftButton != MouseButtonState.Pressed) return;
+
+            if (_autoRotState != AutoRotationState.Off)
             {
-                double phi = Math.PI / SphereStacks * stack;
-                for (int slice = 0; slice <= SphereSlices; slice++)
-                {
-                    double theta = 2 * Math.PI / SphereSlices * slice;
-                    double x = Math.Sin(phi) * Math.Cos(theta);
-                    double y = Math.Cos(phi);
-                    double z = Math.Sin(phi) * Math.Sin(theta);
-
-                    mesh.Positions.Add(new Point3D(x, y, z));
-                    mesh.TextureCoordinates.Add(new Point(
-                        slice / (double)SphereSlices,
-                        phi / Math.PI));
-                }
+                _autoRotState = AutoRotationState.Off;
+                btnAutoRotate.Content = "Rotation auto.";
+                MajEtatAutoClose();
             }
 
-            // Construction des triangles (deux triangles par quad de la grille)
-            for (int stack = 0; stack < SphereStacks; stack++)
+            _isMouseDown = true;
+            var pos = e.GetPosition(this);
+            _lastMouseX = _startMouseX = pos.X;
+            _lastMouseY = _startMouseY = pos.Y;
+            Mouse.Capture(this);
+
+            MarquerMouvement();
+        }
+        private void OnMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            //if (_context != null) _context.BlocageShowCaption = false;
+
+            _isMouseDown = false;
+            Mouse.Capture(null);
+        }
+        private void OnMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_isMouseDown) return;
+
+            var pos = e.GetPosition(this);
+            _lastMouseX = pos.X;
+            _lastMouseY = pos.Y;
+
+            // La souris bouge alors qu'elle est pressée → mouvement en cours
+            MarquerMouvement();
+        }
+        private void OnMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            double delta = e.Delta > 0 ? -FovZoomStep : FovZoomStep;
+            double newFov = Clamp(_camera.FieldOfView + delta, FovMin, FovMax);
+            _camera.FieldOfView = newFov;
+            txtFov.Text = string.Format("(FOV: {0:F0}°)", newFov);
+
+            // On lance l'animation XAML
+            if (txtFov.Resources["FadeFovStoryboard"] is Storyboard sb)
             {
-                for (int slice = 0; slice < SphereSlices; slice++)
-                {
-                    int i0 = stack * (SphereSlices + 1) + slice;
-                    int i1 = (stack + 1) * (SphereSlices + 1) + slice;
-                    int i2 = stack * (SphereSlices + 1) + slice + 1;
-                    int i3 = (stack + 1) * (SphereSlices + 1) + slice + 1;
-
-                    mesh.TriangleIndices.Add(i0);
-                    mesh.TriangleIndices.Add(i2);
-                    mesh.TriangleIndices.Add(i1);
-
-                    mesh.TriangleIndices.Add(i2);
-                    mesh.TriangleIndices.Add(i3);
-                    mesh.TriangleIndices.Add(i1);
-                }
+                // On applique le storyboard spécifiquement sur le txtFov
+                sb.Begin(txtFov);
             }
-
-            return mesh;
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // Chargement de la texture panoramique
+        // Gestion de la SpaceMouse 3Dconnexion
         // ─────────────────────────────────────────────────────────────────────
-        /// <summary>
-        /// Identique au code original : UriSource + CacheOption.OnLoad.
-        /// Pas de MemoryStream, pas de Freeze.
-        /// </summary>
-        private static Material CreatePanoramaMaterial(string imagePath)
+        private void BtnSpaceMouse_Checked(object sender, RoutedEventArgs e)
+            => ConnecterSpaceMouse();
+        private void BtnSpaceMouse_Unchecked(object sender, RoutedEventArgs e)
+            => DeconnecterSpaceMouse();
+        private void ConnecterSpaceMouse()
         {
-            var image = new BitmapImage();
+            if (_spaceMouseEnabled) return;
+
             try
             {
-                image.BeginInit();
-                image.UriSource = new Uri(imagePath, UriKind.Absolute);
-                image.CacheOption = BitmapCacheOption.OnLoad;
-                image.EndInit();
+                _smDevice = new Device();
+                _smSensor = _smDevice.Sensor;
+                _smDevice.Connect();
+
+                // On s'abonne à l'événement natif de la V1
+                _smSensor.SensorInput += OnSpaceMouseMouvement;
+                _spaceMouseEnabled = true;
+                System.Diagnostics.Debug.WriteLine("[Pano Panel] SpaceMouse connectée en direct !");
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Erreur chargement image 360° : " + ex.Message);
-                return new DiffuseMaterial(new SolidColorBrush(Colors.DimGray));
+                System.Diagnostics.Debug.WriteLine("[Pano Panel] Échec connexion SpaceMouse : " + ex.Message);
+            }
+        }
+        private void DeconnecterSpaceMouse()
+        {
+            if (!_spaceMouseEnabled) return;
+
+            try
+            {
+                if (_smSensor != null)
+                    _smSensor.SensorInput -= OnSpaceMouseMouvement;
+
+                if (_smDevice != null && _smDevice.IsConnected)
+                    _smDevice.Disconnect();
+            }
+            catch { }
+            finally
+            {
+                _smDevice = null;
+                _smSensor = null;
+                _spaceMouseEnabled = false;
+            }
+        }
+        private void OnSpaceMouseMouvement()
+        {
+            if (_smSensor == null) return;
+
+            try
+            {
+                lock (_spaceMouseLock)
+                {
+                    double axeX = _smSensor.Rotation.X;
+                    double axeY = _smSensor.Rotation.Y;
+                    double axeZ = _smSensor.Rotation.Z;
+                    double intensite = _smSensor.Rotation.Angle;
+
+                    // Debug complet avec les 3 axes pour y voir clair
+                    System.Diagnostics.Debug.WriteLine($"SpaceMouse -> X:{axeX:F0} | Y:{axeY:F0} | Z:{axeZ:F0} | Angle:{intensite:F0}");
+
+                    _rawSpaceMouseX = axeX * intensite;
+                    _rawSpaceMouseY = axeY * intensite;
+                    _rawSpaceMouseZ = axeZ * intensite;
+                }
+            }
+            catch
+            {
+                // Sécurité COM
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // BOUTONS OPTIONS
+        // ─────────────────────────────────────────────────────────────────────
+        private void LoadSettings()
+        {
+            try
+            {
+                if (System.IO.File.Exists(_configPath))
+                {
+                    string json = System.IO.File.ReadAllText(_configPath);
+                    settings = Newtonsoft.Json.JsonConvert.DeserializeObject<Pano360Settings>(json);
+                    if (settings != null)
+                    {
+                        // ✅ Paramètres non-visuels : application immédiate
+                        AutoRotateFastSeconds = settings.AutoRotateFastSeconds;
+                        AutoRotateNormalSeconds = settings.AutoRotateNormalSeconds;
+                        AutoRotateSlowSeconds = settings.AutoRotateSlowSeconds;
+                        sldFast.Value = AutoRotateFastSeconds;
+                        sldNormal.Value = AutoRotateNormalSeconds;
+                        sldSlow.Value = AutoRotateSlowSeconds;
+                        
+                        _StartAutoRotate = settings.StartAutoRotate;
+                        _StartAutoCloseEnabled = settings.StartAutoCloseEnabled;
+
+                        switch (_StartAutoRotate)
+                        {
+                            case 0:
+                                btnOptionAutoClose.Visibility = Visibility.Collapsed;
+                                _StartAutoCloseEnabled = false;
+                                break;
+                            case 1:
+                                _autoRotState = AutoRotationState.Lent;
+                                btnAutoRotate.Content = "🐢 Lent";
+                                btnOptionAutoClose.Visibility = Visibility.Visible;
+                                txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "🐢 lent";
+                                if (_StartAutoCloseEnabled)
+                                {
+                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
+                                    _autoCloseActive = true;
+                                }
+                                else
+                                {
+                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
+                                    _autoCloseActive = false;
+                                }
+                                break;
+                            case 2:
+                                _autoRotState = AutoRotationState.Normal;
+                                btnAutoRotate.Content = "▶️ Normal";
+                                btnOptionAutoClose.Visibility = Visibility.Visible;
+                                txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️ normal";
+                                if (_StartAutoCloseEnabled)
+                                {
+                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
+                                    _autoCloseActive = true;
+                                }
+                                else
+                                {
+                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
+                                    _autoCloseActive = false;
+                                }
+                                break;
+                            case 3:
+                                _autoRotState = AutoRotationState.Rapide;
+                                btnAutoRotate.Content = "▶️▶️ Rapide";
+                                btnOptionAutoClose.Visibility = Visibility.Visible;
+                                txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️▶️ rapide";
+                                if (_StartAutoCloseEnabled)
+                                {
+                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
+                                    _autoCloseActive = true;
+                                }
+                                else
+                                {
+                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
+                                    _autoCloseActive = false;
+                                }
+                                break;
+                        }
+
+                        if (_autoCloseActive)
+                        {
+                            _autoCloseStartAngle = _horizontalRotation.Angle;
+                            _autoCloseTargetAngle = _autoCloseStartAngle;
+                            _hasLeftStartZone = false; 
+                            _isPopupShown = false; 
+                        }
+                        else
+                        {
+                            _autoCloseTargetAngle = -1;
+                            _autoCloseStartAngle = -1;
+                            _hasLeftStartZone = false;
+                        }
+
+                        MajEtatAutoClose();
+
+                        // ✅ Paramètres visuels : différés après chargement complet de la fenêtre
+                        Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            // FOV
+                            _camera.FieldOfView = settings.DefaultFov;
+                            sldFov.Value = _camera.FieldOfView;
+                            txtFov.Text = string.Format("(FOV: {0:F0}°)", _camera.FieldOfView);
+
+                            // Fullscreen
+                            _chkFullscreenSavedValue = settings.FullscreenStartup;
+                            if (_chkFullscreenSavedValue) ToggleFullscreen();
+                        }), System.Windows.Threading.DispatcherPriority.Loaded);
+                    }
+                }
+                else
+                {
+                    settings = new Pano360Settings();
+                }
+            }
+            catch
+            {
+                settings = new Pano360Settings();
+            }
+        }
+        private void SaveSettings()
+        {
+            try
+            {
+                settings = new Pano360Settings
+                {
+                    FullscreenStartup = chkFullscreen.IsChecked ?? false,
+                    DefaultFov = (int)sldFov.Value,
+                    AutoRotateSlowSeconds = (int)sldSlow.Value,
+                    AutoRotateNormalSeconds = (int)sldNormal.Value,
+                    AutoRotateFastSeconds = (int)sldFast.Value,
+                    StartAutoRotate = _StartAutoRotate,
+                    StartAutoCloseEnabled = _StartAutoCloseEnabled,
+                };
+
+                // Assigner les variables physiques locales pour exécution immédiate
+                AutoRotateSlowSeconds = sldSlow.Value;
+                AutoRotateNormalSeconds = sldNormal.Value;
+                AutoRotateFastSeconds = sldFast.Value;
+                //_chkFullscreenSavedValue = settings.FullscreenStartup;
+
+                string directory = System.IO.Path.GetDirectoryName(_configPath);
+                if (!System.IO.Directory.Exists(directory)) System.IO.Directory.CreateDirectory(directory);
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(settings, Newtonsoft.Json.Formatting.Indented);
+                System.IO.File.WriteAllText(_configPath, json);
+            }
+            catch
+            {
+            }
+        }
+        private void BtnOptions_Click(object sender, RoutedEventArgs e)
+        {
+            // Arrêt immédiat de l'autorotation et de l'autoclose
+            _autoRotState = AutoRotationState.Off;
+            btnAutoRotate.Content = "Rotation auto.";
+            _autoCloseActive = false;
+            MajEtatAutoClose();
+
+            // Remplissage des contrôles graphiques avec les valeurs actuelles des constantes dynamiques
+            chkFullscreen.IsChecked = _chkFullscreenSavedValue; // Sera déterminé par le LoadSettings
+            sldFov.Value = _camera.FieldOfView;
+
+            // Affichage de l'incrustation des options
+            gridPreferences.Visibility = Visibility.Visible;
+        }
+        private void BtnCloseOptions_Click(object sender, RoutedEventArgs e)
+        {
+            // Masquage de la boîte
+            gridPreferences.Visibility = Visibility.Collapsed;
+
+            // Sauvegarde définitive
+            SaveSettings();
+        }
+        private void BtnOptionAutoRotate_Click(object sender, RoutedEventArgs e)
+        {
+            switch (_StartAutoRotate)
+            {
+                case 0:
+                    _StartAutoRotate = 1;
+                    btnOptionAutoClose.Visibility = Visibility.Visible;
+                    txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "🐢 lent";
+                    if (_StartAutoCloseEnabled)
+                    {
+                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
+                    }
+                    else
+                    {
+                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
+                    }
+                    break;
+                case 1:
+                    _StartAutoRotate = 2;
+                    btnOptionAutoClose.Visibility = Visibility.Visible;
+                    txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️ normal";
+                    if (_StartAutoCloseEnabled)
+                    {
+                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
+                    }
+                    else
+                    {
+                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
+                    }
+                    break;
+                case 2:
+                    _StartAutoRotate = 3;
+                    btnOptionAutoClose.Visibility = Visibility.Visible;
+                    txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️▶️ rapide";
+                    if (_StartAutoCloseEnabled)
+                    {
+                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
+                    }
+                    else
+                    {
+                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
+                    }
+                    break;
+                case 3:
+                    _StartAutoRotate = 0;
+                    btnOptionAutoClose.Visibility = Visibility.Collapsed;
+                    txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "Off";
+                    _StartAutoCloseEnabled = false;
+                    break;
+            }
+        }
+        private void BtnOptionAutoClose_Click(object sender, RoutedEventArgs e)
+        {
+            _StartAutoCloseEnabled = !_StartAutoCloseEnabled;
+            if (_StartAutoCloseEnabled)
+            {
+                txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
+            }
+            else
+            {
+                txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
+            }
+        }
+        private void SldFov_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (lblFovValue != null) lblFovValue.Text = string.Format("{0:F0}°", e.NewValue);
+        }
+        private void SldSlow_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (lblSlow != null) lblSlow.Text = string.Format("{0:F0}s", e.NewValue);
+        }
+        private void SldNormal_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (lblNormal != null) lblNormal.Text = string.Format("{0:F0}s", e.NewValue);
+        }
+        private void SldFast_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (lblFast != null) lblFast.Text = string.Format("{0:F0}s", e.NewValue);
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // BOUTON AUTOROTATION
+        // ─────────────────────────────────────────────────────────────────────
+        private void BtnAutoRotate_Click(object sender, RoutedEventArgs e)
+        {
+            switch (_autoRotState)
+            {
+                case AutoRotationState.Off:
+                    _autoRotState = AutoRotationState.Lent;
+                    btnAutoRotate.Content = "🐢 Lent";
+                    break;
+
+                case AutoRotationState.Lent:
+                    _autoRotState = AutoRotationState.Normal;
+                    btnAutoRotate.Content = "▶️ Normal";
+                    break;
+
+                case AutoRotationState.Normal:
+                    _autoRotState = AutoRotationState.Rapide;
+                    btnAutoRotate.Content = "▶️▶️ Rapide";
+                    break;
+
+                case AutoRotationState.Rapide:
+                    _autoRotState = AutoRotationState.Off;
+                    btnAutoRotate.Content = "Rotation auto.";
+                    _lastMovementTime = DateTime.Now;
+                    break;
+            }
+            MajEtatAutoClose();
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // BOUTON AUTOCLOSE 
+        // ─────────────────────────────────────────────────────────────────────
+        private void BtnAutoClose_Click(object sender, RoutedEventArgs e)
+        {
+            // Sécurité : ne fait rien si l'autorotation est coupée
+            if (_autoRotState == AutoRotationState.Off) return;
+
+            _autoCloseActive = !_autoCloseActive;
+
+            if (_autoCloseActive)
+            {
+                // On mémorise l'angle actuel exact de la rotation horizontale
+                _autoCloseStartAngle = _horizontalRotation.Angle;
+                _autoCloseTargetAngle = _autoCloseStartAngle;
+                _hasLeftStartZone = false; // On vient juste d'arriver sur l'angle
+                _isPopupShown = false; // 🔄 Réinitialisation
+            }
+            else
+            {
+                _autoCloseTargetAngle = -1;
+                _autoCloseStartAngle = -1;
+                _hasLeftStartZone = false;
             }
 
-            var brush = new ImageBrush(image)
-            {
-                ViewportUnits = BrushMappingMode.RelativeToBoundingBox,
-                TileMode = TileMode.FlipX,
-                Stretch = Stretch.Fill
-            };
-
-            // Force un filtrage fluide et matériel de la texture (dernière modifi de gemini, peut-etre pas utile)
-            RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.Linear);
-
-            return new DiffuseMaterial(brush);
+            MajEtatAutoClose();
         }
-
-        // ─────────────────────────────────────────────────────────────────────
-        // IDisposable — nettoyage des ressources
-        // ─────────────────────────────────────────────────────────────────────
-        public void Dispose()
+        private void MajEtatAutoClose()
         {
-            CompositionTarget.Rendering -= OnRendering;
-            DeconnecterSpaceMouse();  // Coupe la connexion proprement
+            if (_autoRotState == AutoRotationState.Off)
+            {
+                _autoCloseActive = false;
+                _isAutoClosingPhase = false;
+                _autoCloseTargetAngle = -1;
+                _autoCloseStartAngle = -1;
+                _hasLeftStartZone = false;
 
-            //_spaceMouseManager?.Dispose();
+                btnAutoClose.IsEnabled = false;
+                txtAutoClose.Text = "AutoClose: Off";
+                txtAutoClose.TextDecorations = TextDecorations.Strikethrough;
+                txtAutoClose.Opacity = 0.5;
 
-            viewport3D.Children.Clear();
+                panelAutoCloseProgress.Visibility = Visibility.Collapsed; // 🛑 Masqué si rotation Off
+            }
+            else
+            {
+                // Le bouton devient accessible car l'autorotation tourne
+                btnAutoClose.IsEnabled = true;
+                txtAutoClose.Opacity = 1.0;
+
+                if (_autoCloseActive)
+                {
+                    txtAutoClose.Text = "AutoClose: On";
+                    txtAutoClose.TextDecorations = null;                      // Pas barré
+                    panelAutoCloseProgress.Visibility = Visibility.Visible;   // 🟢 Visible si AutoClose Actif
+                }
+                else
+                {
+                    txtAutoClose.Text = "AutoClose: Off";
+                    txtAutoClose.TextDecorations = null;                      // Pas barré
+                    panelAutoCloseProgress.Visibility = Visibility.Collapsed; // 🛑 Masqué si désactivé
+                }
+            }
         }
+        // ─────────────────────────────────────────────────────────────────────
+        // Barre de BOUTONS - Gestion de l'opacité
+        // ─────────────────────────────────────────────────────────────────────
+        private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
+        {
+            _isMouseOverBarre = true;
+            UpdateBarreOpacity(); // Force la réapparition immédiate
+        }
+        private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
+        {
+            // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
+            _isMouseOverBarre = false;
+        }
+        private void UpdateBarreOpacity()
+        {
+            // Si la souris est physiquement au-dessus de la barre, on la force visible
+            if (_isMouseOverBarre)
+            {
+                if (_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    _isBarreMasquee = false;
+                }
+                return;
+            }
 
+            // Détermination si le panorama est considéré "en mouvement"
+            // 1. Soit la souris est enfoncée (drag)
+            // 2. Soit l'autorotation est active
+            // 3. Soit le dernier mouvement enregistré est plus récent que le délai d'inactivité
+            bool isActuellementEnMouvement = _isMouseDown ||
+                                             (_autoRotState != AutoRotationState.Off) ||
+                                             (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
+
+            if (isActuellementEnMouvement)
+            {
+                // Le panorama bouge : on applique le fondu transparent (FadeOut)
+                if (!_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    _isBarreMasquee = true;
+                }
+            }
+            else
+            {
+                // Le panorama est à l'arrêt complet depuis un moment : on réaffiche (FadeIn)
+                if (_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    _isBarreMasquee = false;
+                }
+            }
+        }
         // ─────────────────────────────────────────────────────────────────────
-        // Bascule plein écran (G47S53)
+        // Helpers
         // ─────────────────────────────────────────────────────────────────────
-        /// <summary>
-        /// Invoque la méthode ToggleFullscreen() de la fenêtre parente par
-        /// réflexion, car elle n'est pas exposée dans une interface publique.
-        /// </summary>
+        private static double Clamp(double value, double min, double max)
+            // Contraint une valeur entre un minimum et un maximum.
+            => value < min ? min : value > max ? max : value;
+        private void ClampVertical(double newAngle)
+            // Applique la contrainte verticale à l'angle de la caméra.
+            => _verticalRotation.Angle = Clamp(newAngle, VerticalAngleMin, VerticalAngleMax);
         private void ToggleFullscreen()
         {
             var window = Window.GetWindow(this);
@@ -871,6 +1090,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Reflection.BindingFlags.NonPublic);
 
             method?.Invoke(window, null);
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // Dispose — nettoyage des ressources
+        // ─────────────────────────────────────────────────────────────────────
+        public void Dispose()
+        {
+            CompositionTarget.Rendering -= OnRendering;
+            DeconnecterSpaceMouse();  // Coupe la connexion proprement
+
+            viewport3D.Children.Clear();
         }
     }
 }
