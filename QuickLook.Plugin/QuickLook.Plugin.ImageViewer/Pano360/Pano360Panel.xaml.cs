@@ -48,8 +48,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         "Pano360Settings.json");
 
         private bool _chkFullscreenSavedValue = false;
-        private int _StartAutoRotate = 0;
-        private bool _StartAutoCloseEnabled = false;
+        private int _StartAutoRotate = 1;
         private double _OptionFov = 90.0;
         private bool _OptionOpen = false;
 
@@ -58,14 +57,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // Structure pour le stockage des options
         public class Pano360Settings
         {
-            public bool FullscreenStartup { get; set; } = false;
-            public double DefaultFov { get; set; } = 90.0;
             public double AutoRotateSlowSeconds { get; set; } = 60.0;
             public double AutoRotateNormalSeconds { get; set; } = 20.0;
             public double AutoRotateFastSeconds { get; set; } = 10.0;
-            public int StartAutoRotate { get; set; } = 0;
-            public bool StartAutoCloseEnabled { get; set; } = false;
+            public bool FullscreenStartup { get; set; } = false;
             public bool StartBarreReduite { get; set; } = false;
+            public double DefaultFov { get; set; } = 90.0;
+            public bool StartStatique { get; set; } = false;
+            public int StartAutoRotate { get; set; } = 1;
             public bool StartOneTurnAndClose { get; set; } = false; // Le Flag de démarrage
             public double StartOneTurnDuration { get; set; } = 15.0; // Durée par défaut (ex: 15s)
         }
@@ -132,7 +131,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double ZoomFreeSpeedXY = 1000;  // À monter si le zoom se bloque trop souvent (début:50)
 
         // ─────────────────────────────────────────────────────────────────────
-        // > Raccourcis clavier — navigation vers angle cible
+        // > Raccourcis Clavier SpaceMouse — navigation vers angle cible
         // ─────────────────────────────────────────────────────────────────────
         private double _targetHorizontalAngle = double.NaN; // NaN = pas de cible active
         private double _targetVerticalAngle = double.NaN;
@@ -923,6 +922,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // BOUTONS OPTIONS
         // ─────────────────────────────────────────────────────────────────────
+        
+        
+        // !!!! A modifier !!!!
         private void LoadSettings()
         {
             try
@@ -942,7 +944,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         sldSlow.Value = AutoRotateSlowSeconds;
                         
                         _StartAutoRotate = settings.StartAutoRotate;
-                        _StartAutoCloseEnabled = settings.StartAutoCloseEnabled;
 
                         //switch (_StartAutoRotate)
                         //{
@@ -1061,6 +1062,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 settings = new Pano360Settings();
             }
         }
+        
+        // !!!! A modifier !!!!
         private void SaveSettings()
         {
             try
@@ -1073,7 +1076,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     AutoRotateNormalSeconds = (int)sldNormal.Value,
                     AutoRotateFastSeconds = (int)sldFast.Value,
                     StartAutoRotate = _StartAutoRotate,
-                    StartAutoCloseEnabled = _StartAutoCloseEnabled,
                     StartBarreReduite = chkBarreReduite.IsChecked ?? false // 👈 Sauvegarde de la Checkbox !
                 };
 
@@ -1096,6 +1098,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
             }
         }
+        
+        // !!!! A modifier !!!!
         private void BtnOptions_Click(object sender, RoutedEventArgs e)
         {
             // Arrêt immédiat de l'autorotation et de l'autoclose
@@ -1118,15 +1122,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             gridPreferences.Visibility = Visibility.Visible;
         }
 
-        
+        // !!!! A modifier !!!!
         private void RadStartMode_Checked(object sender, RoutedEventArgs e)
         {
 
         }
-
+        
+        // !!!! A modifier !!!!
         private void BtnOptionAutoRotate_Click(object sender, RoutedEventArgs e) { }
 
-
+        // !!!! A modifier !!!!
         private void BtnCloseOptions_Click(object sender, RoutedEventArgs e)
         {
             // 🎯 ON ÉTEINT LE FLOU : Le panorama redevient instantanément net
@@ -1141,6 +1146,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Sauvegarde définitive
             SaveSettings();
         }
+        
+        
         private void SldFov_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (lblFovValue != null) lblFovValue.Text = string.Format("{0:F0}°", e.NewValue);
