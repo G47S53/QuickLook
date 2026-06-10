@@ -66,6 +66,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             public int StartAutoRotate { get; set; } = 0;
             public bool StartAutoCloseEnabled { get; set; } = false;
             public bool StartBarreReduite { get; set; } = false;
+            public bool StartOneTurnAndClose { get; set; } = false; // Le Flag de démarrage
+            public double StartOneTurnDuration { get; set; } = 15.0; // Durée par défaut (ex: 15s)
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -164,6 +166,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double _autoCloseStartAngle = -1;
         private bool _hasLeftStartZone = false;       // Sécurité pour éviter la fermeture instantanée au clic
         private bool _isAutoClosingPhase = false;     // True quand le tour est fini et qu'on freine avant fermeture
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > Mode Tour Unique de démarrage avec accélération/décélération
+        // ─────────────────────────────────────────────────────────────────────
+        private bool _oneTurnActive = false;
+        private double _oneTurnTimer = 0.0;
+        private double _oneTurnDuration = 15.0; // Récupéré depuis les settings
+        private double _oneTurnStartAngle = 0.0;
+        private double _oneTurnAccelTime = 2.5;  // Durée des phases d'accel/decel en secondes
+        private double _oneTurnVMax = 0.0;
+        private double _oneTurnAccelRate = 0.0;
 
         // ─────────────────────────────────────────────────────────────────────
         // > barre de boutons
@@ -438,7 +451,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
                 }
-                
+
                 if (Math.Abs(spaceMouseSpeedY) > 500 && _autoRotState != AutoRotationState.Off)
                 {
                     txtInfoPopup.Text = "Axe horizontale vérouillé en autorotation";
@@ -499,62 +512,118 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
 
             // ────────────────────────────────────────────────────────────────────── 
-            // ── 2. MOTEUR PHYSIQUE (Accélération & Décélération) ──────────────────
-            double targetSpeed = 0;
+            // ── 2. MOTEUR PHYSIQUE (Calcul des vitesses) ──────────────────────────
+            // ────────────────────────────────────────────────────────────────────── 
 
-            if (!_isMouseDown && !_isAutoClosingPhase)
+            double targetSpeed = 0; // Déclarée ici au début du moteur physique
+
+            if (_oneTurnActive)
             {
-                if (_autoRotState == AutoRotationState.Lent)
-                    targetSpeed = 360.0 / AutoRotateSlowSeconds;
-                else if (_autoRotState == AutoRotationState.Normal)
-                    targetSpeed = 360.0 / AutoRotateNormalSeconds;
-                else if (_autoRotState == AutoRotationState.Rapide)
-                    targetSpeed = 360.0 / AutoRotateFastSeconds;
-            }
-
-            // Application des forces de freinage ou d'accélération
-            if (!_isMouseDown)
-            {
-                // 🛑 LE FREIN AÉRODYNAMIQUE DE LA JAMAIS CONTENTE :
-                double actuelDecelRate = DecelerationRate;
-
-                if (_isMouseInertia)
+                // ── GESTION DU TOUR UNIQUE DE DÉMARRAGE ──
+                if (_isMouseDown || spaceMouseSpeedY != 0)
                 {
-                    double vitesseAbsolue = Math.Abs(_currentRotationSpeed);
-
-                    // Formule physique : Frein linéaire de base + (Coefficient * Vitesse²)
-                    // Le coefficient 0.02 est notre "profil aérodynamique" à ajuster.
-                    actuelDecelRate = DecelerationRate + (0.02 * vitesseAbsolue * vitesseAbsolue);
+                    // Si l’utilisateur touche à la souris ou SpaceMouse, on lui rend la main
+                    _oneTurnActive = false;
                 }
-
-                if (_currentRotationSpeed < targetSpeed)
+                else
                 {
-                    // Si la vitesse est négative (élan de la souris vers la gauche), 
-                    // on applique notre super-frein dynamique pour remonter vers 0
-                    double rate = (_currentRotationSpeed < 0) ? actuelDecelRate : AccelerationRate;
-                    _currentRotationSpeed += rate * elapsed;
+                    _oneTurnTimer += elapsed;
 
-                    if (_currentRotationSpeed >= targetSpeed)
+                    // Profil de vitesse trapézoïdal
+                    if (_oneTurnTimer <= _oneTurnAccelTime)
                     {
-                        _currentRotationSpeed = targetSpeed;
-                        _isMouseInertia = false; // L'élan de la souris est totalement amorti
+                        // Phase 1 : Accélération
+                        _currentRotationSpeed = _oneTurnAccelRate * _oneTurnTimer;
                     }
-                }
-                else if (_currentRotationSpeed > targetSpeed)
-                {
-                    // Freinage standard (élan vers la droite ou décélération d'autorotation)
-                    _currentRotationSpeed -= actuelDecelRate * elapsed;
-
-                    if (_currentRotationSpeed <= targetSpeed)
+                    else if (_oneTurnTimer >= (_oneTurnDuration - _oneTurnAccelTime))
                     {
-                        _currentRotationSpeed = targetSpeed;
-                        _isMouseInertia = false; // L'élan de la souris est totalement amorti
+                        // Phase 3 : Décélération
+                        double tempsRestant = _oneTurnDuration - _oneTurnTimer;
+                        if (tempsRestant < 0) tempsRestant = 0;
+                        _currentRotationSpeed = _oneTurnAccelRate * tempsRestant;
+                    }
+                    else
+                    {
+                        // Phase 2 : Vitesse max constante
+                        _currentRotationSpeed = _oneTurnVMax;
+                    }
+
+                    // Fin du chrono
+                    if (_oneTurnTimer >= _oneTurnDuration)
+                    {
+                        _currentRotationSpeed = 0;
+                        _oneTurnActive = false;
+
+                        // Recalage parfait à 360°
+                        _horizontalRotation.Angle = (_oneTurnStartAngle + 360.0) % 360;
+
+                        // Fermeture propre
+                        Window.GetWindow(this)?.Close();
+                        return;
                     }
                 }
             }
+            else
+            {
+                // ── MODE STANDARD (Uniquement si le tour de démarrage est fini ou désactivé) ──
 
-            // ──────────────────────────────────────────────────────────────────────
-            // ── 3. APPLICATION DE L'ÉNERGIE CINÉTIQUE HORIZONTALE ─────────────────
+                if (!_isMouseDown && !_isAutoClosingPhase)
+                {
+                    // Ton code actuel de l'autorotation classique (choix de targetSpeed selon l'état)
+                    if (_autoRotState == AutoRotationState.Lent)
+                        targetSpeed = 360.0 / AutoRotateSlowSeconds;
+                    else if (_autoRotState == AutoRotationState.Normal)
+                        targetSpeed = 360.0 / AutoRotateNormalSeconds;
+                    else if (_autoRotState == AutoRotationState.Rapide)
+                        targetSpeed = 360.0 / AutoRotateFastSeconds;
+                    else
+                        targetSpeed = 0;
+                }
+
+                // Gestion de l'accélération / décélération vers targetSpeed (ton code existant)
+                if (!_isMouseDown)
+                {
+                    // 🛑 LE FREIN AÉRODYNAMIQUE DE LA JAMAIS CONTENTE :
+                    double actuelDecelRate = DecelerationRate;
+
+                    if (_isMouseInertia)
+                    {
+                        double vitesseAbsolue = Math.Abs(_currentRotationSpeed);
+
+                        // Formule physique : Frein linéaire de base + (Coefficient * Vitesse²)
+                        // Le coefficient 0.02 est notre "profil aérodynamique" à ajuster.
+                        actuelDecelRate = DecelerationRate + (0.02 * vitesseAbsolue * vitesseAbsolue);
+                    }
+
+                    if (_currentRotationSpeed < targetSpeed)
+                    {
+                        // Si la vitesse est négative (élan de la souris vers la gauche), 
+                        // on applique notre super-frein dynamique pour remonter vers 0
+                        double rate = (_currentRotationSpeed < 0) ? actuelDecelRate : AccelerationRate;
+                        _currentRotationSpeed += rate * elapsed;
+
+                        if (_currentRotationSpeed >= targetSpeed)
+                        {
+                            _currentRotationSpeed = targetSpeed;
+                            _isMouseInertia = false; // L'élan de la souris est totalement amorti
+                        }
+                    }
+                    else if (_currentRotationSpeed > targetSpeed)
+                    {
+                        // Freinage standard (élan vers la droite ou décélération d'autorotation)
+                        _currentRotationSpeed -= actuelDecelRate * elapsed;
+
+                        if (_currentRotationSpeed <= targetSpeed)
+                        {
+                            _currentRotationSpeed = targetSpeed;
+                            _isMouseInertia = false; // L'élan de la souris est totalement amorti
+                        }
+                    }
+                }
+            }
+
+            // ────────────────────────────────────────────────────────────────────── 
+            // ── 3. APPLICATION DE LA ROTATION (Commun aux deux modes) ─────────────
             if (Math.Abs(_currentRotationSpeed) > 0.01)
             {
                 _horizontalRotation.Angle = (_horizontalRotation.Angle + (_currentRotationSpeed * elapsed)) % 360;
@@ -604,7 +673,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     }
                 }
             }
-            
+
             // ──────────────────────────────────────────────────────────────────────
             // ── 4. ARRÊT DE L'AUTOCLOSE (Fermeture de la fenêtre une fois au stand)
             if (_isAutoClosingPhase && Math.Abs(_currentRotationSpeed) <= 0.05)
@@ -620,7 +689,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 _context.BlocageShowCaption = false;
             }
-            
+
             // ──────────────────────────────────────────────────────────────────────
             // ── 5. GESTION DE LA BARRE DE BOUTONS ─────────────────────────────────
             UpdateBarreOpacity();
