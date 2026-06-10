@@ -101,8 +101,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double _lastMouseX;
         private double _lastMouseY;
         private TimeSpan _lastRenderTime;
-        private bool _isMouseInertia = false; // Indique si le mouvement résiduel vient d'un lancer de souris
-        private bool _isPopupShown = false; // Évite les déclenchements multiples du popup avant la fermeture
+        private bool _isMouseInertia = false;    // Indique si le mouvement résiduel vient d'un lancer de souris
+        private bool _isPopupShown = false;      // Évite les déclenchements multiples du popup avant la fermeture
+        private double _targetFov = FovDefault;  // Implémentation d'un comportement en douceur de la roulette
+        private bool _isFovAnimating = false;
 
         // ─────────────────────────────────────────────────────────────────────
         // > Champs SpaceMouse 3Dconnexion
@@ -390,6 +392,27 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
 
             // ──────────────────────────────────────────────────────────────────────
+            // ── FOV : interpolation douce vers la cible ──
+            if (Math.Abs(_camera.FieldOfView - _targetFov) > 0.05)
+            {
+                double fovDiff = _targetFov - _camera.FieldOfView;
+                _camera.FieldOfView += fovDiff * Math.Min(12.0 * elapsed, 1.0);
+                txtFov.Text = string.Format("(FOV: {0:F0}°)", _camera.FieldOfView);
+
+                if (!_isFovAnimating)
+                {
+                    _isFovAnimating = true;
+                    if (txtFov.Resources["FadeFovStoryboard"] is Storyboard sb)
+                        sb.Begin(txtFov);
+                }
+            }
+            else
+            {
+                _camera.FieldOfView = _targetFov;
+                _isFovAnimating = false;
+            }
+
+            // ──────────────────────────────────────────────────────────────────────
             // ── 1b. NAVIGATION SPACEMOUSE (Directe & Instinctive) ─────────────────
             double spaceMouseSpeedX = 0;
             double spaceMouseSpeedY = 0;
@@ -647,17 +670,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void OnMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            double delta = e.Delta > 0 ? -FovZoomStep : FovZoomStep;
-            double newFov = Clamp(_camera.FieldOfView + delta, FovMin, FovMax);
-            _camera.FieldOfView = newFov;
-            txtFov.Text = string.Format("(FOV: {0:F0}°)", newFov);
+            // Pas adaptatif : quadratique, ~1° aux extrêmes, ~5° au centre
+            double t = (_targetFov - FovMin) / (FovMax - FovMin);
+            double step = 1.0 + 4.0 * (1.0 - Math.Abs(2.0 * t - 1.0));
+            // step ≈ 1° à 30° et 135°, ≈ 5° à 90°
 
-            // On lance l'animation XAML
-            if (txtFov.Resources["FadeFovStoryboard"] is Storyboard sb)
-            {
-                // On applique le storyboard spécifiquement sur le txtFov
-                sb.Begin(txtFov);
-            }
+            double delta = e.Delta > 0 ? -step : step;
+            _targetFov = Clamp(_targetFov + delta, FovMin, FovMax);
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -901,6 +920,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         {
                             // FOV
                             _camera.FieldOfView = settings.DefaultFov;
+                            _targetFov = settings.DefaultFov;
                             sldFov.Value = _camera.FieldOfView;
                             txtFov.Text = string.Format("(FOV: {0:F0}°)", _camera.FieldOfView);
                             _OptionFov = settings.DefaultFov;
