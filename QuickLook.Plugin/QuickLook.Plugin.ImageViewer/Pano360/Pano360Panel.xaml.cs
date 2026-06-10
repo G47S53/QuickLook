@@ -434,7 +434,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Partie rotation du panorama
             if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
             {
-                _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
+                if (_autoRotState == AutoRotationState.Off)
+                {
+                    _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
+                }
+                
+                if (Math.Abs(spaceMouseSpeedY) > 500 && _autoRotState != AutoRotationState.Off)
+                {
+                    txtInfoPopup.Text = "Axe horizontale vérouillé en autorotation";
+                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                }
+
                 ClampVertical(_verticalRotation.Angle + (spaceMouseSpeedX * elapsed * sensibiliteTangage));
 
                 MarquerMouvement();
@@ -822,11 +832,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     case 5:
                         _targetHorizontalAngle = NormalizeAngle((double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle) + _camera.FieldOfView);
                         break;
+                    case 11:
+                        AutoRotate_ActionBouton();
+                        AfficheEtatAutoRotation();
+                        break;
                     case 32:
                         _targetHorizontalAngle = _homeHorizontalAngle;
                         _targetVerticalAngle = _homeVerticalAngle;
                         //e.Handled = true;
                         break;
+
 
                 }
             });
@@ -1142,6 +1157,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void BtnAutoRotate_Click(object sender, RoutedEventArgs e)
         {
+            AutoRotate_ActionBouton();
+        }
+        private void AutoRotate_ActionBouton()
+        {
+            // Accessible via le bouton de l'interface mais aussi via le bouton central de la spacemouse
             switch (_autoRotState)
             {
                 case AutoRotationState.Off:
@@ -1166,6 +1186,28 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     break;
             }
             MajEtatAutoClose();
+        }
+        private void AfficheEtatAutoRotation() 
+        {
+            switch (_autoRotState)
+            {
+                case AutoRotationState.Off:
+                    txtInfoPopup.Text = "Rotation automatique: Off";
+                    break;
+
+                case AutoRotationState.Lent:
+                    txtInfoPopup.Text = "Rotation automatique: 🐢 Lent";
+                    break;
+
+                case AutoRotationState.Normal:
+                    txtInfoPopup.Text = "Rotation automatique: ▶️ Normal";
+                    break;
+
+                case AutoRotationState.Rapide:
+                    txtInfoPopup.Text = "Rotation automatique: ▶️▶️ Rapide";
+                    break;
+            }
+            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
         }
         // ─────────────────────────────────────────────────────────────────────
         // BOUTON AUTOCLOSE 

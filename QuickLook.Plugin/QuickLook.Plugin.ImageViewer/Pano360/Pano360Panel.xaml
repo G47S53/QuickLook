@@ -221,7 +221,7 @@
               MouseDown="GridPreferences_MouseDown" 
               PreviewMouseWheel="GridPreferences_PreviewMouseWheel">
 
-            <Border Background="#FA1A1A1A" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1" Width="420" Height="380" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Background="#FA1A1A1A" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1" Width="420" Height="480" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Grid Margin="20">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -271,13 +271,11 @@
                         <TabItem Header="Démarrage">
                             <StackPanel Margin="10,15,10,0">
 
-                                <CheckBox x:Name="chkFullscreen" Content="Lancer en plein écran" Foreground="White" Margin="0,0,0,25" Cursor="Hand"/>
-                                <CheckBox x:Name="chkBarreReduite" 
-                                          Content="Démarrer avec la barre de boutons réduite" 
-                                          Margin="0,6,0,0" 
-                                          Foreground="White"/>
+                                <CheckBox x:Name="chkFullscreen" Content="Lancer en plein écran" Foreground="White" Margin="0,0,0,6" Cursor="Hand"/>
+                                <CheckBox x:Name="chkBarreReduite" Content="Démarrer avec la barre de boutons réduite" Margin="0,6,0,6" Foreground="White"/>
+                                <Border Height="2" Width="220" HorizontalAlignment="Center" Margin="0,10,0,25" Background="#18FFFFFF"/>
                                 <TextBlock Text="Champ de vision par défaut (FOV) :" Foreground="#AAFFFFFF" Margin="0,0,0,5"/>
-                                <Grid Margin="0,0,0,25">
+                                <Grid Margin="0,0,0,16">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="50"/>
@@ -285,6 +283,7 @@
                                     <Slider x:Name="sldFov" Minimum="30" Maximum="120" Value="90" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center" ValueChanged="SldFov_ValueChanged"/>
                                     <TextBlock Grid.Column="1" x:Name="lblFovValue" Text="90°" Foreground="White" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
+                                <Border Height="2" Width="220" HorizontalAlignment="Center" Margin="0,10,0,25" Background="#18FFFFFF"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
