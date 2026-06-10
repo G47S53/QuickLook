@@ -875,75 +875,75 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         _StartAutoRotate = settings.StartAutoRotate;
                         _StartAutoCloseEnabled = settings.StartAutoCloseEnabled;
 
-                        switch (_StartAutoRotate)
-                        {
-                            case 0:
-                                btnOptionAutoClose.Visibility = Visibility.Collapsed;
-                                _StartAutoCloseEnabled = false;
-                                break;
-                            case 1:
-                                _autoRotState = AutoRotationState.Lent;
-                                btnAutoRotate.Content = "🐢 Lent";
-                                btnOptionAutoClose.Visibility = Visibility.Visible;
-                                txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "🐢 lent";
-                                if (_StartAutoCloseEnabled)
-                                {
-                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
-                                    _autoCloseActive = true;
-                                }
-                                else
-                                {
-                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
-                                    _autoCloseActive = false;
-                                }
-                                break;
-                            case 2:
-                                _autoRotState = AutoRotationState.Normal;
-                                btnAutoRotate.Content = "▶️ Normal";
-                                btnOptionAutoClose.Visibility = Visibility.Visible;
-                                txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️ normal";
-                                if (_StartAutoCloseEnabled)
-                                {
-                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
-                                    _autoCloseActive = true;
-                                }
-                                else
-                                {
-                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
-                                    _autoCloseActive = false;
-                                }
-                                break;
-                            case 3:
-                                _autoRotState = AutoRotationState.Rapide;
-                                btnAutoRotate.Content = "▶️▶️ Rapide";
-                                btnOptionAutoClose.Visibility = Visibility.Visible;
-                                txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️▶️ rapide";
-                                if (_StartAutoCloseEnabled)
-                                {
-                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
-                                    _autoCloseActive = true;
-                                }
-                                else
-                                {
-                                    txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
-                                    _autoCloseActive = false;
-                                }
-                                break;
-                        }
+                        //switch (_StartAutoRotate)
+                        //{
+                        //    case 0:
+                        //        btnOptionAutoClose.Visibility = Visibility.Collapsed;
+                        //        _StartAutoCloseEnabled = false;
+                        //        break;
+                        //    case 1:
+                        //        _autoRotState = AutoRotationState.Lent;
+                        //        btnAutoRotate.Content = "🐢 Lent";
+                        //        btnOptionAutoClose.Visibility = Visibility.Visible;
+                        //        txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "🐢 lent";
+                        //        if (_StartAutoCloseEnabled)
+                        //        {
+                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
+                        //            _autoCloseActive = true;
+                        //        }
+                        //        else
+                        //        {
+                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
+                        //            _autoCloseActive = false;
+                        //        }
+                        //        break;
+                        //    case 2:
+                        //        _autoRotState = AutoRotationState.Normal;
+                        //        btnAutoRotate.Content = "▶️ Normal";
+                        //        btnOptionAutoClose.Visibility = Visibility.Visible;
+                        //        txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️ normal";
+                        //        if (_StartAutoCloseEnabled)
+                        //        {
+                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
+                        //            _autoCloseActive = true;
+                        //        }
+                        //        else
+                        //        {
+                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
+                        //            _autoCloseActive = false;
+                        //        }
+                        //        break;
+                        //    case 3:
+                        //        _autoRotState = AutoRotationState.Rapide;
+                        //        btnAutoRotate.Content = "▶️▶️ Rapide";
+                        //        btnOptionAutoClose.Visibility = Visibility.Visible;
+                        //        txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️▶️ rapide";
+                        //        if (_StartAutoCloseEnabled)
+                        //        {
+                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
+                        //            _autoCloseActive = true;
+                        //        }
+                        //        else
+                        //        {
+                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
+                        //            _autoCloseActive = false;
+                        //        }
+                        //        break;
+                        //}
 
-                        if (_autoCloseActive)
-                        {
-                            _autoCloseStartAngle = _horizontalRotation.Angle;
-                            _autoCloseTargetAngle = _autoCloseStartAngle;
-                            _hasLeftStartZone = false; 
-                            _isPopupShown = false; 
-                        }
-                        else
-                        {
-                            _autoCloseTargetAngle = -1;
-                            _autoCloseStartAngle = -1;
-                            _hasLeftStartZone = false;
-                        }
+                        //if (_autoCloseActive)
+                        //{
+                        //    _autoCloseStartAngle = _horizontalRotation.Angle;
+                        //    _autoCloseTargetAngle = _autoCloseStartAngle;
+                        //    _hasLeftStartZone = false; 
+                        //    _isPopupShown = false; 
+                        //}
+                        //else
+                        //{
+                        //    _autoCloseTargetAngle = -1;
+                        //    _autoCloseStartAngle = -1;
+                        //    _hasLeftStartZone = false;
+                        //}
 
                         MajEtatAutoClose();
 
@@ -1048,6 +1048,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Affichage de l'incrustation des options
             gridPreferences.Visibility = Visibility.Visible;
         }
+
+        
+        private void RadStartMode_Checked(object sender, RoutedEventArgs e)
+        {
+
+        }
+
+        private void BtnOptionAutoRotate_Click(object sender, RoutedEventArgs e) { }
+
+
         private void BtnCloseOptions_Click(object sender, RoutedEventArgs e)
         {
             // 🎯 ON ÉTEINT LE FLOU : Le panorama redevient instantanément net
@@ -1061,69 +1071,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Sauvegarde définitive
             SaveSettings();
-        }
-        private void BtnOptionAutoRotate_Click(object sender, RoutedEventArgs e)
-        {
-            switch (_StartAutoRotate)
-            {
-                case 0:
-                    _StartAutoRotate = 1;
-                    btnOptionAutoClose.Visibility = Visibility.Visible;
-                    txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "🐢 lent";
-                    if (_StartAutoCloseEnabled)
-                    {
-                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
-                    }
-                    else
-                    {
-                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
-                    }
-                    break;
-                case 1:
-                    _StartAutoRotate = 2;
-                    btnOptionAutoClose.Visibility = Visibility.Visible;
-                    txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️ normal";
-                    if (_StartAutoCloseEnabled)
-                    {
-                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
-                    }
-                    else
-                    {
-                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
-                    }
-                    break;
-                case 2:
-                    _StartAutoRotate = 3;
-                    btnOptionAutoClose.Visibility = Visibility.Visible;
-                    txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️▶️ rapide";
-                    if (_StartAutoCloseEnabled)
-                    {
-                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
-                    }
-                    else
-                    {
-                        txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
-                    }
-                    break;
-                case 3:
-                    _StartAutoRotate = 0;
-                    btnOptionAutoClose.Visibility = Visibility.Collapsed;
-                    txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "Off";
-                    _StartAutoCloseEnabled = false;
-                    break;
-            }
-        }
-        private void BtnOptionAutoClose_Click(object sender, RoutedEventArgs e)
-        {
-            _StartAutoCloseEnabled = !_StartAutoCloseEnabled;
-            if (_StartAutoCloseEnabled)
-            {
-                txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
-            }
-            else
-            {
-                txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
-            }
         }
         private void SldFov_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
