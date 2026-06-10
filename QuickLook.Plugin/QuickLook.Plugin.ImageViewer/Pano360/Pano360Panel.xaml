@@ -297,10 +297,10 @@
                                     </StackPanel.Resources>
 
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                        <RadioButton x:Name="radStartNormal" Content="Aucun automatisme" GroupName="StartMode" IsChecked="True" Checked="RadStartMode_Checked"/>
+                                        <RadioButton x:Name="radStartNormal" Content="Panorama statique" GroupName="StartMode" IsChecked="True" Checked="RadStartMode_Checked"/>
                                     </StackPanel>
 
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <StackPanel Orientation="Horizontal" Margin="0,12,0,12">
                                         <RadioButton x:Name="radStartAutoRotate" Content="Rotation automatique" GroupName="StartMode" Checked="RadStartMode_Checked"/>
 
                                         <Button x:Name="btnOptionAutoRotate" Width="150" Padding="10,4" Margin="15,0,0,0" Foreground="White" Cursor="Hand" Click="BtnOptionAutoRotate_Click">
@@ -329,10 +329,10 @@
                                         </Button>
                                     </StackPanel>
 
-                                    <StackPanel Orientation="Vertical" Margin="0,0,0,0">
+                                    <StackPanel Orientation="Vertical" Margin="0,12,0,0">
                                         <StackPanel Orientation="Horizontal">
-                                            <RadioButton x:Name="radStartAutoClose" Content="Rotation + fermeture" GroupName="StartMode" Checked="RadStartMode_Checked"/>
-                                            <TextBlock Text="⚙ Temporisation :" Foreground="#AAFFFFFF" Margin="15,0,0,0" VerticalAlignment="Center" FontSize="11" FontStyle="Italic"/>
+                                            <RadioButton x:Name="radStartAutoClose" Content="1 tour + fermeture" GroupName="StartMode" Checked="RadStartMode_Checked"/>
+                                            <TextBlock Text="⚙ Durée :" Foreground="#AAFFFFFF" Margin="15,0,0,0" VerticalAlignment="Center" FontSize="11" FontStyle="Italic"/>
                                         </StackPanel>
 
                                         <Grid Margin="30,6,0,0">
@@ -340,7 +340,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="45"/>
                                             </Grid.ColumnDefinitions>
-                                            <Slider x:Name="sldAutoCloseDelay" Minimum="5" Maximum="60" Value="15" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center"/>
+                                            <Slider x:Name="sldAutoCloseDelay" Minimum="5" Maximum="60" Value="15" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center"/>
                                             <TextBlock Grid.Column="1" x:Name="lblAutoCloseDelayValue" Text="15s" Foreground="#FF00AAFF" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                         </Grid>
                                     </StackPanel>
