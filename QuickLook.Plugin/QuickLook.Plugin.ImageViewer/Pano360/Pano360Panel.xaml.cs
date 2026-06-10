@@ -123,6 +123,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double _rawSpaceMouseX = 0;
         private double _rawSpaceMouseY = 0;
         private double _rawSpaceMouseZ = 0;
+        private double _rawSpaceMouseZoom = 0;
+
+        private const double ZoomDeadZone = 50.0;     // Large zone morte                           (début:100)
+        private const double ZoomSensitivity = 0.05;  // Pas extrêmement faible                     (début:0.01)
+        private const double ZoomFreeSpeedXY = 1000;  // À monter si le zoom se bloque trop souvent (début:50)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Raccourcis clavier — navigation vers angle cible
@@ -391,8 +396,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 ClampVertical(_verticalRotation.Angle - speedY);
             }
 
-            // ──────────────────────────────────────────────────────────────────────
-            // ── FOV : interpolation douce vers la cible ──
+            // Partie roulette de la souris, transition douce
             if (Math.Abs(_camera.FieldOfView - _targetFov) > 0.05)
             {
                 double fovDiff = _targetFov - _camera.FieldOfView;
@@ -417,14 +421,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             double spaceMouseSpeedX = 0;
             double spaceMouseSpeedY = 0;
             double spaceMouseSpeedZ = 0;
+            double spaceMouseZoom = 0;
 
             lock (_spaceMouseLock)
             {
                 spaceMouseSpeedX = _rawSpaceMouseX;
                 spaceMouseSpeedY = _rawSpaceMouseY;
                 spaceMouseSpeedZ = _rawSpaceMouseZ;
+                spaceMouseZoom = _rawSpaceMouseZoom;
             }
 
+            // Partie rotation du panorama
             if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
             {
                 _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
@@ -433,8 +440,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 MarquerMouvement();
             }
 
+            // Partie Zoom via le déplacement du manche vers l'avant/arrière
+            bool panoramaEnMouvement = Math.Abs(spaceMouseSpeedX) > ZoomFreeSpeedXY || Math.Abs(spaceMouseSpeedY) > ZoomFreeSpeedXY;
+
+            if (!panoramaEnMouvement && Math.Abs(_rawSpaceMouseZoom) > ZoomDeadZone)
+            {
+                _targetFov = Clamp(_targetFov + _rawSpaceMouseZoom * ZoomSensitivity * elapsed, FovMin, FovMax);
+            }
+
             // ──────────────────────────────────────────────────────────────────────
-            // ── 1c. SNAP CLAVIER — interpolation vers angle cible ─────────────────
+            // ── 1c. CLAVIER SPACEMOUSE — interpolation vers angle cible ───────────
             if (!double.IsNaN(_targetHorizontalAngle))
             {
                 double diff = AngleDiff(_targetHorizontalAngle, _horizontalRotation.Angle);
@@ -754,6 +769,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     double axeY = _smSensor.Rotation.Y;
                     double axeZ = _smSensor.Rotation.Z;
                     double intensite = _smSensor.Rotation.Angle;
+                    double transY = _smSensor.Translation.Z; // Avant/arrière
 
                     // Debug complet avec les 3 axes pour y voir clair
                     System.Diagnostics.Debug.WriteLine($"SpaceMouse -> X:{axeX:F0} | Y:{axeY:F0} | Z:{axeZ:F0} | Angle:{intensite:F0}");
@@ -761,6 +777,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     _rawSpaceMouseX = axeX * intensite;
                     _rawSpaceMouseY = axeY * intensite;
                     _rawSpaceMouseZ = axeZ * intensite;
+                    _rawSpaceMouseZoom = transY;
                 }
             }
             catch
