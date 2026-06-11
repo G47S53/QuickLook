@@ -280,7 +280,7 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="50"/>
                                     </Grid.ColumnDefinitions>
-                                    <Slider x:Name="sldFov" Minimum="30" Maximum="120" Value="90" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center" ValueChanged="SldFov_ValueChanged"/>
+                                    <Slider x:Name="sldFov" Minimum="30" Maximum="135" Value="90" IsSnapToTickEnabled="True" TickFrequency="5" VerticalAlignment="Center" ValueChanged="SldFov_ValueChanged"/>
                                     <TextBlock Grid.Column="1" x:Name="lblFovValue" Text="90°" Foreground="White" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
                                 <Border Height="2" Width="220" HorizontalAlignment="Center" Margin="0,10,0,25" Background="#18FFFFFF"/>
@@ -297,14 +297,14 @@
                                     </StackPanel.Resources>
 
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                        <RadioButton x:Name="radStartNormal" Content="Panorama statique" GroupName="StartMode" IsChecked="True" Checked="RadStartMode_Checked"/>
+                                        <RadioButton x:Name="radStartNormal" Content="Panorama statique" GroupName="StartMode" IsChecked="True" Click="RadioBtnMode_Click"/>
                                     </StackPanel>
 
                                     <StackPanel Orientation="Horizontal" Margin="0,12,0,12">
-                                        <RadioButton x:Name="radStartAutoRotate" Content="Rotation automatique" GroupName="StartMode" Checked="RadStartMode_Checked"/>
+                                        <RadioButton x:Name="radStartAutoRotate" Content="Rotation automatique" GroupName="StartMode" Click="RadioBtnMode_Click"/>
 
-                                        <Button x:Name="btnOptionAutoRotate" Width="150" Padding="10,4" Margin="15,0,0,0" Foreground="White" Cursor="Hand" Click="BtnOptionAutoRotate_Click">
-                                            <TextBlock x:Name="txtOptionAutoRotate" TextAlignment="Center" Text="Vitesse : Normal" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                        <Button x:Name="btnOptionAutoRotate" Visibility="Hidden" Width="150" Padding="10,4" Margin="15,0,0,0" Foreground="White" Cursor="Hand" Click="BtnOptionAutoRotate_Click">
+                                            <TextBlock x:Name="txtOptionAutoRotate" TextAlignment="Center" Text="🐢 Lent" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                             <Button.Style>
                                                 <Style TargetType="Button">
                                                     <Setter Property="Template">
@@ -331,8 +331,8 @@
 
                                     <StackPanel Orientation="Vertical" Margin="0,12,0,0">
                                         <StackPanel Orientation="Horizontal">
-                                            <RadioButton x:Name="radStartAutoClose" Content="1 tour + fermeture" GroupName="StartMode" Checked="RadStartMode_Checked"/>
-                                            <TextBlock Text="⚙ Durée :" Foreground="#AAFFFFFF" Margin="15,0,0,0" VerticalAlignment="Center" FontSize="11" FontStyle="Italic"/>
+                                            <RadioButton x:Name="radStartAutoClose" Content="1 tour + fermeture" GroupName="StartMode" Click="RadioBtnMode_Click"/>
+                                            <TextBlock x:Name="TextAutoClose" Visibility="Hidden" Text="⚙ Durée :" Foreground="#AAFFFFFF" Margin="15,0,0,0" VerticalAlignment="Center" FontSize="11" FontStyle="Italic"/>
                                         </StackPanel>
 
                                         <Grid Margin="30,6,0,0">
@@ -340,8 +340,8 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="45"/>
                                             </Grid.ColumnDefinitions>
-                                            <Slider x:Name="sldAutoCloseDelay" Minimum="5" Maximum="60" Value="15" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1" x:Name="lblAutoCloseDelayValue" Text="15s" Foreground="#FF00AAFF" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                            <Slider x:Name="sldAutoCloseDelay" Minimum="5" Maximum="60" Value="15" Visibility="Hidden" IsSnapToTickEnabled="True" TickFrequency="1" VerticalAlignment="Center" ValueChanged="SldAutoCloseDelay_ValueChanged"/>
+                                            <TextBlock Grid.Column="1" x:Name="lblAutoCloseDelayValue" Text="15s" Visibility="Hidden" Foreground="#FF00AAFF" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                         </Grid>
                                     </StackPanel>
                                 </StackPanel>

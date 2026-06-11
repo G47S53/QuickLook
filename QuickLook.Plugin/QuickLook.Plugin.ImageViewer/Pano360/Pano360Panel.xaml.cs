@@ -42,6 +42,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
         // ─────────────────────────────────────────────────────────────────────
+        // Attention d'autres options sont aussi dispo dans la section "Mode Tour Unique de démarrage avec accélération/décélération"
         private readonly string _configPath = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "QuickLook",
@@ -49,8 +50,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private bool _chkFullscreenSavedValue = false;
         private int _StartAutoRotate = 1;
+        private int _StartRadioBouton = 1;
         private double _OptionFov = 90.0;
         private bool _OptionOpen = false;
+        private bool _OptionBarreReduite = false;
 
         private Pano360Settings settings;
 
@@ -63,7 +66,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             public bool FullscreenStartup { get; set; } = false;
             public bool StartBarreReduite { get; set; } = false;
             public double DefaultFov { get; set; } = 90.0;
-            public bool StartStatique { get; set; } = false;
+            public int StartRadioBouton { get; set; } = 1;
             public int StartAutoRotate { get; set; } = 1;
             public bool StartOneTurnAndClose { get; set; } = false; // Le Flag de démarrage
             public double StartOneTurnDuration { get; set; } = 15.0; // Durée par défaut (ex: 15s)
@@ -575,8 +578,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         targetSpeed = 360.0 / AutoRotateNormalSeconds;
                     else if (_autoRotState == AutoRotationState.Rapide)
                         targetSpeed = 360.0 / AutoRotateFastSeconds;
-                    else
-                        targetSpeed = 0;
+                    else                    // ! Ajouter après la mise à jour du moteur
+                        targetSpeed = 0;    // ! Ajouter après la mise à jour du moteur
                 }
 
                 // Gestion de l'accélération / décélération vers targetSpeed (ton code existant)
@@ -922,9 +925,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // BOUTONS OPTIONS
         // ─────────────────────────────────────────────────────────────────────
-        
-        
-        // !!!! A modifier !!!!
         private void LoadSettings()
         {
             try
@@ -936,99 +936,94 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     if (settings != null)
                     {
                         // ✅ Paramètres non-visuels : application immédiate
+                        // Attribution des vitesses de l'autorotation
                         AutoRotateFastSeconds = settings.AutoRotateFastSeconds;
                         AutoRotateNormalSeconds = settings.AutoRotateNormalSeconds;
                         AutoRotateSlowSeconds = settings.AutoRotateSlowSeconds;
                         sldFast.Value = AutoRotateFastSeconds;
                         sldNormal.Value = AutoRotateNormalSeconds;
                         sldSlow.Value = AutoRotateSlowSeconds;
-                        
+
+                        // Attribution des autres options aux variables locales
+                        _chkFullscreenSavedValue = settings.FullscreenStartup;
+                        _OptionBarreReduite = settings.StartBarreReduite;
+                        _OptionFov = settings.DefaultFov;
+
+                        _StartRadioBouton = settings.StartRadioBouton;
                         _StartAutoRotate = settings.StartAutoRotate;
+                        _oneTurnActive = settings.StartOneTurnAndClose;
+                        _oneTurnDuration = settings.StartOneTurnDuration;
 
-                        //switch (_StartAutoRotate)
-                        //{
-                        //    case 0:
-                        //        btnOptionAutoClose.Visibility = Visibility.Collapsed;
-                        //        _StartAutoCloseEnabled = false;
-                        //        break;
-                        //    case 1:
-                        //        _autoRotState = AutoRotationState.Lent;
-                        //        btnAutoRotate.Content = "🐢 Lent";
-                        //        btnOptionAutoClose.Visibility = Visibility.Visible;
-                        //        txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "🐢 lent";
-                        //        if (_StartAutoCloseEnabled)
-                        //        {
-                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
-                        //            _autoCloseActive = true;
-                        //        }
-                        //        else
-                        //        {
-                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
-                        //            _autoCloseActive = false;
-                        //        }
-                        //        break;
-                        //    case 2:
-                        //        _autoRotState = AutoRotationState.Normal;
-                        //        btnAutoRotate.Content = "▶️ Normal";
-                        //        btnOptionAutoClose.Visibility = Visibility.Visible;
-                        //        txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️ normal";
-                        //        if (_StartAutoCloseEnabled)
-                        //        {
-                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
-                        //            _autoCloseActive = true;
-                        //        }
-                        //        else
-                        //        {
-                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
-                        //            _autoCloseActive = false;
-                        //        }
-                        //        break;
-                        //    case 3:
-                        //        _autoRotState = AutoRotationState.Rapide;
-                        //        btnAutoRotate.Content = "▶️▶️ Rapide";
-                        //        btnOptionAutoClose.Visibility = Visibility.Visible;
-                        //        txtOptionAutoRotate.Text = "Rotation auto. :" + Environment.NewLine + "▶️▶️ rapide";
-                        //        if (_StartAutoCloseEnabled)
-                        //        {
-                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "On";
-                        //            _autoCloseActive = true;
-                        //        }
-                        //        else
-                        //        {
-                        //            txtOptionAutoClose.Text = "Fermeture auto. :" + Environment.NewLine + "Off";
-                        //            _autoCloseActive = false;
-                        //        }
-                        //        break;
-                        //}
+                        // Mise à jour boite de dialogue: Fullscreen
+                        chkFullscreen.IsChecked = _chkFullscreenSavedValue;
 
-                        //if (_autoCloseActive)
-                        //{
-                        //    _autoCloseStartAngle = _horizontalRotation.Angle;
-                        //    _autoCloseTargetAngle = _autoCloseStartAngle;
-                        //    _hasLeftStartZone = false; 
-                        //    _isPopupShown = false; 
-                        //}
-                        //else
-                        //{
-                        //    _autoCloseTargetAngle = -1;
-                        //    _autoCloseStartAngle = -1;
-                        //    _hasLeftStartZone = false;
-                        //}
+                        // Mise à jour boite de dialogue: Barre reduite
+                        chkBarreReduite.IsChecked = _OptionBarreReduite;
 
+                        // Mise à jour boite de dialogue: Fov
+                        _targetFov = _OptionFov;
+                        sldFov.Value = _OptionFov;
+                        txtFov.Text = string.Format("(FOV: {0:F0}°)", _OptionFov);
+
+                        // Mise à jour boite de dialogue: durée autoclose
+                        sldAutoCloseDelay.Value = _oneTurnDuration;
+                        lblAutoCloseDelayValue.Text = _oneTurnDuration.ToString() +"s";
+
+                        // Mise à jour boite de dialogue: boutonOptionAutoRotate
+                        switch (_StartAutoRotate)
+                        {
+                            case 1:
+                                txtOptionAutoRotate.Text = "🐢 Lent";
+                                break;
+                            case 2:
+                                txtOptionAutoRotate.Text = "▶️ Normal";
+                                break;
+                            case 3:
+                                txtOptionAutoRotate.Text = "▶️▶️ Rapide";
+                                break;
+                        }
+                        // Mise à jour boite de dialogue: RadioBouton
+                        switch (_StartRadioBouton)
+                        {
+                            case 1:
+                                radStartNormal.IsChecked = true;
+                                _oneTurnActive = false;
+
+                                btnOptionAutoRotate.Visibility = Visibility.Hidden;
+                                TextAutoClose.Visibility = Visibility.Hidden;
+                                sldAutoCloseDelay.Visibility = Visibility.Hidden;
+                                lblAutoCloseDelayValue.Visibility = Visibility.Hidden;
+                                break;
+                            case 2:
+                                radStartAutoClose.IsChecked = true;
+                                _oneTurnActive = false;
+
+                                btnOptionAutoRotate.Visibility = Visibility.Visible;
+                                TextAutoClose.Visibility = Visibility.Hidden;
+                                sldAutoCloseDelay.Visibility = Visibility.Hidden;
+                                lblAutoCloseDelayValue.Visibility = Visibility.Hidden;
+                                break;
+                            case 3:
+                                radStartAutoClose.IsChecked = true;
+                                _oneTurnActive = true;
+
+                                btnOptionAutoRotate.Visibility = Visibility.Hidden;
+                                TextAutoClose.Visibility = Visibility.Visible;
+                                sldAutoCloseDelay.Visibility = Visibility.Visible;
+                                lblAutoCloseDelayValue.Visibility = Visibility.Visible;
+                                break;
+                        }
+
+                        // BoutonAutoClose barre de boutons
                         MajEtatAutoClose();
 
                         // ✅ Paramètres visuels : différés après chargement complet de la fenêtre
                         Dispatcher.BeginInvoke(new Action(() =>
                         {
                             // FOV
-                            _camera.FieldOfView = settings.DefaultFov;
-                            _targetFov = settings.DefaultFov;
-                            sldFov.Value = _camera.FieldOfView;
-                            txtFov.Text = string.Format("(FOV: {0:F0}°)", _camera.FieldOfView);
-                            _OptionFov = settings.DefaultFov;
-
+                            _camera.FieldOfView = _OptionFov;
+                            
                             // Fullscreen
-                            _chkFullscreenSavedValue = settings.FullscreenStartup;
                             if (_chkFullscreenSavedValue) ToggleFullscreen();
 
                             // ── Application de la barre réduite au démarrage ─────────────────
@@ -1045,10 +1040,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 grpBarreGauche.ClipToBounds = true;
                                 grpBarreDroite.ClipToBounds = true;
                             }
-
-                            // On coche la case dans ton interface d'options pour refléter l'état sauvegardé
-                            chkBarreReduite.IsChecked = settings.StartBarreReduite;
-
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
                 }
@@ -1062,31 +1053,45 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 settings = new Pano360Settings();
             }
         }
-        
-        // !!!! A modifier !!!!
         private void SaveSettings()
         {
+            // Assigner les variables physiques locales pour exécution immédiate
+            AutoRotateSlowSeconds = sldSlow.Value;
+            AutoRotateNormalSeconds = sldNormal.Value;
+            AutoRotateFastSeconds = sldFast.Value;
+
+            if (_StartRadioBouton == 3)
+            {
+                _oneTurnActive = true;
+            }
+            else
+            {
+                _oneTurnActive = false;
+            }
+
             try
             {
                 settings = new Pano360Settings
                 {
-                    FullscreenStartup = chkFullscreen.IsChecked ?? false,
-                    DefaultFov = (int)sldFov.Value,
                     AutoRotateSlowSeconds = (int)sldSlow.Value,
                     AutoRotateNormalSeconds = (int)sldNormal.Value,
                     AutoRotateFastSeconds = (int)sldFast.Value,
+                    FullscreenStartup = chkFullscreen.IsChecked ?? false,
+                    StartBarreReduite = chkBarreReduite.IsChecked ?? false,
+                    DefaultFov = (int)sldFov.Value,
+                
+
+                    StartRadioBouton = _StartRadioBouton,
                     StartAutoRotate = _StartAutoRotate,
-                    StartBarreReduite = chkBarreReduite.IsChecked ?? false // 👈 Sauvegarde de la Checkbox !
+                    StartOneTurnAndClose = _oneTurnActive,
+                    StartOneTurnDuration = (int)sldAutoCloseDelay.Value
                 };
 
-                // Assigner les variables physiques locales pour exécution immédiate
-                AutoRotateSlowSeconds = sldSlow.Value;
-                AutoRotateNormalSeconds = sldNormal.Value;
-                AutoRotateFastSeconds = sldFast.Value;
-                // Assigner les variables pour les options
-                _OptionFov = settings.DefaultFov;
-                _chkFullscreenSavedValue = settings.FullscreenStartup;
+
                 
+                // Assigner les variables pour les options
+                //_OptionFov = settings.DefaultFov;
+                //_chkFullscreenSavedValue = settings.FullscreenStartup;
 
                 string directory = System.IO.Path.GetDirectoryName(_configPath);
                 if (!System.IO.Directory.Exists(directory)) System.IO.Directory.CreateDirectory(directory);
@@ -1098,8 +1103,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
             }
         }
-        
-        // !!!! A modifier !!!!
         private void BtnOptions_Click(object sender, RoutedEventArgs e)
         {
             // Arrêt immédiat de l'autorotation et de l'autoclose
@@ -1112,8 +1115,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _OptionOpen = true;
 
             // Remplissage des contrôles graphiques avec les valeurs actuelles des constantes dynamiques
-            chkFullscreen.IsChecked = _chkFullscreenSavedValue; // Sera déterminé par le LoadSettings
-            sldFov.Value = _OptionFov;
+            //chkFullscreen.IsChecked = _chkFullscreenSavedValue; // Sera déterminé par le LoadSettings
+            //sldFov.Value = _OptionFov;
             
             // 🎯 ON ALLUME LE FLOU DERRIÈRE : Un rayon de 15 rend le panorama magnifiquement flou
             viewBlur.Radius = 15;
@@ -1121,17 +1124,54 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Affichage de l'incrustation des options
             gridPreferences.Visibility = Visibility.Visible;
         }
-
-        // !!!! A modifier !!!!
-        private void RadStartMode_Checked(object sender, RoutedEventArgs e)
+        private void RadioBtnMode_Click(object sender, RoutedEventArgs e)
         {
+            if (radStartNormal.IsChecked == true)
+            {
+                _StartRadioBouton = 1;
 
+                btnOptionAutoRotate.Visibility = Visibility.Hidden;
+                TextAutoClose.Visibility = Visibility.Hidden;
+                sldAutoCloseDelay.Visibility = Visibility.Hidden;
+                lblAutoCloseDelayValue.Visibility = Visibility.Hidden;
+            }
+            else if (radStartAutoRotate.IsChecked == true)
+            {
+                _StartRadioBouton = 2;
+
+                btnOptionAutoRotate.Visibility = Visibility.Visible;
+                TextAutoClose.Visibility = Visibility.Hidden;
+                sldAutoCloseDelay.Visibility = Visibility.Hidden;
+                lblAutoCloseDelayValue.Visibility = Visibility.Hidden;
+            }
+            else if (radStartAutoClose.IsChecked == true)
+            {
+                _StartRadioBouton = 3;
+
+                btnOptionAutoRotate.Visibility = Visibility.Hidden;
+                TextAutoClose.Visibility = Visibility.Visible;
+                sldAutoCloseDelay.Visibility = Visibility.Visible;
+                lblAutoCloseDelayValue.Visibility = Visibility.Visible;
+            }
         }
-        
-        // !!!! A modifier !!!!
-        private void BtnOptionAutoRotate_Click(object sender, RoutedEventArgs e) { }
-
-        // !!!! A modifier !!!!
+        private void BtnOptionAutoRotate_Click(object sender, RoutedEventArgs e)
+        {
+            switch (_StartAutoRotate)
+            {
+                case 1:
+                    _StartAutoRotate = 2;
+                    txtOptionAutoRotate.Text = "▶️ Normal";
+                    break;
+                case 2:
+                    _StartAutoRotate = 3;
+                    txtOptionAutoRotate.Text = "▶️▶️ Rapide";
+                    break;
+                case 3:
+                    _StartAutoRotate = 1;
+                    txtOptionAutoRotate.Text = "🐢 Lent";
+                    break;
+            }
+        }
         private void BtnCloseOptions_Click(object sender, RoutedEventArgs e)
         {
             // 🎯 ON ÉTEINT LE FLOU : Le panorama redevient instantanément net
@@ -1146,11 +1186,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Sauvegarde définitive
             SaveSettings();
         }
-        
-        
         private void SldFov_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (lblFovValue != null) lblFovValue.Text = string.Format("{0:F0}°", e.NewValue);
+        }
+        private void SldAutoCloseDelay_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (lblAutoCloseDelayValue != null) lblAutoCloseDelayValue.Text = string.Format("{0:F0}°", e.NewValue);
         }
         private void SldSlow_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
