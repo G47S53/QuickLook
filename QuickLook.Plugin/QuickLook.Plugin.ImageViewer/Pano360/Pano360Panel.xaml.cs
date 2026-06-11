@@ -1015,7 +1015,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         }
 
                         // BoutonAutoClose barre de boutons
-                        MajEtatAutoClose();
+                        MajEtatAutoClose();  //!! A laisser ??
 
                         // ✅ Paramètres visuels : différés après chargement complet de la fenêtre
                         Dispatcher.BeginInvoke(new Action(() =>
@@ -1039,6 +1039,27 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                                 grpBarreGauche.ClipToBounds = true;
                                 grpBarreDroite.ClipToBounds = true;
+                            }
+
+                            // ── Application de l'autorotation si sélectionnée ─────────────────
+                            if (_StartRadioBouton == 2)
+                            {
+                                switch (_StartAutoRotate)
+                                {
+                                    case 1:
+                                        _autoRotState = AutoRotationState.Lent;
+                                        btnAutoRotate.Content = "🐢 Lent";
+                                        break;
+                                    case 2:
+                                        _autoRotState = AutoRotationState.Normal;
+                                        btnAutoRotate.Content = "▶️ Normal";
+                                        break;
+                                    case 3:
+                                        _autoRotState = AutoRotationState.Rapide;
+                                        btnAutoRotate.Content = "▶️▶️ Rapide";
+                                        break;
+                                }
+                                AfficheEtatAutoRotation();
                             }
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
