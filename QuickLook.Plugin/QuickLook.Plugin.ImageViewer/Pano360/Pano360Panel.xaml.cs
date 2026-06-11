@@ -51,6 +51,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _chkFullscreenSavedValue = false;
         private int _StartAutoRotate = 1;
         private int _StartRadioBouton = 1;
+        private bool _StartOneTurnActive = false;
         private double _OptionFov = 90.0;
         private bool _OptionOpen = false;
         private bool _OptionBarreReduite = false;
@@ -529,24 +530,36 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 }
                 else
                 {
+                    // ── Gestion de 1 tour et on ferme ──
+                    // ───────────────────────────────────
                     _oneTurnTimer += elapsed;
+
+                    System.Diagnostics.Debug.WriteLine($"oneTurnTimer:{_oneTurnTimer} | oneTurnAccelTime:{_oneTurnAccelTime} | oneTurnDuration:{_oneTurnDuration}");
 
                     // Profil de vitesse trapézoïdal
                     if (_oneTurnTimer <= _oneTurnAccelTime)
                     {
-                        // Phase 1 : Accélération
+                        // ── Phase 1 : Accélération
                         _currentRotationSpeed = _oneTurnAccelRate * _oneTurnTimer;
                     }
                     else if (_oneTurnTimer >= (_oneTurnDuration - _oneTurnAccelTime))
                     {
-                        // Phase 3 : Décélération
+                        // ── Phase 3 : Décélération
                         double tempsRestant = _oneTurnDuration - _oneTurnTimer;
                         if (tempsRestant < 0) tempsRestant = 0;
+                        
+                        // Affichage d'un message de fermeture 
+                        if (tempsRestant <= 1.5) // Déclenchement à T-1.5s exacts !
+                        {
+                            _isPopupShown = true;
+                            txtInfoPopup.Text = "Fermeture automatique...";
+                            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                        }
                         _currentRotationSpeed = _oneTurnAccelRate * tempsRestant;
                     }
                     else
                     {
-                        // Phase 2 : Vitesse max constante
+                        // ── Phase 2 : Vitesse max constante
                         _currentRotationSpeed = _oneTurnVMax;
                     }
 
@@ -571,18 +584,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 if (!_isMouseDown && !_isAutoClosingPhase)
                 {
-                    // Ton code actuel de l'autorotation classique (choix de targetSpeed selon l'état)
+                    // Autorotation classique (choix de targetSpeed selon l'état)
                     if (_autoRotState == AutoRotationState.Lent)
                         targetSpeed = 360.0 / AutoRotateSlowSeconds;
                     else if (_autoRotState == AutoRotationState.Normal)
                         targetSpeed = 360.0 / AutoRotateNormalSeconds;
                     else if (_autoRotState == AutoRotationState.Rapide)
                         targetSpeed = 360.0 / AutoRotateFastSeconds;
-                    else                    // ! Ajouter après la mise à jour du moteur
-                        targetSpeed = 0;    // ! Ajouter après la mise à jour du moteur
+                    else                    
+                        targetSpeed = 0;    
                 }
 
-                // Gestion de l'accélération / décélération vers targetSpeed (ton code existant)
+                // Gestion de l'accélération / décélération vers targetSpeed 
                 if (!_isMouseDown)
                 {
                     // 🛑 LE FREIN AÉRODYNAMIQUE DE LA JAMAIS CONTENTE :
@@ -951,7 +964,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                         _StartRadioBouton = settings.StartRadioBouton;
                         _StartAutoRotate = settings.StartAutoRotate;
-                        _oneTurnActive = settings.StartOneTurnAndClose;
+                        _StartOneTurnActive = settings.StartOneTurnAndClose;
                         _oneTurnDuration = settings.StartOneTurnDuration;
 
                         // Mise à jour boite de dialogue: Fullscreen
@@ -987,7 +1000,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         {
                             case 1:
                                 radStartNormal.IsChecked = true;
-                                _oneTurnActive = false;
+                                _StartOneTurnActive = false;
 
                                 btnOptionAutoRotate.Visibility = Visibility.Hidden;
                                 TextAutoClose.Visibility = Visibility.Hidden;
@@ -996,7 +1009,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 break;
                             case 2:
                                 radStartAutoClose.IsChecked = true;
-                                _oneTurnActive = false;
+                                _StartOneTurnActive = false;
 
                                 btnOptionAutoRotate.Visibility = Visibility.Visible;
                                 TextAutoClose.Visibility = Visibility.Hidden;
@@ -1005,7 +1018,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 break;
                             case 3:
                                 radStartAutoClose.IsChecked = true;
-                                _oneTurnActive = true;
+                                _StartOneTurnActive = true;
 
                                 btnOptionAutoRotate.Visibility = Visibility.Hidden;
                                 TextAutoClose.Visibility = Visibility.Visible;
@@ -1013,9 +1026,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 lblAutoCloseDelayValue.Visibility = Visibility.Visible;
                                 break;
                         }
-
-                        // BoutonAutoClose barre de boutons
-                        MajEtatAutoClose();  //!! A laisser ??
 
                         // ✅ Paramètres visuels : différés après chargement complet de la fenêtre
                         Dispatcher.BeginInvoke(new Action(() =>
@@ -1041,7 +1051,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 grpBarreDroite.ClipToBounds = true;
                             }
 
-                            // ── Application de l'autorotation si sélectionnée ─────────────────
+                            // ── Application de l'autorotation si sélectionnée ────────────────
                             if (_StartRadioBouton == 2)
                             {
                                 switch (_StartAutoRotate)
@@ -1060,6 +1070,32 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                         break;
                                 }
                                 AfficheEtatAutoRotation();
+                            }
+
+                            // ── Application de 1 tour et on ferme ────────────────────────────
+                            if (_StartOneTurnActive)
+                            {
+                                _oneTurnActive = true;
+                                //_oneTurnDuration = settings.StartOneTurnDuration;
+                                _oneTurnTimer = 0.0;
+                                _oneTurnStartAngle = _horizontalRotation.Angle;
+
+                                // Sécurité au cas où la durée entrée est trop courte pour le profil trapézoïdal
+                                if (_oneTurnDuration <= _oneTurnAccelTime * 2)
+                                {
+                                    _oneTurnAccelTime = _oneTurnDuration / 2.0;
+                                }
+
+                                // Calcul des lois physiques adaptées au temps imposé
+                                _oneTurnVMax = 360.0 / (_oneTurnDuration - _oneTurnAccelTime);
+                                _oneTurnAccelRate = _oneTurnVMax / _oneTurnAccelTime;
+
+                                // Texte d'information pour l'utilisateur
+                                txtInfoPopup.Text = "Rotation 1 tour + fermeture";
+                                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+
+                                //_autoCloseActive = true;
+                                //MajEtatAutoClose();
                             }
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
@@ -1083,11 +1119,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (_StartRadioBouton == 3)
             {
-                _oneTurnActive = true;
+                _StartOneTurnActive = true;
             }
             else
             {
-                _oneTurnActive = false;
+                _StartOneTurnActive = false;
             }
 
             try
@@ -1104,16 +1140,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                     StartRadioBouton = _StartRadioBouton,
                     StartAutoRotate = _StartAutoRotate,
-                    StartOneTurnAndClose = _oneTurnActive,
+                    StartOneTurnAndClose = _StartOneTurnActive,
                     StartOneTurnDuration = (int)sldAutoCloseDelay.Value
                 };
 
-
-                
-                // Assigner les variables pour les options
-                //_OptionFov = settings.DefaultFov;
-                //_chkFullscreenSavedValue = settings.FullscreenStartup;
-
+                //Serialisation et sauvegarde
                 string directory = System.IO.Path.GetDirectoryName(_configPath);
                 if (!System.IO.Directory.Exists(directory)) System.IO.Directory.CreateDirectory(directory);
 
@@ -1134,10 +1165,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Indique que la boite de dialogue d'option est ouverte (utile pour désactiver la spacemouse)
             _OptionOpen = true;
-
-            // Remplissage des contrôles graphiques avec les valeurs actuelles des constantes dynamiques
-            //chkFullscreen.IsChecked = _chkFullscreenSavedValue; // Sera déterminé par le LoadSettings
-            //sldFov.Value = _OptionFov;
             
             // 🎯 ON ALLUME LE FLOU DERRIÈRE : Un rayon de 15 rend le panorama magnifiquement flou
             viewBlur.Radius = 15;
