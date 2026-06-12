@@ -166,7 +166,7 @@
                     </StackPanel>
                 </Border>
             </StackPanel>
-            <!-- ── Info avancement autoclose ────────────────── -->
+            <!-- ── Info avancement rond autoclose ───────────── -->
             <Grid x:Name="panelAutoCloseProgress" Grid.Column="2" Width="56" Height="56" HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="Collapsed" Opacity="1">
                 <Grid.Resources>
                     <Storyboard x:Key="FadeOutProgress">
@@ -195,7 +195,7 @@
             </Grid>
         </Grid>
 
-        <!-- ── Info PopUp  ──────────────────────────────── -->
+        <!-- ── Info texte PopUp  ────────────────────────── -->
         <Border x:Name="infoPopup" Padding="20,10,20,10" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#CC222222" CornerRadius="8" IsHitTestVisible="False" Opacity="0">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="15" ShadowDepth="0" Opacity="0.7"/>
