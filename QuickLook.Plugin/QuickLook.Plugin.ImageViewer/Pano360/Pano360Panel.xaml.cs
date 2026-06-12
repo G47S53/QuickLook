@@ -658,6 +658,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     double angleParcouru = (angleActuel - _autoCloseStartAngle + 360) % 360;
                     rectProgressTransform.Angle = angleParcouru;
 
+                    double angleRestant = 360.0 - angleParcouru;
+                    double tempsRestant = angleRestant / _currentRotationSpeed;
+
+                    System.Diagnostics.Debug.WriteLine($"Temp restant:{tempsRestant}");
+
                     if (!_hasLeftStartZone && (diffAngulaire > 6.0 && diffAngulaire < 354.0))
                     {
                         _hasLeftStartZone = true;
@@ -666,9 +671,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     // ⏱️ GESTION DU POPUP TEMPOREL (Anticipation de 1.5 seconde avant l'arrêt)
                     if (_hasLeftStartZone && !_isPopupShown && _currentRotationSpeed > 0)
                     {
-                        double angleRestant = 360.0 - angleParcouru;
-                        double tempsRestant = angleRestant / _currentRotationSpeed;
-
                         if (tempsRestant <= 1.5)  // Déclenchement à T-1.5s exacts !
                         {
                             if ((_oneTurnDuration < 6 && _oneTurnActive) || (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)) 
@@ -1118,21 +1120,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 btnAutoRotate.Content = "Mode 1 tour";
                                 btnAutoRotate.IsEnabled = false;
 
-                                //
+                                // Mise à jour de l'info popup sur la durée de l'autorotation
                                 _autoCloseStartAngle = _horizontalRotation.Angle;
                                 _autoCloseTargetAngle = _autoCloseStartAngle;
                                 _hasLeftStartZone = false; // On vient juste d'arriver sur l'angle
                                 _isPopupShown = false; // 🔄 Réinitialisation
-
-
-                                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                                // ToDo: Ajouter le bouton autoclose comme actif
-                                // ToDo: Changer le texte du bouton autorotate
-                                // ToDo: Faire que les 2 boutons reviennent à un état normal après un arret
-                                // ToDo: Ajouter le sablier
-                                //
-                                // ToDo: il va falloir revoir les méthodes et ajouter une condition avec ' _oneTurnActive '
-                                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                             }
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
