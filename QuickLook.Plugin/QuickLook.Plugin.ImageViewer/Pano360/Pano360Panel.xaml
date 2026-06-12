@@ -189,13 +189,13 @@
                                 </Ellipse.Effect>
                             </Ellipse>
                         </Grid>
-                        <TextBlock Text="⏳" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1"/>
+                        <TextBlock x:Name="txtTempsRestant" Text="⏳" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1"/>
                     </Grid>
                 </Border>
             </Grid>
         </Grid>
 
-        <!-- ── Info PopuP Autoclose ─────────────────────── -->
+        <!-- ── Info PopUp  ──────────────────────────────── -->
         <Border x:Name="infoPopup" Padding="20,10,20,10" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#CC222222" CornerRadius="8" IsHitTestVisible="False" Opacity="0">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="15" ShadowDepth="0" Opacity="0.7"/>
@@ -366,7 +366,7 @@
                                         <ColumnDefinition Width="50"/>
                                     </Grid.ColumnDefinitions>
                                     <Slider x:Name="sldSlow" Minimum="46" Maximum="120" Value="60" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="SldSlow_ValueChanged"/>
-                                    <TextBlock Grid.Column="1" x:Name="lblSlow" Text="60s" Foreground="#FF00AAFF" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="1" x:Name="lblSlow" Text="60 s" Foreground="#FF00AAFF" HorizontalAlignment="Right"/>
                                 </Grid>
 
                                 <TextBlock Text="Mode Normal" Foreground="White" FontSize="11"/>
@@ -376,7 +376,7 @@
                                         <ColumnDefinition Width="50"/>
                                     </Grid.ColumnDefinitions>
                                     <Slider x:Name="sldNormal" Minimum="16" Maximum="45" Value="20" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="SldNormal_ValueChanged"/>
-                                    <TextBlock Grid.Column="1" x:Name="lblNormal" Text="20s" Foreground="#FF00AAFF" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="1" x:Name="lblNormal" Text="20 s" Foreground="#FF00AAFF" HorizontalAlignment="Right"/>
                                 </Grid>
 
                                 <TextBlock Text="Mode Rapide" Foreground="White" FontSize="11"/>
@@ -386,7 +386,7 @@
                                         <ColumnDefinition Width="50"/>
                                     </Grid.ColumnDefinitions>
                                     <Slider x:Name="sldFast" Minimum="5" Maximum="15" Value="10" IsSnapToTickEnabled="True" TickFrequency="1" ValueChanged="SldFast_ValueChanged"/>
-                                    <TextBlock Grid.Column="1" x:Name="lblFast" Text="10s" Foreground="#FF00AAFF" HorizontalAlignment="Right"/>
+                                    <TextBlock Grid.Column="1" x:Name="lblFast" Text="10 s" Foreground="#FF00AAFF" HorizontalAlignment="Right"/>
                                 </Grid>
                             </StackPanel>
                         </TabItem>

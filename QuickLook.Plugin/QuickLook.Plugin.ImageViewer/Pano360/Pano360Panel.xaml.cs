@@ -649,6 +649,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 MarquerMouvement();
 
                 // ── Analyse de l'AutoClose en cours de route ──────────────────
+                // ── Compte à rebours : tourne tant qu'AutoClose est actif, phases confondues ──
+                if (_autoCloseActive)
+                {
+                    double tempsRestant = ComputeAutoCloseTimeRemaining();
+                    txtTempsRestant.Text = $"{tempsRestant:F0} s";
+                }
+
+                // ── Détection de progression et déclenchement popup (seulement hors phase de freinage) ──
                 if (_autoCloseActive && _autoCloseTargetAngle >= 0 && !_isAutoClosingPhase)
                 {
                     double angleActuel = _horizontalRotation.Angle;
@@ -666,11 +674,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     // ⏱️ GESTION DU POPUP TEMPOREL (Anticipation de 1.5 seconde avant l'arrêt)
                     if (_hasLeftStartZone && !_isPopupShown && _currentRotationSpeed > 0)
                     {
-                        double angleRestant = 360.0 - angleParcouru;
-                        double tempsRestant = angleRestant / _currentRotationSpeed;
-
-                        //System.Diagnostics.Debug.WriteLine($"Temp restant:{tempsRestant}");
-
+                        double tempsRestant = ComputeAutoCloseTimeRemaining();
                         if (tempsRestant <= 1.5)  // Déclenchement à T-1.5s exacts !
                         {
                             if ((_oneTurnDuration < 6 && _oneTurnActive) || (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)) 
@@ -987,7 +991,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                         // Mise à jour boite de dialogue: durée autoclose
                         sldAutoCloseDelay.Value = _oneTurnDuration;
-                        lblAutoCloseDelayValue.Text = _oneTurnDuration.ToString() +"s";
+                        lblAutoCloseDelayValue.Text = _oneTurnDuration.ToString() +" s";
 
                         // Mise à jour boite de dialogue: boutonOptionAutoRotate
                         switch (_StartAutoRotate)
@@ -1272,19 +1276,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void SldAutoCloseDelay_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (lblAutoCloseDelayValue != null) lblAutoCloseDelayValue.Text = string.Format("{0:F0}s", e.NewValue);
+            if (lblAutoCloseDelayValue != null) lblAutoCloseDelayValue.Text = string.Format("{0:F0} s", e.NewValue);
         }
         private void SldSlow_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (lblSlow != null) lblSlow.Text = string.Format("{0:F0}s", e.NewValue);
+            if (lblSlow != null) lblSlow.Text = string.Format("{0:F0} s", e.NewValue);
         }
         private void SldNormal_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (lblNormal != null) lblNormal.Text = string.Format("{0:F0}s", e.NewValue);
+            if (lblNormal != null) lblNormal.Text = string.Format("{0:F0} s", e.NewValue);
         }
         private void SldFast_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (lblFast != null) lblFast.Text = string.Format("{0:F0}s", e.NewValue);
+            if (lblFast != null) lblFast.Text = string.Format("{0:F0} s", e.NewValue);
         }
         private void GridPreferences_MouseDown(object sender, MouseButtonEventArgs e)
         {
@@ -1551,6 +1555,58 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Retourne la différence signée la plus courte entre deux angles ([-180, +180])
             double diff = (target - current + 540.0) % 360.0 - 180.0;
             return diff;
+        }
+        private double ComputeAutoCloseTimeRemaining()
+        {
+            // ─────────────────────────────────────────────────────────────────────
+            // Calcul du temps restant avant AutoClose (3 phases)
+            // ─────────────────────────────────────────────────────────────────────
+
+            double vMax = 0;
+            if (_autoRotState == AutoRotationState.Lent) vMax = 360.0 / AutoRotateSlowSeconds;
+            else if (_autoRotState == AutoRotationState.Normal) vMax = 360.0 / AutoRotateNormalSeconds;
+            else if (_autoRotState == AutoRotationState.Rapide) vMax = 360.0 / AutoRotateFastSeconds;
+
+            if (vMax <= 0) return 0;
+
+            // ── Phase de freinage final : on ne se base plus sur la géométrie ──
+            // On estime directement depuis la vitesse instantanée qui décroît
+            if (_isAutoClosingPhase)
+            {
+                double v0 = Math.Max(_currentRotationSpeed, 0);
+                double decelEff = _isMouseInertia
+                    ? DecelerationRate + 0.02 * v0 * v0 * 0.33
+                    : DecelerationRate;
+
+                // t = v / a  (freinage linéaire depuis la vitesse courante)
+                return decelEff > 0 ? v0 / decelEff : 0;
+            }
+
+            // ── Phases normales : accélération résiduelle + croisière + freinage futur ──
+            double v_current = _currentRotationSpeed;
+
+            // Phase 1 — accélération résiduelle
+            double tAccel = 0, θAccel = 0;
+            if (v_current < vMax)
+            {
+                tAccel = (vMax - v_current) / AccelerationRate;
+                θAccel = (vMax * vMax - v_current * v_current) / (2.0 * AccelerationRate);
+            }
+
+            // Phase 3 — décélération future (calculée à vMax, pas encore commencée)
+            double decelEffFuture = _isMouseInertia
+                ? DecelerationRate + 0.02 * vMax * vMax * 0.33
+                : DecelerationRate;
+            double tDecel = vMax / decelEffFuture;
+            double θDecel = vMax * tDecel / 2.0;
+
+            // Phase 2 — croisière
+            double angleParcouru = (_horizontalRotation.Angle - _autoCloseStartAngle + 360.0) % 360.0;
+            double angleRestantTotal = 360.0 - angleParcouru;
+            double θConstante = angleRestantTotal - θAccel - θDecel;
+            double tConstante = θConstante > 0 ? θConstante / vMax : 0;
+
+            return tAccel + tConstante + tDecel;
         }
         private void ToggleFullscreen()
         {
