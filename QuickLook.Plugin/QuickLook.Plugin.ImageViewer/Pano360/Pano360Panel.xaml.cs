@@ -549,9 +549,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     else if (_oneTurnTimer >= (_oneTurnDuration - _oneTurnAccelTime))
                     {
                         // ── Phase 3 : Décélération
-                        double tempsRestant = _oneTurnDuration - _oneTurnTimer;
-                        if (tempsRestant < 0) tempsRestant = 0;
-                        _currentRotationSpeed = _oneTurnAccelRate * tempsRestant;
+                        double tempsRestantPour1Tour = _oneTurnDuration - _oneTurnTimer;
+                        if (tempsRestantPour1Tour < 0) tempsRestantPour1Tour = 0;
+                        _currentRotationSpeed = _oneTurnAccelRate * tempsRestantPour1Tour;
                     }
                     else
                     {
@@ -658,11 +658,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     double angleParcouru = (angleActuel - _autoCloseStartAngle + 360) % 360;
                     rectProgressTransform.Angle = angleParcouru;
 
-                    double angleRestant = 360.0 - angleParcouru;
-                    double tempsRestant = angleRestant / _currentRotationSpeed;
-
-                    System.Diagnostics.Debug.WriteLine($"Temp restant:{tempsRestant}");
-
                     if (!_hasLeftStartZone && (diffAngulaire > 6.0 && diffAngulaire < 354.0))
                     {
                         _hasLeftStartZone = true;
@@ -671,6 +666,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     // ⏱️ GESTION DU POPUP TEMPOREL (Anticipation de 1.5 seconde avant l'arrêt)
                     if (_hasLeftStartZone && !_isPopupShown && _currentRotationSpeed > 0)
                     {
+                        double angleRestant = 360.0 - angleParcouru;
+                        double tempsRestant = angleRestant / _currentRotationSpeed;
+
+                        //System.Diagnostics.Debug.WriteLine($"Temp restant:{tempsRestant}");
+
                         if (tempsRestant <= 1.5)  // Déclenchement à T-1.5s exacts !
                         {
                             if ((_oneTurnDuration < 6 && _oneTurnActive) || (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)) 
