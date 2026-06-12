@@ -167,7 +167,7 @@
                 </Border>
             </StackPanel>
             <!-- ── Info avancement rond autoclose ───────────── -->
-            <Grid x:Name="panelAutoCloseProgress" Grid.Column="2" Width="56" Height="56" HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="Collapsed" Opacity="1">
+            <Grid x:Name="panelAutoCloseProgress" Grid.Column="2" Width="56" Height="56" HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="Collapsed" Opacity="1" MouseEnter="BarreBtn_MouseEnter" MouseLeave="BarreBtn_MouseLeave">
                 <Grid.Resources>
                     <Storyboard x:Key="FadeOutProgress">
                         <DoubleAnimation Storyboard.TargetName="panelAutoCloseProgress" Storyboard.TargetProperty="Opacity" To="0.4" Duration="0:0:0.4" />
