@@ -573,10 +573,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         _horizontalRotation.Angle = (_oneTurnStartAngle + 360.0) % 360;
 
                         // Fermeture propre
-                        //!!!!!!!!!!!!!!!
-                        // ToDo: a modifier bug a la fermeture
-                        //!!!!!!!!!!!!!!!
-                        Window.GetWindow(this)?.Close();
+                        Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(this)?.Close()));
                         return;
                     }
 
