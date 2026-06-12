@@ -768,6 +768,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void OnMouseDown(object sender, MouseButtonEventArgs e)
         {
+            Mouse.OverrideCursor = Cursors.None;
+
             if (_context != null) _context.BlocageShowCaption = true;
 
             if (e.MiddleButton == MouseButtonState.Pressed)
@@ -796,6 +798,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void OnMouseUp(object sender, MouseButtonEventArgs e)
         {
+            Mouse.OverrideCursor = null;
+
             //if (_context != null) _context.BlocageShowCaption = false;
 
             _isMouseDown = false;
