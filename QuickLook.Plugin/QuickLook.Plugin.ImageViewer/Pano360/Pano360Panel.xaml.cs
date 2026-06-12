@@ -450,12 +450,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Partie rotation du panorama
             if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
             {
-                if (_autoRotState == AutoRotationState.Off)
+                if (_autoRotState == AutoRotationState.Off && !_oneTurnActive)
                 {
                     _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
                 }
 
-                if (Math.Abs(spaceMouseSpeedY) > 500 && _autoRotState != AutoRotationState.Off)
+                if (Math.Abs(spaceMouseSpeedY) > 500 && (_autoRotState != AutoRotationState.Off || _oneTurnActive))
                 {
                     txtInfoPopup.Text = "Axe horizontale vérouillé en autorotation";
                     (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
@@ -523,18 +523,22 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             if (_oneTurnActive)
             {
                 // ── GESTION DU TOUR UNIQUE DE DÉMARRAGE ──
-                if (_isMouseDown || spaceMouseSpeedY != 0)
+                if (_isMouseDown)
                 {
                     // Si l’utilisateur touche à la souris ou SpaceMouse, on lui rend la main
+                    txtInfoPopup.Text = "Annulation fermeture";
+                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                     _oneTurnActive = false;
+                    _autoCloseActive = false;
+                    btnAutoRotate.Content = "Rotation auto.";
+                    btnAutoRotate.IsEnabled = true;
+                    MajEtatAutoClose();
                 }
                 else
                 {
                     // ── Gestion de 1 tour et on ferme ──
                     // ───────────────────────────────────
                     _oneTurnTimer += elapsed;
-
-                    System.Diagnostics.Debug.WriteLine($"oneTurnTimer:{_oneTurnTimer} | oneTurnAccelTime:{_oneTurnAccelTime} | oneTurnDuration:{_oneTurnDuration}");
 
                     // Profil de vitesse trapézoïdal
                     if (_oneTurnTimer <= _oneTurnAccelTime)
@@ -547,14 +551,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         // ── Phase 3 : Décélération
                         double tempsRestant = _oneTurnDuration - _oneTurnTimer;
                         if (tempsRestant < 0) tempsRestant = 0;
-                        
-                        // Affichage d'un message de fermeture 
-                        if (tempsRestant <= 1.5) // Déclenchement à T-1.5s exacts !
-                        {
-                            _isPopupShown = true;
-                            txtInfoPopup.Text = "Fermeture automatique...";
-                            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                        }
                         _currentRotationSpeed = _oneTurnAccelRate * tempsRestant;
                     }
                     else
@@ -658,7 +654,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     double angleActuel = _horizontalRotation.Angle;
                     double diffAngulaire = Math.Abs(angleActuel - _autoCloseStartAngle);
 
-                    // 🎯 Calcul linéaire parfait du parcours de 0° à 360° pour l'icône de l'anneau
+                    // 🎯 Icône de l'anneau : Calcul linéaire parfait du parcours de 0° à 360°
                     double angleParcouru = (angleActuel - _autoCloseStartAngle + 360) % 360;
                     rectProgressTransform.Angle = angleParcouru;
 
@@ -673,11 +669,20 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         double angleRestant = 360.0 - angleParcouru;
                         double tempsRestant = angleRestant / _currentRotationSpeed;
 
-                        if (tempsRestant <= 1.5) // Déclenchement à T-1.5s exacts !
+                        if (tempsRestant <= 1.5)  // Déclenchement à T-1.5s exacts !
                         {
-                            _isPopupShown = true;
-                            txtInfoPopup.Text = "Fermeture automatique...";
-                            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                            if ((_oneTurnDuration < 6 && _oneTurnActive) || (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)) 
+                            {
+                                _isPopupShown = true;
+                                txtInfoPopup.Text = "Fermeture automatique...";
+                                (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                            }
+                            else
+                            {
+                                _isPopupShown = true;
+                                txtInfoPopup.Text = "Fermeture automatique...";
+                                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                            }
                         }
                     }
 
@@ -936,7 +941,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // BOUTONS OPTIONS
+        // BOUTONS OPTIONS & PREFERENCES
         // ─────────────────────────────────────────────────────────────────────
         private void LoadSettings()
         {
@@ -1091,11 +1096,43 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 _oneTurnAccelRate = _oneTurnVMax / _oneTurnAccelTime;
 
                                 // Texte d'information pour l'utilisateur
-                                txtInfoPopup.Text = "Rotation 1 tour + fermeture";
-                                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                                if (_oneTurnDuration > 6)
+                                {
+                                    txtInfoPopup.Text = "Rotation 1 tour + fermeture";
+                                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                                }
+                                else 
+                                {
+                                    txtInfoPopup.Text = "Rotation 1 tour + fermeture";
+                                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                                }
 
-                                //_autoCloseActive = true;
-                                //MajEtatAutoClose();
+                                // Bouton Autoclose : activation et mise à jour de l'affichage
+                                _autoCloseActive = true;
+                                txtAutoClose.Opacity = 1.0;
+                                txtAutoClose.Text = "AutoClose: On";
+                                txtAutoClose.TextDecorations = null;                      // Pas barré
+                                panelAutoCloseProgress.Visibility = Visibility.Visible;   // 🟢 Visible si AutoClose Actif
+
+                                // Affiche un texte différent sur le bouton RotationAuto
+                                btnAutoRotate.Content = "Mode 1 tour";
+                                btnAutoRotate.IsEnabled = false;
+
+                                //
+                                _autoCloseStartAngle = _horizontalRotation.Angle;
+                                _autoCloseTargetAngle = _autoCloseStartAngle;
+                                _hasLeftStartZone = false; // On vient juste d'arriver sur l'angle
+                                _isPopupShown = false; // 🔄 Réinitialisation
+
+
+                                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                // ToDo: Ajouter le bouton autoclose comme actif
+                                // ToDo: Changer le texte du bouton autorotate
+                                // ToDo: Faire que les 2 boutons reviennent à un état normal après un arret
+                                // ToDo: Ajouter le sablier
+                                //
+                                // ToDo: il va falloir revoir les méthodes et ajouter une condition avec ' _oneTurnActive '
+                                // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                             }
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
@@ -1162,6 +1199,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             btnAutoRotate.Content = "Rotation auto.";
             _autoCloseActive = false;
             MajEtatAutoClose();
+
+            // Arrêt immédiat de 1tour et on ferme
+            _oneTurnActive = false;
 
             // Indique que la boite de dialogue d'option est ouverte (utile pour désactiver la spacemouse)
             _OptionOpen = true;
@@ -1240,7 +1280,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void SldAutoCloseDelay_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (lblAutoCloseDelayValue != null) lblAutoCloseDelayValue.Text = string.Format("{0:F0}°", e.NewValue);
+            if (lblAutoCloseDelayValue != null) lblAutoCloseDelayValue.Text = string.Format("{0:F0}s", e.NewValue);
         }
         private void SldSlow_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
