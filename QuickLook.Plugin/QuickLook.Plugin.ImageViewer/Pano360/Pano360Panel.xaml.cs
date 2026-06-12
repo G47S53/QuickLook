@@ -108,6 +108,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private TimeSpan _lastRenderTime;
         private bool _isMouseInertia = false;    // Indique si le mouvement résiduel vient d'un lancer de souris
         private bool _isPopupShown = false;      // Évite les déclenchements multiples du popup avant la fermeture
+        private bool _isPopupShownPour1Tour = false;
         private double _targetFov = FovDefault;  // Implémentation d'un comportement en douceur de la roulette
         private bool _isFovAnimating = false;
 
@@ -457,7 +458,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 if (Math.Abs(spaceMouseSpeedY) > 500 && (_autoRotState != AutoRotationState.Off || _oneTurnActive))
                 {
-                    txtInfoPopup.Text = "Axe horizontale vérouillé en autorotation";
+                    txtInfoPopup.Text = "🕹️ Axe horizontal vérouillé dans ce mode";
                     (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                 }
 
@@ -532,6 +533,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     _autoCloseActive = false;
                     btnAutoRotate.Content = "Rotation auto.";
                     btnAutoRotate.IsEnabled = true;
+                    _isPopupShown = false;
                     MajEtatAutoClose();
                 }
                 else
@@ -539,6 +541,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     // ── Gestion de 1 tour et on ferme ──
                     // ───────────────────────────────────
                     _oneTurnTimer += elapsed;
+
+                    double tempsRestantPour1Tour = _oneTurnDuration - _oneTurnTimer;
 
                     // Profil de vitesse trapézoïdal
                     if (_oneTurnTimer <= _oneTurnAccelTime)
@@ -549,7 +553,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     else if (_oneTurnTimer >= (_oneTurnDuration - _oneTurnAccelTime))
                     {
                         // ── Phase 3 : Décélération
-                        double tempsRestantPour1Tour = _oneTurnDuration - _oneTurnTimer;
+                        
                         if (tempsRestantPour1Tour < 0) tempsRestantPour1Tour = 0;
                         _currentRotationSpeed = _oneTurnAccelRate * tempsRestantPour1Tour;
                     }
@@ -569,8 +573,30 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         _horizontalRotation.Angle = (_oneTurnStartAngle + 360.0) % 360;
 
                         // Fermeture propre
+                        //!!!!!!!!!!!!!!!
+                        // ToDo: a modifier bug a la fermeture
+                        //!!!!!!!!!!!!!!!
                         Window.GetWindow(this)?.Close();
                         return;
+                    }
+
+                    //Affichage du temps restant dans le chronomètre
+                    txtTempsRestant.Text = $"{tempsRestantPour1Tour:F0} s";
+
+                    if (tempsRestantPour1Tour <= 1.5)  // Déclenchement du panneau d'information
+                    {
+                        if (_oneTurnDuration <= 6 && !_isPopupShownPour1Tour)
+                        {
+                            _isPopupShownPour1Tour = true;
+                            txtInfoPopup.Text = "Fermeture automatique...";
+                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                        }
+                        else if(_oneTurnDuration > 6 && !_isPopupShownPour1Tour)
+                        {
+                            _isPopupShownPour1Tour = true;
+                            txtInfoPopup.Text = "Fermeture automatique...";
+                            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                        }
                     }
                 }
             }
@@ -650,7 +676,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 // ── Analyse de l'AutoClose en cours de route ──────────────────
                 // ── Compte à rebours : tourne tant qu'AutoClose est actif, phases confondues ──
-                if (_autoCloseActive)
+                if (_autoCloseActive && !_oneTurnActive)
                 {
                     double tempsRestant = ComputeAutoCloseTimeRemaining();
                     txtTempsRestant.Text = $"{tempsRestant:F0} s";
@@ -675,9 +701,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     if (_hasLeftStartZone && !_isPopupShown && _currentRotationSpeed > 0)
                     {
                         double tempsRestant = ComputeAutoCloseTimeRemaining();
-                        if (tempsRestant <= 1.5)  // Déclenchement à T-1.5s exacts !
+
+                        if (tempsRestant <= 1.7)  // Déclenchement du message
                         {
-                            if ((_oneTurnDuration < 6 && _oneTurnActive) || (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)) 
+                            if (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)
                             {
                                 _isPopupShown = true;
                                 txtInfoPopup.Text = "Fermeture automatique...";
@@ -692,7 +719,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         }
                     }
 
-                    // Seuil d'entrée physique dans la zone d'arrêt (inchangé)
+                    // Seuil d'entrée physique dans la zone d'arrêt
                     if (_hasLeftStartZone && diffAngulaire <= 2.0)
                     {
                         _isAutoClosingPhase = true;
@@ -898,6 +925,20 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Ignore si le panneau d'options est ouvert
             if (_OptionOpen) return;
 
+            if (_oneTurnActive)
+            {
+                txtInfoPopup.Text = "⌨️ Clavier désactivé dans ce mode";
+                if (_oneTurnDuration > 6)
+                {
+                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                }
+                else
+                {
+                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                }
+                return;
+            } 
+
             Dispatcher.Invoke(() =>
             {
                 // |──────────────────────────────────────────────────
@@ -913,32 +954,70 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // |                                                 |
                 // |        Fit : 31 & 32                            |
                 // ───────────────────────────────────────────────────
-                switch (keyCode)
+                
+                if (_autoRotState == AutoRotationState.Off)
                 {
-                    case 9:
-                        _targetHorizontalAngle = NormalizeAngle((double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle) - 90.0);
-                        break;
-                    case 3:
-                        _targetHorizontalAngle = NormalizeAngle((double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle) + 90.0);
-                        break;
-                    case 6:
-                        _targetHorizontalAngle = NormalizeAngle((double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle) - _camera.FieldOfView);
-                        break;
-                    case 5:
-                        _targetHorizontalAngle = NormalizeAngle((double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle) + _camera.FieldOfView);
-                        break;
-                    case 11:
-                        AutoRotate_ActionBouton();
-                        AfficheEtatAutoRotation();
-                        break;
-                    case 32:
-                        _targetHorizontalAngle = _homeHorizontalAngle;
-                        _targetVerticalAngle = _homeVerticalAngle;
-                        //e.Handled = true;
-                        break;
-
-
+                    // Si aucune cible n'est définie, partir de l'angle actuel.
+                    double AngleCourant = double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle;
+                    switch (keyCode)
+                    {
+                        case 9:
+                            //
+                            txtInfoPopup.Text = "Rotation - 90°";
+                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                            _targetHorizontalAngle = NormalizeAngle(AngleCourant - 90.0);
+                            break;
+                        case 3:
+                            txtInfoPopup.Text = "Rotation + 90°";
+                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                            _targetHorizontalAngle = NormalizeAngle(AngleCourant + 90.0);
+                            break;
+                        case 6:
+                            txtInfoPopup.Text = $"Rotation - {_camera.FieldOfView:F0}°";
+                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                            _targetHorizontalAngle = NormalizeAngle(AngleCourant - _camera.FieldOfView);
+                            break;
+                        case 5:
+                            txtInfoPopup.Text = $"Rotation + {_camera.FieldOfView:F0}°";
+                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                            _targetHorizontalAngle = NormalizeAngle(AngleCourant + _camera.FieldOfView);
+                            break;
+                        case 11:
+                            AutoRotate_ActionBouton();
+                            AfficheEtatAutoRotation();
+                            break;
+                        case 32:
+                            txtInfoPopup.Text = "🏠 Vue d'origine";
+                            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                            _targetHorizontalAngle = _homeHorizontalAngle;
+                            _targetVerticalAngle = _homeVerticalAngle;
+                            //e.Handled = true;
+                            break;
+                    }
                 }
+                else  //cas si l'autorotation est enclenchée
+                {
+                    switch (keyCode)
+                    {
+                        case 9 or 3 or 6 or 5 or 32:
+                            txtInfoPopup.Text = "⌨️ Touche désactivée dans ce mode";
+                            if (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)
+                            {
+                                (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                            }
+                            else
+                            {
+                                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                            }
+                            break;
+                        case 11:
+                            AutoRotate_ActionBouton();
+                            AfficheEtatAutoRotation();
+                            break;
+                    }
+                }
+
+
             });
         }
         private void OnSpaceMouseKeyUp(int keyCode)
@@ -1102,14 +1181,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 _oneTurnAccelRate = _oneTurnVMax / _oneTurnAccelTime;
 
                                 // Texte d'information pour l'utilisateur
+                                txtInfoPopup.Text = "Rotation 1 tour + fermeture";
                                 if (_oneTurnDuration > 6)
                                 {
-                                    txtInfoPopup.Text = "Rotation 1 tour + fermeture";
                                     (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                                 }
                                 else 
                                 {
-                                    txtInfoPopup.Text = "Rotation 1 tour + fermeture";
                                     (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
                                 }
 
@@ -1127,8 +1205,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 // Mise à jour de l'info popup sur la durée de l'autorotation
                                 _autoCloseStartAngle = _horizontalRotation.Angle;
                                 _autoCloseTargetAngle = _autoCloseStartAngle;
-                                _hasLeftStartZone = false; // On vient juste d'arriver sur l'angle
-                                _isPopupShown = false; // 🔄 Réinitialisation
+                                _hasLeftStartZone = false; 
+                                _isPopupShown = true;
+                                _isPopupShownPour1Tour = false;
                             }
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
