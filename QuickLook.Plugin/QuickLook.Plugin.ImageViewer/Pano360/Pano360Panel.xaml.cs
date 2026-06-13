@@ -1289,7 +1289,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 panelAutoCloseProgress.Visibility = Visibility.Visible;        // 🟢 Visible si AutoClose Actif
 
                                 // Affiche un texte différent sur le bouton RotationAuto
-                                btnAutoRotate.Content = _StartOneTurnNext ? "Mode 1 tour → suivant" : "Mode 1 tour";
+                                btnAutoRotate.Content = _StartOneTurnNext ? "1💫 + 📷 ▶️" : "Mode 1 💫";
                                 btnAutoRotate.IsEnabled = false;
 
                                 // Mise à jour de l'info popup sur la durée de l'autorotation
