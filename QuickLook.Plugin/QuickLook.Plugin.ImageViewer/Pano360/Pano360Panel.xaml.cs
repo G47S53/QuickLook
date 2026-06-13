@@ -592,19 +592,22 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     // Fin du chrono
                     if (_oneTurnTimer >= _oneTurnDuration)
                     {
+                        //Affichage d'un message
+                        txtInfoPopup.Text = "Chargement...";
+                        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+
                         _currentRotationSpeed = 0;
                         _oneTurnActive = false;
 
                         // Recalage parfait à 360°
                         _horizontalRotation.Angle = (_oneTurnStartAngle + 360.0) % 360;
 
-                        // ↓↓↓ AJOUT : nettoyage de l'état pour éviter que l'AutoClose ne se déclenche
+                        // Nettoyage de l'état pour éviter que l'AutoClose ne se déclenche
                         _autoCloseActive = false;
                         _isAutoClosingPhase = false;
                         _autoCloseTargetAngle = -1;
                         _autoCloseStartAngle = -1;
                         _hasLeftStartZone = false;
-                        // ↑↑↑
 
                         if (_oneTurnNextActive)
                         {
@@ -619,9 +622,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         }
                         return;
                     }
-
-                    //Affichage du temps restant dans le chronomètre
-                    //txtTempsRestant.Text = $"{tempsRestantPour1Tour:F0} s";
 
                     if (tempsRestantPour1Tour <= 1.5 && !_isPopupShownPour1Tour)
                     {
