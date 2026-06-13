@@ -120,6 +120,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _isMouseInertia = false;    // Indique si le mouvement résiduel vient d'un lancer de souris
         private bool _isPopupShown = false;      // Évite les déclenchements multiples du popup avant la fermeture
         private bool _isPopupShownPour1Tour = false;
+        private bool _isPopupShownPour1TourNum2 = false;
         private double _targetFov = FovDefault;  // Implémentation d'un comportement en douceur de la roulette
         private bool _isFovAnimating = false;
 
@@ -546,7 +547,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (_isMouseDown)
                 {
                     // Si l’utilisateur touche à la souris ou SpaceMouse, on lui rend la main
-                    txtInfoPopup.Text = "Annulation mode actuel";
+                    txtInfoPopup.Text = "Arrêt rotation automatique";
                     (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                     _oneTurnActive = false;
                     _oneTurnNextActive = false; // ← AJOUT
@@ -592,10 +593,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     // Fin du chrono
                     if (_oneTurnTimer >= _oneTurnDuration)
                     {
-                        //Affichage d'un message
-                        txtInfoPopup.Text = "Chargement...";
-                        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-
                         _currentRotationSpeed = 0;
                         _oneTurnActive = false;
 
@@ -634,6 +631,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
                         else
                             (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                    }
+
+                    if (tempsRestantPour1Tour <= 0.5 && !_isPopupShownPour1TourNum2)
+                    {
+                        _isPopupShownPour1TourNum2 = true;
+                        //Affichage d'un message
+                        txtInfoPopup.Text = "Chargement...";
+                        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                     }
                 }
             }
@@ -1269,10 +1274,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                     ? "Rotation 1 tour + panorama suivant"
                                     : "Rotation 1 tour + fermeture";
 
-                                if (_oneTurnDuration > 6)
-                                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                                else
-                                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+
+                                //if (_oneTurnDuration > 6)
+                                //    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                                //else
+                                //    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
                                 
                                 // Bouton Autoclose : activation et mise à jour de l'affichage
                                 _autoCloseActive = true;
@@ -1282,7 +1289,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 panelAutoCloseProgress.Visibility = Visibility.Visible;        // 🟢 Visible si AutoClose Actif
 
                                 // Affiche un texte différent sur le bouton RotationAuto
-                                btnAutoRotate.Content = _StartOneTurnNext ? "Mode 1 tour →suivant" : "Mode 1 tour";
+                                btnAutoRotate.Content = _StartOneTurnNext ? "Mode 1 tour → suivant" : "Mode 1 tour";
                                 btnAutoRotate.IsEnabled = false;
 
                                 // Mise à jour de l'info popup sur la durée de l'autorotation
@@ -1291,6 +1298,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 _hasLeftStartZone = false;
                                 _isPopupShown = true;
                                 _isPopupShownPour1Tour = false;
+                                _isPopupShownPour1TourNum2 = false;
                             }
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
@@ -1845,24 +1853,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         /// </summary>
         private void NavigateToAdjacentPano(int direction)
         {
-            System.Diagnostics.Debug.WriteLine("Step 1");
             if (_isNavigating) return;
 
-            System.Diagnostics.Debug.WriteLine("Step 2");
             var files = GetPanoFilesInFolder();
             if (files.Count < 2) return;
 
-            System.Diagnostics.Debug.WriteLine("Step 3");
             int currentIndex = files.FindIndex(
                 f => string.Equals(f, _currentPanoPath, StringComparison.OrdinalIgnoreCase));
 
-            System.Diagnostics.Debug.WriteLine("Step 4");
             if (currentIndex < 0) return;   // fichier courant introuvable dans la liste
 
             int tested = 0;
             int candidate = currentIndex;
 
-            System.Diagnostics.Debug.WriteLine("Step 5");
             while (tested < files.Count - 1)
             {
                 // Avance circulairement
@@ -1964,6 +1967,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _hasLeftStartZone = false;
             _isPopupShown = false;
             _isPopupShownPour1Tour = false;
+            _isPopupShownPour1TourNum2 = false;
 
             txtAutoClose.Opacity = 1.0;
             txtAutoClose.Text = "AutoNext: On";
