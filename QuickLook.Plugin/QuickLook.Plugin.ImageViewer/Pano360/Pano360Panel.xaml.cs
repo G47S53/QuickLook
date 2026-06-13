@@ -546,9 +546,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (_isMouseDown)
                 {
                     // Si l’utilisateur touche à la souris ou SpaceMouse, on lui rend la main
-                    txtInfoPopup.Text = "Annulation fermeture";
+                    txtInfoPopup.Text = "Annulation mode actuel";
                     (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                     _oneTurnActive = false;
+                    _oneTurnNextActive = false; // ← AJOUT
+                    _StartOneTurnNext = false;
                     _autoCloseActive = false;
                     btnAutoRotate.Content = "Rotation auto.";
                     btnAutoRotate.IsEnabled = true;
@@ -1893,56 +1895,44 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         /// </summary>
         private void LoadNewPanorama(string newPath)
         {
+            if (_isNavigating) return;
             _isNavigating = true;
 
-            // ── Phase 1 : fondu au noir (150 ms) ──────────────────────────────
-            var fadeOut = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(150));
-            fadeOut.Completed += (s, _) =>
+            try
             {
-                // ── Phase 2 : swap de texture (sur le thread UI) ───────────────
-                try
-                {
-                    var material = CreatePanoramaMaterial(newPath);
+                var material = CreatePanoramaMaterial(newPath);
 
-                    // Retrouver le GeometryModel3D dans le viewport pour changer son matériau
-                    foreach (var child in viewport3D.Children)
+                foreach (var child in viewport3D.Children)
+                {
+                    if (child is ModelVisual3D mv && mv.Content is GeometryModel3D gm)
                     {
-                        if (child is ModelVisual3D mv && mv.Content is GeometryModel3D gm)
-                        {
-                            gm.Material = material;
-                            gm.BackMaterial = material;
-                            break;
-                        }
+                        gm.Material = material;
+                        gm.BackMaterial = material;
+                        break;
                     }
-
-                    // Mise à jour de l'état courant
-                    _currentPanoPath = newPath;
-                    _context.Title = $"360° : {System.IO.Path.GetFileName(newPath)}";
-
-                    // ↓ AJOUT
-                    if (_StartOneTurnNext)
-                        DemarrerOneTurnNext();
-
-                    // Remise à zéro de la vue (optionnel : commenter si tu préfères garder l'angle)
-                    _horizontalRotation.Angle = _homeHorizontalAngle;
-                    _verticalRotation.Angle = _homeVerticalAngle;
-                    _targetFov = _camera.FieldOfView; // Conserve le FOV courant
-                }
-                catch (Exception ex)
-                {
-                    txtInfoPopup.Text = $"Erreur chargement : {ex.Message}";
-                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                 }
 
-                // ── Phase 3 : fondu retour (150 ms) ───────────────────────────
-                var fadeIn = new DoubleAnimation(0.0, TimeSpan.FromMilliseconds(150));
-                fadeIn.Completed += (_, __) => _isNavigating = false;
-                overlayBlackFade.BeginAnimation(UIElement.OpacityProperty, fadeIn);
-            };
+                _currentPanoPath = newPath;
+                _context.Title = $"360° : {System.IO.Path.GetFileName(newPath)}";
 
-            overlayBlackFade.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+                // Stoppe proprement tout popup en cours
+                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Stop(infoPopup);
+                (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Stop(infoPopup);
+                infoPopup.Opacity = 0;
+
+                if (_StartOneTurnNext)
+                    DemarrerOneTurnNext();
+            }
+            catch (Exception ex)
+            {
+                txtInfoPopup.Text = $"Erreur chargement : {ex.Message}";
+                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+            }
+            finally
+            {
+                _isNavigating = false;
+            }
         }
-
         /// <summary>
         /// Gestionnaires boutons ◀ / ▶ de la barre
         /// </summary>
@@ -1975,12 +1965,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             btnAutoRotate.Content = "Mode 1 tour →suivant";
             btnAutoRotate.IsEnabled = false;
 
-            txtInfoPopup.Text = "Rotation 1 tour + panorama suivant";
-            if (_oneTurnDuration > 6)
-                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-            else
-                (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-
             //// !! A voir l'influence !!
             //// Remise à zéro des axes SpaceMouse pour éviter les interférences
             //lock (_spaceMouseLock)
@@ -1993,13 +1977,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             //// !! A voir l'influence !!
             //Mouse.OverrideCursor = null;  // Remet le curseur à son état normal
         }
-        //!!!!
-        // ToDo: A voir si on peut les effacer
-        private void BtnPrevPano_Click(object sender, RoutedEventArgs e)
-            => NavigateToAdjacentPano(-1);
-
-        private void BtnNextPano_Click(object sender, RoutedEventArgs e)
-            => NavigateToAdjacentPano(+1);
         // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources
         // ─────────────────────────────────────────────────────────────────────
