@@ -15,7 +15,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -25,7 +28,6 @@ using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using TDxInput;
 using Media3D = System.Windows.Media.Media3D;
-using Newtonsoft.Json;
 
 namespace QuickLook.Plugin.ImageViewer.Pano360
 {
@@ -40,6 +42,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private readonly string _imagePath;
 
         // ─────────────────────────────────────────────────────────────────────
+        // > Navigation entre panoramas du dossier courant
+        // ─────────────────────────────────────────────────────────────────────
+        private string _currentPanoPath;          // Chemin actif (mis à jour à chaque navigation)
+        private bool _isNavigating = false;       // Verrou anti double-clic
+
+        // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
         // ─────────────────────────────────────────────────────────────────────
         // Attention d'autres options sont aussi dispo dans la section "Mode Tour Unique de démarrage avec accélération/décélération"
@@ -52,6 +60,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private int _StartAutoRotate = 1;
         private int _StartRadioBouton = 1;
         private bool _StartOneTurnActive = false;
+        private bool _StartOneTurnNext = false;
+        private bool _oneTurnNextActive = false; // True si le mode "1 tour + suivant" est en cours
         private double _OptionFov = 90.0;
         private bool _OptionOpen = false;
         private bool _OptionBarreReduite = false;
@@ -69,6 +79,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             public double DefaultFov { get; set; } = 90.0;
             public int StartRadioBouton { get; set; } = 1;
             public int StartAutoRotate { get; set; } = 1;
+            public bool StartOneTurnAndNext { get; set; } = false; // 1 tour + panorama suivant
             public bool StartOneTurnAndClose { get; set; } = false; // Le Flag de démarrage
             public double StartOneTurnDuration { get; set; } = 15.0; // Durée par défaut (ex: 15s)
         }
@@ -109,6 +120,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _isMouseInertia = false;    // Indique si le mouvement résiduel vient d'un lancer de souris
         private bool _isPopupShown = false;      // Évite les déclenchements multiples du popup avant la fermeture
         private bool _isPopupShownPour1Tour = false;
+        private bool _isPopupShownPour1TourNum2 = false;
         private double _targetFov = FovDefault;  // Implémentation d'un comportement en douceur de la roulette
         private bool _isFovAnimating = false;
 
@@ -224,8 +236,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _context = context;
             _imagePath = imagePath;
 
+            _currentPanoPath = imagePath;   // ← initialise le chemin actif de navigation
+
             // Initialisation de la scène 3D dès que le contrôle est chargé
-            Loaded += (s, e) => InitScene();
+            Loaded += (s, e) =>
+            {
+                InitScene();
+                var window = Window.GetWindow(this);
+                if (window != null)
+                    window.PreviewKeyDown += OnWindowKeyDown;
+            };
             Unloaded += (s, e) => Dispose();
 
             // Clic droit → bascule plein écran
@@ -389,7 +409,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             _lastRenderTime = args.RenderingTime;
 
-            // --- LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
+            // ──── LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
             // pour forcer un rythme de 60 FPS maximum (1 frame toutes les ~16ms) ---
             if (elapsed < 0.016) return;
 
@@ -528,9 +548,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (_isMouseDown)
                 {
                     // Si l’utilisateur touche à la souris ou SpaceMouse, on lui rend la main
-                    txtInfoPopup.Text = "Annulation fermeture";
+                    txtInfoPopup.Text = "Arrêt rotation automatique";
                     (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                     _oneTurnActive = false;
+                    _oneTurnNextActive = false; // ← AJOUT
+                    _StartOneTurnNext = false;
                     _autoCloseActive = false;
                     btnAutoRotate.Content = "Rotation auto.";
                     btnAutoRotate.IsEnabled = true;
@@ -544,6 +566,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     _oneTurnTimer += elapsed;
 
                     double tempsRestantPour1Tour = _oneTurnDuration - _oneTurnTimer;
+
+                    // Mise à jour de l'anneau de progression (géré ici car _autoCloseActive = false en mode OneTurnNext)
+                    double angleParcouru1Tour = (_horizontalRotation.Angle - _oneTurnStartAngle + 360.0) % 360.0;
+                    rectProgressTransform.Angle = angleParcouru1Tour;
+                    txtTempsRestant.Text = $"{tempsRestantPour1Tour:F0} s";
 
                     // Profil de vitesse trapézoïdal
                     if (_oneTurnTimer <= _oneTurnAccelTime)
@@ -573,28 +600,46 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         // Recalage parfait à 360°
                         _horizontalRotation.Angle = (_oneTurnStartAngle + 360.0) % 360;
 
-                        // Fermeture propre
-                        Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(this)?.Close()));
+                        // Nettoyage de l'état pour éviter que l'AutoClose ne se déclenche
+                        _autoCloseActive = false;
+                        _isAutoClosingPhase = false;
+                        _autoCloseTargetAngle = -1;
+                        _autoCloseStartAngle = -1;
+                        _hasLeftStartZone = false;
+
+                        if (_oneTurnNextActive)
+                        {
+                            _oneTurnNextActive = false;
+                            System.Diagnostics.Debug.WriteLine("Pano suivant !");
+                            Dispatcher.BeginInvoke(new Action(() => NavigateToAdjacentPano(+1)));
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("Fermeture de la fenetre !");
+                            Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(this)?.Close()));
+                        }
                         return;
                     }
 
-                    //Affichage du temps restant dans le chronomètre
-                    txtTempsRestant.Text = $"{tempsRestantPour1Tour:F0} s";
-
-                    if (tempsRestantPour1Tour <= 1.5)  // Déclenchement du panneau d'information
+                    if (tempsRestantPour1Tour <= 1.5 && !_isPopupShownPour1Tour)
                     {
-                        if (_oneTurnDuration <= 6 && !_isPopupShownPour1Tour)
-                        {
-                            _isPopupShownPour1Tour = true;
-                            txtInfoPopup.Text = "Fermeture automatique...";
+                        _isPopupShownPour1Tour = true;
+                        txtInfoPopup.Text = _oneTurnNextActive
+                            ? "Panorama suivant..."
+                            : "Fermeture automatique...";
+
+                        if (_oneTurnDuration <= 6)
                             (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                        }
-                        else if(_oneTurnDuration > 6 && !_isPopupShownPour1Tour)
-                        {
-                            _isPopupShownPour1Tour = true;
-                            txtInfoPopup.Text = "Fermeture automatique...";
+                        else
                             (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                        }
+                    }
+
+                    if (tempsRestantPour1Tour <= 0.5 && !_isPopupShownPour1TourNum2)
+                    {
+                        _isPopupShownPour1TourNum2 = true;
+                        //Affichage d'un message
+                        txtInfoPopup.Text = "Chargement...";
+                        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                     }
                 }
             }
@@ -696,7 +741,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     }
 
                     // ⏱️ GESTION DU POPUP TEMPOREL (Anticipation de 1.5 seconde avant l'arrêt)
-                    if (_hasLeftStartZone && !_isPopupShown && _currentRotationSpeed > 0)
+                    if (_hasLeftStartZone && !_isPopupShown && _currentRotationSpeed > 0 && !_oneTurnActive)
                     {
                         double tempsRestant = ComputeAutoCloseTimeRemaining();
 
@@ -763,6 +808,30 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             MouseUp += OnMouseUp;
             MouseMove += OnMouseMove;
             MouseWheel += OnMouseWheel;
+
+            // Navigation clavier entre panoramas
+            var window = Window.GetWindow(this);
+            if (window != null)
+                window.PreviewKeyDown += OnWindowKeyDown;
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // Gestion du clavier
+        // ─────────────────────────────────────────────────────────────────────
+        private void OnWindowKeyDown(object sender, KeyEventArgs e)
+        {
+            if (_OptionOpen) return;         // Options ouvertes → on ne capte pas
+            if (_oneTurnActive) return;      // Mode 1 tour → on ne capte pas
+
+            if (e.Key == Key.Right)
+            {
+                e.Handled = true;
+                NavigateToAdjacentPano(+1);
+            }
+            else if (e.Key == Key.Left)
+            {
+                e.Handled = true;
+                NavigateToAdjacentPano(-1);
+            }
         }
         // ─────────────────────────────────────────────────────────────────────
         // Gestion de la souris
@@ -995,6 +1064,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             _targetVerticalAngle = _homeVerticalAngle;
                             //e.Handled = true;
                             break;
+                        case 10:   // Bouton gauche-haut SpacePilot Pro → Précédent
+                            txtInfoPopup.Text = "◀ Panorama précédent";
+                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                            NavigateToAdjacentPano(-1);
+                            break;
+                        case 7:    // Bouton droit-haut SpacePilot Pro → Suivant
+                            txtInfoPopup.Text = "▶ Panorama suivant";
+                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                            NavigateToAdjacentPano(+1);
+                            break;
                     }
                 }
                 else  //cas si l'autorotation est enclenchée
@@ -1057,6 +1136,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         _StartRadioBouton = settings.StartRadioBouton;
                         _StartAutoRotate = settings.StartAutoRotate;
                         _StartOneTurnActive = settings.StartOneTurnAndClose;
+                        _StartOneTurnNext = settings.StartOneTurnAndNext;
                         _oneTurnDuration = settings.StartOneTurnDuration;
 
                         // Mise à jour boite de dialogue: Fullscreen
@@ -1117,6 +1197,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 sldAutoCloseDelay.Visibility = Visibility.Visible;
                                 lblAutoCloseDelayValue.Visibility = Visibility.Visible;
                                 break;
+                            case 4:
+                                radStartAutoSuivant.IsChecked = true;
+                                _StartOneTurnActive = false;
+                                _StartOneTurnNext = true;
+
+                                btnOptionAutoRotate.Visibility = Visibility.Hidden;
+                                TextAutoClose.Visibility = Visibility.Visible;
+                                sldAutoCloseDelay.Visibility = Visibility.Visible;
+                                lblAutoCloseDelayValue.Visibility = Visibility.Visible;
+                                break;
                         }
 
                         // ✅ Paramètres visuels : différés après chargement complet de la fenêtre
@@ -1165,51 +1255,51 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             }
 
                             // ── Application de 1 tour et on ferme ────────────────────────────
-                            if (_StartOneTurnActive)
+                            if (_StartOneTurnActive || _StartOneTurnNext)
                             {
                                 _oneTurnActive = true;
-                                //_oneTurnDuration = settings.StartOneTurnDuration;
+                                _oneTurnNextActive = _StartOneTurnNext; // Mémorise lequel des deux modes est actif
                                 _oneTurnTimer = 0.0;
                                 _oneTurnStartAngle = _horizontalRotation.Angle;
 
                                 // Sécurité au cas où la durée entrée est trop courte pour le profil trapézoïdal
                                 if (_oneTurnDuration <= _oneTurnAccelTime * 2)
-                                {
                                     _oneTurnAccelTime = _oneTurnDuration / 2.0;
-                                }
 
                                 // Calcul des lois physiques adaptées au temps imposé
                                 _oneTurnVMax = 360.0 / (_oneTurnDuration - _oneTurnAccelTime);
                                 _oneTurnAccelRate = _oneTurnVMax / _oneTurnAccelTime;
 
                                 // Texte d'information pour l'utilisateur
-                                txtInfoPopup.Text = "Rotation 1 tour + fermeture";
-                                if (_oneTurnDuration > 6)
-                                {
-                                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                                }
-                                else 
-                                {
-                                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                                }
+                                txtInfoPopup.Text = _StartOneTurnNext
+                                    ? "Rotation 1 tour + panorama suivant"
+                                    : "Rotation 1 tour + fermeture";
 
+                                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+
+                                //if (_oneTurnDuration > 6)
+                                //    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                                //else
+                                //    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                                
                                 // Bouton Autoclose : activation et mise à jour de l'affichage
                                 _autoCloseActive = true;
                                 txtAutoClose.Opacity = 1.0;
-                                txtAutoClose.Text = "AutoClose: On";
-                                txtAutoClose.TextDecorations = null;                      // Pas barré
-                                panelAutoCloseProgress.Visibility = Visibility.Visible;   // 🟢 Visible si AutoClose Actif
+                                txtAutoClose.Text = _StartOneTurnNext ? "AutoNext: On" : "AutoClose: On";
+                                txtAutoClose.TextDecorations = null;                           // Pas barré
+                                panelAutoCloseProgress.Visibility = Visibility.Visible;        // 🟢 Visible si AutoClose Actif
 
                                 // Affiche un texte différent sur le bouton RotationAuto
-                                btnAutoRotate.Content = "Mode 1 tour";
+                                btnAutoRotate.Content = _StartOneTurnNext ? "1💫 + 📷 ▶️" : "Mode 1 💫";
                                 btnAutoRotate.IsEnabled = false;
 
                                 // Mise à jour de l'info popup sur la durée de l'autorotation
                                 _autoCloseStartAngle = _horizontalRotation.Angle;
                                 _autoCloseTargetAngle = _autoCloseStartAngle;
-                                _hasLeftStartZone = false; 
+                                _hasLeftStartZone = false;
                                 _isPopupShown = true;
                                 _isPopupShownPour1Tour = false;
+                                _isPopupShownPour1TourNum2 = false;
                             }
                         }), System.Windows.Threading.DispatcherPriority.Loaded);
                     }
@@ -1231,14 +1321,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             AutoRotateNormalSeconds = sldNormal.Value;
             AutoRotateFastSeconds = sldFast.Value;
 
-            if (_StartRadioBouton == 3)
-            {
-                _StartOneTurnActive = true;
-            }
-            else
-            {
-                _StartOneTurnActive = false;
-            }
+            _StartOneTurnActive = (_StartRadioBouton == 3);
+            _StartOneTurnNext = (_StartRadioBouton == 4);
 
             try
             {
@@ -1250,11 +1334,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     FullscreenStartup = chkFullscreen.IsChecked ?? false,
                     StartBarreReduite = chkBarreReduite.IsChecked ?? false,
                     DefaultFov = (int)sldFov.Value,
-                
-
                     StartRadioBouton = _StartRadioBouton,
                     StartAutoRotate = _StartAutoRotate,
                     StartOneTurnAndClose = _StartOneTurnActive,
+                    StartOneTurnAndNext = _StartOneTurnNext,
                     StartOneTurnDuration = (int)sldAutoCloseDelay.Value
                 };
 
@@ -1277,8 +1360,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _autoCloseActive = false;
             MajEtatAutoClose();
 
-            // Arrêt immédiat de 1tour et on ferme
+            // Arrêt immédiat de 1tour et on ferme (ou on change)
             _oneTurnActive = false;
+            _oneTurnNextActive = false;
 
             // Indique que la boite de dialogue d'option est ouverte (utile pour désactiver la spacemouse)
             _OptionOpen = true;
@@ -1312,6 +1396,15 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             else if (radStartAutoClose.IsChecked == true)
             {
                 _StartRadioBouton = 3;
+
+                btnOptionAutoRotate.Visibility = Visibility.Hidden;
+                TextAutoClose.Visibility = Visibility.Visible;
+                sldAutoCloseDelay.Visibility = Visibility.Visible;
+                lblAutoCloseDelayValue.Visibility = Visibility.Visible;
+            }
+            else if (radStartAutoSuivant.IsChecked == true)
+            {
+                _StartRadioBouton = 4;
 
                 btnOptionAutoRotate.Visibility = Visibility.Hidden;
                 TextAutoClose.Visibility = Visibility.Visible;
@@ -1382,6 +1475,125 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // 🎯 On bloque aussi la molette de la souris pour empêcher le zoom en arrière-plan
             e.Handled = true;
         }
+        // ─────────────────────────────────────────────────────────────────────
+        // Barre de BOUTONS
+        // ─────────────────────────────────────────────────────────────────────
+        private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
+        {
+            _isMouseOverBarre = true;
+            UpdateBarreOpacity(); // Force la réapparition immédiate
+        }
+        private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
+        {
+            // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
+            _isMouseOverBarre = false;
+        }
+        private void UpdateBarreOpacity()
+        {
+            // Si la souris est physiquement au-dessus de la barre, on la force visible
+            if (_isMouseOverBarre)
+            {
+                if (_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    _isBarreMasquee = false;
+                }
+                return;
+            }
+
+            // Détermination si le panorama est considéré "en mouvement"
+            // 1. Soit la souris est enfoncée (drag)
+            // 2. Soit l'autorotation est active
+            // 3. Soit le dernier mouvement enregistré est plus récent que le délai d'inactivité
+            bool isActuellementEnMouvement = _isMouseDown ||
+                                             (_autoRotState != AutoRotationState.Off) ||
+                                             (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
+
+            if (isActuellementEnMouvement)
+            {
+                // Le panorama bouge : on applique le fondu transparent (FadeOut)
+                if (!_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    _isBarreMasquee = true;
+                }
+            }
+            else
+            {
+                // Le panorama est à l'arrêt complet depuis un moment : on réaffiche (FadeIn)
+                if (_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    _isBarreMasquee = false;
+                }
+            }
+        }
+        private void TxtFov_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                e.Handled = true;
+                MarquerMouvement();
+
+                _isBarreCompactee = !_isBarreCompactee;
+
+                // On active le ClipToBounds pour masquer proprement les boutons pendant qu'ils se font écraser
+                grpBarreGauche.ClipToBounds = true;
+                //grpBarreDroite.KeepInLayout = false; // Astuce facultative, gérée par le flux
+                grpBarreDroite.ClipToBounds = true;
+
+                // Détermination des dimensions de départ et d'arrivée
+                // Si on compacte, on part de la taille actuelle vers 0.
+                // Si on ouvre, on part de 0 vers 252 (la somme exacte de tes deux boutons de 120px + marges).
+                double maxGaucheStart = _isBarreCompactee ? grpBarreGauche.ActualWidth : 0;
+                double maxGaucheEnd = _isBarreCompactee ? 0 : 252;
+
+                double maxDroiteStart = _isBarreCompactee ? grpBarreDroite.ActualWidth : 0;
+                double maxDroiteEnd = _isBarreCompactee ? 0 : 252;
+
+                // Animation de l'opacité pour accompagner la glissière
+                double opaciteCible = _isBarreCompactee ? 0 : 1;
+
+                IEasingFunction fonctionDouce = new QuarticEase { EasingMode = EasingMode.EaseOut };
+                Duration dureeAnimation = new Duration(TimeSpan.FromMilliseconds(300));
+
+                // Création des animations de Largeur Maximale
+                DoubleAnimation animMaxGauche = new DoubleAnimation { From = maxGaucheStart, To = maxGaucheEnd, Duration = dureeAnimation, EasingFunction = fonctionDouce };
+                DoubleAnimation animMaxDroite = new DoubleAnimation { From = maxDroiteStart, To = maxDroiteEnd, Duration = dureeAnimation, EasingFunction = fonctionDouce };
+
+                DoubleAnimation animOpaciteG = new DoubleAnimation { To = opaciteCible, Duration = dureeAnimation };
+                DoubleAnimation animOpaciteD = new DoubleAnimation { To = opaciteCible, Duration = dureeAnimation };
+
+                // Libération des contraintes à la fin de l'ouverture pour garder l'adaptabilité du mode Auto
+                if (!_isBarreCompactee)
+                {
+                    animMaxGauche.Completed += (s, args) => {
+                        grpBarreGauche.BeginAnimation(StackPanel.MaxWidthProperty, null);
+                        grpBarreGauche.MaxWidth = 500; // Largeur max par défaut confortable
+                    };
+                    animMaxDroite.Completed += (s, args) => {
+                        grpBarreDroite.BeginAnimation(StackPanel.MaxWidthProperty, null);
+                        grpBarreDroite.MaxWidth = 500;
+                    };
+                }
+
+                // Exécution simultanée (un seul temps visuel)
+                grpBarreGauche.BeginAnimation(StackPanel.MaxWidthProperty, animMaxGauche);
+                grpBarreDroite.BeginAnimation(StackPanel.MaxWidthProperty, animMaxDroite);
+                grpBarreGauche.BeginAnimation(StackPanel.OpacityProperty, animOpaciteG);
+                grpBarreDroite.BeginAnimation(StackPanel.OpacityProperty, animOpaciteD);
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // BOUTONS panorama précedent / Suivant
+        // ─────────────────────────────────────────────────────────────────────
+        private void BtnBarrePrevPano_Click(object sender, RoutedEventArgs e)
+            => NavigateToAdjacentPano(-1);
+        private void BtnBarreNextPano_Click(object sender, RoutedEventArgs e)
+            => NavigateToAdjacentPano(+1);
         // ─────────────────────────────────────────────────────────────────────
         // BOUTON AUTOROTATION
         // ─────────────────────────────────────────────────────────────────────
@@ -1504,119 +1716,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
         }
         // ─────────────────────────────────────────────────────────────────────
-        // Barre de BOUTONS
-        // ─────────────────────────────────────────────────────────────────────
-        private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
-        {
-            _isMouseOverBarre = true;
-            UpdateBarreOpacity(); // Force la réapparition immédiate
-        }
-        private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
-        {
-            // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
-            _isMouseOverBarre = false;
-        }
-        private void UpdateBarreOpacity()
-        {
-            // Si la souris est physiquement au-dessus de la barre, on la force visible
-            if (_isMouseOverBarre)
-            {
-                if (_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
-                    _isBarreMasquee = false;
-                }
-                return;
-            }
-
-            // Détermination si le panorama est considéré "en mouvement"
-            // 1. Soit la souris est enfoncée (drag)
-            // 2. Soit l'autorotation est active
-            // 3. Soit le dernier mouvement enregistré est plus récent que le délai d'inactivité
-            bool isActuellementEnMouvement = _isMouseDown ||
-                                             (_autoRotState != AutoRotationState.Off) ||
-                                             (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
-
-            if (isActuellementEnMouvement)
-            {
-                // Le panorama bouge : on applique le fondu transparent (FadeOut)
-                if (!_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
-                    _isBarreMasquee = true;
-                }
-            }
-            else
-            {
-                // Le panorama est à l'arrêt complet depuis un moment : on réaffiche (FadeIn)
-                if (_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
-                    _isBarreMasquee = false;
-                }
-            }
-        }
-        private void TxtFov_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (e.ClickCount == 2)
-            {
-                e.Handled = true;
-                MarquerMouvement();
-
-                _isBarreCompactee = !_isBarreCompactee;
-
-                // On active le ClipToBounds pour masquer proprement les boutons pendant qu'ils se font écraser
-                grpBarreGauche.ClipToBounds = true;
-                //grpBarreDroite.KeepInLayout = false; // Astuce facultative, gérée par le flux
-                grpBarreDroite.ClipToBounds = true;
-
-                // Détermination des dimensions de départ et d'arrivée
-                // Si on compacte, on part de la taille actuelle vers 0.
-                // Si on ouvre, on part de 0 vers 252 (la somme exacte de tes deux boutons de 120px + marges).
-                double maxGaucheStart = _isBarreCompactee ? grpBarreGauche.ActualWidth : 0;
-                double maxGaucheEnd = _isBarreCompactee ? 0 : 252;
-
-                double maxDroiteStart = _isBarreCompactee ? grpBarreDroite.ActualWidth : 0;
-                double maxDroiteEnd = _isBarreCompactee ? 0 : 252;
-
-                // Animation de l'opacité pour accompagner la glissière
-                double opaciteCible = _isBarreCompactee ? 0 : 1;
-
-                IEasingFunction fonctionDouce = new QuarticEase { EasingMode = EasingMode.EaseOut };
-                Duration dureeAnimation = new Duration(TimeSpan.FromMilliseconds(300));
-
-                // Création des animations de Largeur Maximale
-                DoubleAnimation animMaxGauche = new DoubleAnimation { From = maxGaucheStart, To = maxGaucheEnd, Duration = dureeAnimation, EasingFunction = fonctionDouce };
-                DoubleAnimation animMaxDroite = new DoubleAnimation { From = maxDroiteStart, To = maxDroiteEnd, Duration = dureeAnimation, EasingFunction = fonctionDouce };
-
-                DoubleAnimation animOpaciteG = new DoubleAnimation { To = opaciteCible, Duration = dureeAnimation };
-                DoubleAnimation animOpaciteD = new DoubleAnimation { To = opaciteCible, Duration = dureeAnimation };
-
-                // Libération des contraintes à la fin de l'ouverture pour garder l'adaptabilité du mode Auto
-                if (!_isBarreCompactee)
-                {
-                    animMaxGauche.Completed += (s, args) => {
-                        grpBarreGauche.BeginAnimation(StackPanel.MaxWidthProperty, null);
-                        grpBarreGauche.MaxWidth = 500; // Largeur max par défaut confortable
-                    };
-                    animMaxDroite.Completed += (s, args) => {
-                        grpBarreDroite.BeginAnimation(StackPanel.MaxWidthProperty, null);
-                        grpBarreDroite.MaxWidth = 500;
-                    };
-                }
-
-                // Exécution simultanée (un seul temps visuel)
-                grpBarreGauche.BeginAnimation(StackPanel.MaxWidthProperty, animMaxGauche);
-                grpBarreDroite.BeginAnimation(StackPanel.MaxWidthProperty, animMaxDroite);
-                grpBarreGauche.BeginAnimation(StackPanel.OpacityProperty, animOpaciteG);
-                grpBarreDroite.BeginAnimation(StackPanel.OpacityProperty, animOpaciteD);
-            }
-        }
-
-        // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
         private static double Clamp(double value, double min, double max)
@@ -1703,10 +1802,191 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             method?.Invoke(window, null);
         }
         // ─────────────────────────────────────────────────────────────────────
+        // NAVIGATION entre panoramas du dossier courant
+        // ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Retourne la liste triée des fichiers image du même dossier que le panorama courant.
+        /// Seules les extensions reconnues par le plugin ImageViewer sont conservées.
+        /// </summary>
+        private static readonly HashSet<string> _imageExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".apng", ".ari", ".arw", ".avif", ".ani",
+            ".bay", ".bmp",
+            ".cap", ".cr2", ".cr3", ".crw", ".cur", ".clip",
+            ".dcr", ".dcs", ".dds", ".dng", ".drf", ".dcm", ".dicom",
+            ".eip", ".emf", ".erf", ".exr",
+            ".fff",
+            ".gif",
+            ".hdr", ".heic", ".heif",
+            ".ico", ".icon", ".icns", ".iiq",
+            ".jfif", ".jp2", ".jpeg", ".jpg", ".jxl", ".j2k", ".jpf", ".jpx", ".jpm", ".jxr",
+            ".k25", ".kdc",
+            ".mdc", ".mef", ".mos", ".mrw", ".mj2", ".miff",
+            ".nef", ".nrw",
+            ".obm", ".orf",
+            ".pbm", ".pcx", ".pef", ".pgm", ".png", ".pnm", ".ppm", ".psb", ".psd", ".ptx", ".pxn",
+            ".qoi",
+            ".r3d", ".raf", ".raw", ".rw2", ".rwl", ".rwz",
+            ".sr2", ".srf", ".srw", ".svg", ".svgz",
+            ".tga", ".tif", ".tiff",
+            ".wdp", ".webp", ".wmf",
+            ".x3f", ".xcf", ".xbm", ".xpm",
+        };
+
+        private List<string> GetPanoFilesInFolder()
+        {
+            string folder = System.IO.Path.GetDirectoryName(_currentPanoPath);
+            if (folder == null || !System.IO.Directory.Exists(folder))
+                return new List<string>();
+
+            return System.IO.Directory
+                .EnumerateFiles(folder)
+                .Where(f => _imageExtensions.Contains(System.IO.Path.GetExtension(f)))
+                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Tente de naviguer vers le panorama suivant (direction=+1) ou précédent (direction=-1).
+        /// Saute les images qui ne sont pas équirectangulaires.
+        /// Boucle en fin/début de liste.
+        /// </summary>
+        private void NavigateToAdjacentPano(int direction)
+        {
+            if (_isNavigating) return;
+
+            var files = GetPanoFilesInFolder();
+            if (files.Count < 2) return;
+
+            int currentIndex = files.FindIndex(
+                f => string.Equals(f, _currentPanoPath, StringComparison.OrdinalIgnoreCase));
+
+            if (currentIndex < 0) return;   // fichier courant introuvable dans la liste
+
+            int tested = 0;
+            int candidate = currentIndex;
+
+            while (tested < files.Count - 1)
+            {
+                // Avance circulairement
+                candidate = (candidate + direction + files.Count) % files.Count;
+                tested++;
+
+                string candidatePath = files[candidate];
+
+                // Test équirectangulaire (utilise la même détection que Plugin.cs)
+                MetaProvider meta;
+                try
+                {
+                    meta = new MetaProvider(candidatePath);
+                }
+                catch
+                {
+                    continue; // Fichier illisible → on passe
+                }
+
+                if (!EquirectangularDetector.IsEquirectangular(meta))
+                    continue;   // Pas un panorama → on passe au suivant
+
+                // On a trouvé un candidat valide
+                LoadNewPanorama(candidatePath);
+                return;
+            }
+
+            // Aucun autre panorama trouvé dans le dossier
+            txtInfoPopup.Text = "Aucun autre panorama dans ce dossier";
+            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+        }
+
+        /// <summary>
+        /// Recharge la texture du panorama sur la sphère existante avec un micro-fondu noir.
+        /// Ne recrée pas la sphère ni la caméra : seule la texture change.
+        /// </summary>
+        private void LoadNewPanorama(string newPath)
+        {
+            if (_isNavigating) return;
+            _isNavigating = true;
+
+            // ── Swap de texture (sur le thread UI) ───────────────
+            try
+            {
+                var material = CreatePanoramaMaterial(newPath);
+
+                // Retrouver le GeometryModel3D dans le viewport pour changer son matériau
+                foreach (var child in viewport3D.Children)
+                {
+                    if (child is ModelVisual3D mv && mv.Content is GeometryModel3D gm)
+                    {
+                        gm.Material = material;
+                        gm.BackMaterial = material;
+                        break;
+                    }
+                }
+
+                // Mise à jour de l'état courant
+                _currentPanoPath = newPath;
+                _context.Title = $"360° : {System.IO.Path.GetFileName(newPath)}";
+
+                // Stoppe proprement tout popup en cours
+                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Stop(infoPopup);
+                (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Stop(infoPopup);
+                infoPopup.Opacity = 0;
+
+                // Démarrage
+                if (_StartOneTurnNext)
+                    DemarrerOneTurnNext();
+            }
+            catch (Exception ex)
+            {
+                txtInfoPopup.Text = $"Erreur chargement : {ex.Message}";
+                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+            }
+            finally
+            {
+                _isNavigating = false;
+            }
+        }
+        private void DemarrerOneTurnNext()
+        {
+            // Gestionnaires boutons ◀ / ▶ de la barre
+            _oneTurnActive = true;
+            _oneTurnNextActive = true;
+            _oneTurnTimer = 0.0;
+            _oneTurnStartAngle = _horizontalRotation.Angle;
+
+            if (_oneTurnDuration <= _oneTurnAccelTime * 2)
+                _oneTurnAccelTime = _oneTurnDuration / 2.0;
+
+            _oneTurnVMax = 360.0 / (_oneTurnDuration - _oneTurnAccelTime);
+            _oneTurnAccelRate = _oneTurnVMax / _oneTurnAccelTime;
+
+            _autoCloseActive = false;
+            _isAutoClosingPhase = false;
+            _autoCloseStartAngle = -1;
+            _autoCloseTargetAngle = -1;
+            _hasLeftStartZone = false;
+            _isPopupShown = false;
+            _isPopupShownPour1Tour = false;
+            _isPopupShownPour1TourNum2 = false;
+
+            txtAutoClose.Opacity = 1.0;
+            txtAutoClose.Text = "AutoNext: On";
+            txtAutoClose.TextDecorations = null;
+            panelAutoCloseProgress.Visibility = Visibility.Visible;
+
+            btnAutoRotate.Content = "Mode 1 tour →suivant";
+            btnAutoRotate.IsEnabled = false;
+        }
+        // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources
         // ─────────────────────────────────────────────────────────────────────
         public void Dispose()
         {
+            var window = Window.GetWindow(this);
+            if (window != null)
+                window.PreviewKeyDown -= OnWindowKeyDown;
+
             CompositionTarget.Rendering -= OnRendering;
             DeconnecterSpaceMouse();  // Coupe la connexion proprement
 

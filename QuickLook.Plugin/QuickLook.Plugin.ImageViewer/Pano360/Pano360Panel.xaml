@@ -17,8 +17,14 @@
                 <BlurEffect x:Name="viewBlur" Radius="0" KernelType="Box"/>
             </Viewport3D.Effect>
         </Viewport3D>
+        <!-- Overlay fondu pour la navigation entre panoramas (invisible au repos) -->
+        <Border x:Name="overlayBlackFade"
+        Background="Black"
+        Opacity="0"
+        IsHitTestVisible="False" />
 
         <!-- ── Texte de chargement (masqué dès que la scène est prête) ──────── -->
+        <!-- ── ToDo: Jamais vu fonctionner, a retirer !?? ──────── -->
         <TextBlock x:Name="txtLoading" Text="Chargement…" Foreground="White" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
 
         <!-- ══════════════════════════════════════════════════════════════════
@@ -45,7 +51,7 @@
 
                 <Border Background="#73000000" CornerRadius="10" Padding="12,4">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Height="32">
-
+                        <!-- ── Barre de gauche ───────────────────────────────── -->
                         <StackPanel x:Name="grpBarreGauche" Orientation="Horizontal" VerticalAlignment="Center" MaxWidth="500">
                             <!-- ── Bouton Options ────────────────────────────────── -->
                             <Button x:Name="btnOptions" Content="🔧 Options" Width="120" Margin="0,0,6,0" Padding="4" Foreground="White" Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Ouvrir les options" Click="BtnOptions_Click">
@@ -94,9 +100,36 @@
                                 </ToggleButton.Style>
                             </ToggleButton>
                         </StackPanel>
+                        <!-- ── Bouton Panorama Précédent ─────────────────────── -->
+                        <Button x:Name="btnPrevPano" Content="◀" Width="28" Height="28" Margin="4,0,0,0"
+        Foreground="White" Cursor="Hand" ToolTip="Panorama précédent (←)"
+        Click="BtnBarrePrevPano_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd" Background="Transparent" CornerRadius="6" Padding="2">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="#33FFFFFF" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="#55FFFFFF" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
                         <!-- ── Affichage FOV ─────────────────────────────────── -->
                         <TextBlock x:Name="txtFov" Text="(FOV: 90°)" Width="75" TextAlignment="Center" Foreground="#999999" FontSize="13" VerticalAlignment="Center" Margin="4,0"
-                       Background="Transparent" Cursor="Hand" ToolTip="Double-cliquez pour compacter/agrandir" MouseLeftButtonDown="TxtFov_MouseLeftButtonDown">
+       Background="Transparent" Cursor="Hand" ToolTip="Double-cliquez pour compacter/agrandir" MouseLeftButtonDown="TxtFov_MouseLeftButtonDown">
                             <TextBlock.Resources>
                                 <Storyboard x:Key="FadeFovStoryboard">
                                     <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="(TextBlock.Foreground).(SolidColorBrush.Color)">
@@ -108,6 +141,34 @@
                             </TextBlock.Resources>
                         </TextBlock>
 
+                        <!-- ── Bouton Panorama Suivant ───────────────────────── -->
+                        <Button x:Name="btnNextPano" Content="▶" Width="28" Height="28" Margin="0,0,4,0"
+        Foreground="White" Cursor="Hand" ToolTip="Panorama suivant (→)"
+        Click="BtnBarreNextPano_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd" Background="Transparent" CornerRadius="6" Padding="2">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="#33FFFFFF" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="#55FFFFFF" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+
+                        <!-- ── Barre de droite ───────────────────────────────── -->
                         <StackPanel x:Name="grpBarreDroite" Orientation="Horizontal" VerticalAlignment="Center" MaxWidth="500">
                             <!-- ── Bouton AUTOROTATION ───────────────────────────── -->
                             <Button x:Name="btnAutoRotate" Content="Rotation auto." Width="120" Padding="8,4" Margin="6,0,0,0" Foreground="White" Cursor="Hand" Click="BtnAutoRotate_Click">
@@ -336,9 +397,13 @@
                                     </StackPanel>
 
                                     <StackPanel Orientation="Vertical" Margin="0,12,0,0">
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                             <RadioButton x:Name="radStartAutoClose" Content="1 tour + fermeture" GroupName="StartMode" Click="RadioBtnMode_Click"/>
                                             <TextBlock x:Name="TextAutoClose" Visibility="Hidden" Text="⚙ Durée :" Foreground="#AAFFFFFF" Margin="15,0,0,0" VerticalAlignment="Center" FontSize="11" FontStyle="Italic"/>
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <RadioButton x:Name="radStartAutoSuivant" Content="1 tour + panorama suivant" GroupName="StartMode" Click="RadioBtnMode_Click"/>
                                         </StackPanel>
 
                                         <Grid Margin="30,6,0,0">
