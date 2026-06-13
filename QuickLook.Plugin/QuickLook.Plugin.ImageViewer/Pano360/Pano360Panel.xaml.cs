@@ -563,6 +563,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                     double tempsRestantPour1Tour = _oneTurnDuration - _oneTurnTimer;
 
+                    // Mise à jour de l'anneau de progression (géré ici car _autoCloseActive = false en mode OneTurnNext)
+                    double angleParcouru1Tour = (_horizontalRotation.Angle - _oneTurnStartAngle + 360.0) % 360.0;
+                    rectProgressTransform.Angle = angleParcouru1Tour;
+                    txtTempsRestant.Text = $"{tempsRestantPour1Tour:F0} s";
+
                     // Profil de vitesse trapézoïdal
                     if (_oneTurnTimer <= _oneTurnAccelTime)
                     {
@@ -607,13 +612,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         }
                         else
                         {
+                            System.Diagnostics.Debug.WriteLine("Fermeture de la fenetre !");
                             Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(this)?.Close()));
                         }
                         return;
                     }
 
                     //Affichage du temps restant dans le chronomètre
-                    txtTempsRestant.Text = $"{tempsRestantPour1Tour:F0} s";
+                    //txtTempsRestant.Text = $"{tempsRestantPour1Tour:F0} s";
 
                     if (tempsRestantPour1Tour <= 1.5 && !_isPopupShownPour1Tour)
                     {
