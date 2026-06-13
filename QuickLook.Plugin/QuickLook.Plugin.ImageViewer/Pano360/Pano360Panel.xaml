@@ -396,9 +396,13 @@
                                     </StackPanel>
 
                                     <StackPanel Orientation="Vertical" Margin="0,12,0,0">
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                             <RadioButton x:Name="radStartAutoClose" Content="1 tour + fermeture" GroupName="StartMode" Click="RadioBtnMode_Click"/>
                                             <TextBlock x:Name="TextAutoClose" Visibility="Hidden" Text="⚙ Durée :" Foreground="#AAFFFFFF" Margin="15,0,0,0" VerticalAlignment="Center" FontSize="11" FontStyle="Italic"/>
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <RadioButton x:Name="radStartAutoSuivant" Content="1 tour + panorama suivant" GroupName="StartMode" Click="RadioBtnMode_Click"/>
                                         </StackPanel>
 
                                         <Grid Margin="30,6,0,0">
