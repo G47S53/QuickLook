@@ -1831,19 +1831,24 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         /// </summary>
         private void NavigateToAdjacentPano(int direction)
         {
+            System.Diagnostics.Debug.WriteLine("Step 1");
             if (_isNavigating) return;
 
+            System.Diagnostics.Debug.WriteLine("Step 2");
             var files = GetPanoFilesInFolder();
             if (files.Count < 2) return;
 
+            System.Diagnostics.Debug.WriteLine("Step 3");
             int currentIndex = files.FindIndex(
                 f => string.Equals(f, _currentPanoPath, StringComparison.OrdinalIgnoreCase));
 
+            System.Diagnostics.Debug.WriteLine("Step 4");
             if (currentIndex < 0) return;   // fichier courant introuvable dans la liste
 
             int tested = 0;
             int candidate = currentIndex;
 
+            System.Diagnostics.Debug.WriteLine("Step 5");
             while (tested < files.Count - 1)
             {
                 // Avance circulairement
@@ -1948,10 +1953,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _oneTurnVMax = 360.0 / (_oneTurnDuration - _oneTurnAccelTime);
             _oneTurnAccelRate = _oneTurnVMax / _oneTurnAccelTime;
 
-            _autoCloseActive = true;
+            _autoCloseActive = false;
             _isAutoClosingPhase = false;
-            _autoCloseStartAngle = _horizontalRotation.Angle;
-            _autoCloseTargetAngle = _autoCloseStartAngle;
+            _autoCloseStartAngle = -1;
+            _autoCloseTargetAngle = -1;
             _hasLeftStartZone = false;
             _isPopupShown = false;
             _isPopupShownPour1Tour = false;
@@ -1969,6 +1974,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
             else
                 (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+
+            //// !! A voir l'influence !!
+            //// Remise à zéro des axes SpaceMouse pour éviter les interférences
+            //lock (_spaceMouseLock)
+            //{
+            //    _rawSpaceMouseX = 0;
+            //    _rawSpaceMouseY = 0;
+            //    _rawSpaceMouseZ = 0;
+            //    _rawSpaceMouseZoom = 0;
+            //}
+            //// !! A voir l'influence !!
+            //Mouse.OverrideCursor = null;  // Remet le curseur à son état normal
         }
         //!!!!
         // ToDo: A voir si on peut les effacer
