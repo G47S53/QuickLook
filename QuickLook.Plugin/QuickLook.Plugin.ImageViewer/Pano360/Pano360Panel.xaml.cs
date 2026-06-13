@@ -265,6 +265,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void SetupCamera()
         {
+            // Preparation caméra
             _camera = new PerspectiveCamera
             {
                 Position = new Point3D(0, 0, 0),
