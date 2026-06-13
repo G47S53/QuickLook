@@ -407,7 +407,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             _lastRenderTime = args.RenderingTime;
 
-            // --- LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
+            // ──── LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
             // pour forcer un rythme de 60 FPS maximum (1 frame toutes les ~16ms) ---
             if (elapsed < 0.016) return;
 
@@ -1256,12 +1256,15 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 _oneTurnTimer = 0.0;
                                 _oneTurnStartAngle = _horizontalRotation.Angle;
 
+                                // Sécurité au cas où la durée entrée est trop courte pour le profil trapézoïdal
                                 if (_oneTurnDuration <= _oneTurnAccelTime * 2)
                                     _oneTurnAccelTime = _oneTurnDuration / 2.0;
 
+                                // Calcul des lois physiques adaptées au temps imposé
                                 _oneTurnVMax = 360.0 / (_oneTurnDuration - _oneTurnAccelTime);
                                 _oneTurnAccelRate = _oneTurnVMax / _oneTurnAccelTime;
 
+                                // Texte d'information pour l'utilisateur
                                 txtInfoPopup.Text = _StartOneTurnNext
                                     ? "Rotation 1 tour + panorama suivant"
                                     : "Rotation 1 tour + fermeture";
@@ -1270,16 +1273,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                     (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                                 else
                                     (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-
+                                
+                                // Bouton Autoclose : activation et mise à jour de l'affichage
                                 _autoCloseActive = true;
                                 txtAutoClose.Opacity = 1.0;
                                 txtAutoClose.Text = _StartOneTurnNext ? "AutoNext: On" : "AutoClose: On";
-                                txtAutoClose.TextDecorations = null;
-                                panelAutoCloseProgress.Visibility = Visibility.Visible;
+                                txtAutoClose.TextDecorations = null;                           // Pas barré
+                                panelAutoCloseProgress.Visibility = Visibility.Visible;        // 🟢 Visible si AutoClose Actif
 
+                                // Affiche un texte différent sur le bouton RotationAuto
                                 btnAutoRotate.Content = _StartOneTurnNext ? "Mode 1 tour →suivant" : "Mode 1 tour";
                                 btnAutoRotate.IsEnabled = false;
 
+                                // Mise à jour de l'info popup sur la durée de l'autorotation
                                 _autoCloseStartAngle = _horizontalRotation.Angle;
                                 _autoCloseTargetAngle = _autoCloseStartAngle;
                                 _hasLeftStartZone = false;
@@ -1898,10 +1904,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             if (_isNavigating) return;
             _isNavigating = true;
 
+            // ── Swap de texture (sur le thread UI) ───────────────
             try
             {
                 var material = CreatePanoramaMaterial(newPath);
 
+                // Retrouver le GeometryModel3D dans le viewport pour changer son matériau
                 foreach (var child in viewport3D.Children)
                 {
                     if (child is ModelVisual3D mv && mv.Content is GeometryModel3D gm)
@@ -1912,6 +1920,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     }
                 }
 
+                // Mise à jour de l'état courant
                 _currentPanoPath = newPath;
                 _context.Title = $"360° : {System.IO.Path.GetFileName(newPath)}";
 
@@ -1920,6 +1929,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Stop(infoPopup);
                 infoPopup.Opacity = 0;
 
+                // Démarrage
                 if (_StartOneTurnNext)
                     DemarrerOneTurnNext();
             }
@@ -1933,11 +1943,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _isNavigating = false;
             }
         }
-        /// <summary>
-        /// Gestionnaires boutons ◀ / ▶ de la barre
-        /// </summary>
         private void DemarrerOneTurnNext()
         {
+            // Gestionnaires boutons ◀ / ▶ de la barre
             _oneTurnActive = true;
             _oneTurnNextActive = true;
             _oneTurnTimer = 0.0;
@@ -1964,18 +1972,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             btnAutoRotate.Content = "Mode 1 tour →suivant";
             btnAutoRotate.IsEnabled = false;
-
-            //// !! A voir l'influence !!
-            //// Remise à zéro des axes SpaceMouse pour éviter les interférences
-            //lock (_spaceMouseLock)
-            //{
-            //    _rawSpaceMouseX = 0;
-            //    _rawSpaceMouseY = 0;
-            //    _rawSpaceMouseZ = 0;
-            //    _rawSpaceMouseZoom = 0;
-            //}
-            //// !! A voir l'influence !!
-            //Mouse.OverrideCursor = null;  // Remet le curseur à son état normal
         }
         // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources
