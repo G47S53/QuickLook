@@ -19,6 +19,8 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -251,6 +253,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Clic droit → bascule plein écran
             MouseRightButtonUp += (s, e) => ToggleFullscreen();
 
+            Mouse.OverrideCursor = null;
+
             // AutoClose désactivé par défaut au démarrage
             MajEtatAutoClose();
 
@@ -272,7 +276,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _homeHorizontalAngle = _horizontalRotation.Angle; // 0° au démarrage
             _homeVerticalAngle = _verticalRotation.Angle;     // 0° au démarrage
 
-            txtLoading.Visibility = Visibility.Collapsed;
             _context.IsBusy = false;  // Signale à QuickLook que le chargement est terminé
 
             Focus();
@@ -621,12 +624,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         return;
                     }
 
-                    if (tempsRestantPour1Tour <= 1.5 && !_isPopupShownPour1Tour)
+                    if (tempsRestantPour1Tour <= 1.5 && !_isPopupShownPour1Tour && !_oneTurnNextActive)
                     {
                         _isPopupShownPour1Tour = true;
-                        txtInfoPopup.Text = _oneTurnNextActive
-                            ? "Panorama suivant..."
-                            : "Fermeture automatique...";
+                        txtInfoPopup.Text = "Fermeture automatique...";
 
                         if (_oneTurnDuration <= 6)
                             (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
@@ -634,11 +635,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                     }
 
-                    if (tempsRestantPour1Tour <= 0.5 && !_isPopupShownPour1TourNum2)
+                    if (tempsRestantPour1Tour <= 0.5 && !_isPopupShownPour1TourNum2 && _oneTurnNextActive)
                     {
                         _isPopupShownPour1TourNum2 = true;
                         //Affichage d'un message
-                        txtInfoPopup.Text = "Chargement...";
+                        txtInfoPopup.Text = "Chargement panorama suivant ...";
                         (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                     }
                 }
@@ -1034,14 +1035,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     {
                         case 9:
                             //
-                            txtInfoPopup.Text = "Rotation - 90°";
+                            txtInfoPopup.Text = "◀ Panorama précédent";
                             (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                            _targetHorizontalAngle = NormalizeAngle(AngleCourant - 90.0);
+                            NavigateToAdjacentPano(-1);
                             break;
                         case 3:
-                            txtInfoPopup.Text = "Rotation + 90°";
+                            txtInfoPopup.Text = "Chargement Panorama suivant ▶";
                             (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                            _targetHorizontalAngle = NormalizeAngle(AngleCourant + 90.0);
+                            NavigateToAdjacentPano(+1);
                             break;
                         case 6:
                             txtInfoPopup.Text = $"Rotation - {_camera.FieldOfView:F0}°";
@@ -1062,17 +1063,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                             _targetHorizontalAngle = _homeHorizontalAngle;
                             _targetVerticalAngle = _homeVerticalAngle;
-                            //e.Handled = true;
-                            break;
-                        case 10:   // Bouton gauche-haut SpacePilot Pro → Précédent
-                            txtInfoPopup.Text = "◀ Panorama précédent";
-                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                            NavigateToAdjacentPano(-1);
-                            break;
-                        case 7:    // Bouton droit-haut SpacePilot Pro → Suivant
-                            txtInfoPopup.Text = "▶ Panorama suivant";
-                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                            NavigateToAdjacentPano(+1);
                             break;
                     }
                 }
@@ -1276,12 +1266,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                     : "Rotation 1 tour + fermeture";
 
                                 (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-
-                                //if (_oneTurnDuration > 6)
-                                //    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                                //else
-                                //    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                                
+                               
                                 // Bouton Autoclose : activation et mise à jour de l'affichage
                                 _autoCloseActive = true;
                                 txtAutoClose.Opacity = 1.0;
@@ -1290,7 +1275,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 panelAutoCloseProgress.Visibility = Visibility.Visible;        // 🟢 Visible si AutoClose Actif
 
                                 // Affiche un texte différent sur le bouton RotationAuto
-                                btnAutoRotate.Content = _StartOneTurnNext ? "1💫 + 📷 ▶️" : "Mode 1 💫";
+                                btnAutoRotate.Content = _StartOneTurnNext ? "Mode 1 💫+📷" : "Mode 1 💫+✖️";
                                 btnAutoRotate.IsEnabled = false;
 
                                 // Mise à jour de l'info popup sur la durée de l'autorotation
@@ -1804,13 +1789,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // NAVIGATION entre panoramas du dossier courant
         // ─────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Retourne la liste triée des fichiers image du même dossier que le panorama courant.
-        /// Seules les extensions reconnues par le plugin ImageViewer sont conservées.
-        /// </summary>
         private static readonly HashSet<string> _imageExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
+            // Retourne la liste triée des fichiers image du même dossier que le panorama courant.
+            // Seules les extensions reconnues par le plugin ImageViewer sont conservées.
             ".apng", ".ari", ".arw", ".avif", ".ani",
             ".bay", ".bmp",
             ".cap", ".cr2", ".cr3", ".crw", ".cur", ".clip",
@@ -1833,7 +1815,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             ".wdp", ".webp", ".wmf",
             ".x3f", ".xcf", ".xbm", ".xpm",
         };
-
         private List<string> GetPanoFilesInFolder()
         {
             string folder = System.IO.Path.GetDirectoryName(_currentPanoPath);
@@ -1846,14 +1827,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
-
-        /// <summary>
-        /// Tente de naviguer vers le panorama suivant (direction=+1) ou précédent (direction=-1).
-        /// Saute les images qui ne sont pas équirectangulaires.
-        /// Boucle en fin/début de liste.
-        /// </summary>
         private void NavigateToAdjacentPano(int direction)
         {
+            // Tente de naviguer vers le panorama suivant (direction=+1) ou précédent (direction=-1).
+            // Saute les images qui ne sont pas équirectangulaires.
+            // Boucle en fin/début de liste.
             if (_isNavigating) return;
 
             var files = GetPanoFilesInFolder();
@@ -1898,13 +1876,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             txtInfoPopup.Text = "Aucun autre panorama dans ce dossier";
             (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
         }
-
-        /// <summary>
-        /// Recharge la texture du panorama sur la sphère existante avec un micro-fondu noir.
-        /// Ne recrée pas la sphère ni la caméra : seule la texture change.
-        /// </summary>
         private void LoadNewPanorama(string newPath)
         {
+            // Recharge la texture du panorama sur la sphère existante avec un micro-fondu noir.
+            // Ne recrée pas la sphère ni la caméra : seule la texture change.
             if (_isNavigating) return;
             _isNavigating = true;
 
@@ -1929,9 +1904,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _context.Title = $"360° : {System.IO.Path.GetFileName(newPath)}";
 
                 // Stoppe proprement tout popup en cours
-                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Stop(infoPopup);
-                (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Stop(infoPopup);
-                infoPopup.Opacity = 0;
+                //(infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Stop(infoPopup);
+                //(infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Stop(infoPopup);
+                //infoPopup.Opacity = 0;
 
                 // Démarrage
                 if (_StartOneTurnNext)
@@ -1975,7 +1950,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             txtAutoClose.TextDecorations = null;
             panelAutoCloseProgress.Visibility = Visibility.Visible;
 
-            btnAutoRotate.Content = "Mode 1 tour →suivant";
+            btnAutoRotate.Content = "Mode 1 💫+📷";
             btnAutoRotate.IsEnabled = false;
         }
         // ─────────────────────────────────────────────────────────────────────

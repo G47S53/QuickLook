@@ -17,15 +17,6 @@
                 <BlurEffect x:Name="viewBlur" Radius="0" KernelType="Box"/>
             </Viewport3D.Effect>
         </Viewport3D>
-        <!-- Overlay fondu pour la navigation entre panoramas (invisible au repos) -->
-        <Border x:Name="overlayBlackFade"
-        Background="Black"
-        Opacity="0"
-        IsHitTestVisible="False" />
-
-        <!-- ── Texte de chargement (masqué dès que la scène est prête) ──────── -->
-        <!-- ── ToDo: Jamais vu fonctionner, a retirer !?? ──────── -->
-        <TextBlock x:Name="txtLoading" Text="Chargement…" Foreground="White" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
 
         <!-- ══════════════════════════════════════════════════════════════════
              BARRE DE CONTRÔLE (en bas à gauche)
@@ -101,9 +92,7 @@
                             </ToggleButton>
                         </StackPanel>
                         <!-- ── Bouton Panorama Précédent ─────────────────────── -->
-                        <Button x:Name="btnPrevPano" Content="◀" Width="28" Height="28" Margin="4,0,0,0"
-        Foreground="White" Cursor="Hand" ToolTip="Panorama précédent (←)"
-        Click="BtnBarrePrevPano_Click">
+                        <Button x:Name="btnPrevPano" Content="◀" Width="28" Height="28" Margin="4,0,0,0" Foreground="White" Cursor="Hand" ToolTip="Panorama précédent (←)" Click="BtnBarrePrevPano_Click">
                             <Button.Style>
                                 <Style TargetType="Button">
                                     <Setter Property="Template">
@@ -128,8 +117,7 @@
                         </Button>
 
                         <!-- ── Affichage FOV ─────────────────────────────────── -->
-                        <TextBlock x:Name="txtFov" Text="(FOV: 90°)" Width="75" TextAlignment="Center" Foreground="#999999" FontSize="13" VerticalAlignment="Center" Margin="4,0"
-       Background="Transparent" Cursor="Hand" ToolTip="Double-cliquez pour compacter/agrandir" MouseLeftButtonDown="TxtFov_MouseLeftButtonDown">
+                        <TextBlock x:Name="txtFov" Text="(FOV: 90°)" Width="75" TextAlignment="Center" Foreground="#999999" FontSize="13" VerticalAlignment="Center" Margin="4,0" Background="Transparent" Cursor="Hand" ToolTip="Double-cliquez pour compacter/agrandir" MouseLeftButtonDown="TxtFov_MouseLeftButtonDown">
                             <TextBlock.Resources>
                                 <Storyboard x:Key="FadeFovStoryboard">
                                     <ColorAnimationUsingKeyFrames Storyboard.TargetProperty="(TextBlock.Foreground).(SolidColorBrush.Color)">
@@ -142,9 +130,7 @@
                         </TextBlock>
 
                         <!-- ── Bouton Panorama Suivant ───────────────────────── -->
-                        <Button x:Name="btnNextPano" Content="▶" Width="28" Height="28" Margin="0,0,4,0"
-        Foreground="White" Cursor="Hand" ToolTip="Panorama suivant (→)"
-        Click="BtnBarreNextPano_Click">
+                        <Button x:Name="btnNextPano" Content="▶" Width="28" Height="28" Margin="0,0,4,0" Foreground="White" Cursor="Hand" ToolTip="Panorama suivant (→)" Click="BtnBarreNextPano_Click">
                             <Button.Style>
                                 <Style TargetType="Button">
                                     <Setter Property="Template">
@@ -256,29 +242,6 @@
             </Grid>
         </Grid>
 
-        <!-- ── Info texte PopUp  ────────────────────────── -->
-        <Border x:Name="infoPopup" Padding="20,10,20,10" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#CC222222" CornerRadius="8" IsHitTestVisible="False" Opacity="0">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="15" ShadowDepth="0" Opacity="0.7"/>
-            </Border.Effect>
-            <TextBlock x:Name="txtInfoPopup" FontSize="26" FontWeight="SemiBold" Foreground="White" Text="Fermeture automatique..." />
-            <Border.Resources>
-                <Storyboard x:Key="StoryboardShowInfo">
-                    <DoubleAnimationUsingKeyFrames Storyboard.Target="{Binding Source={x:Reference infoPopup}}" Storyboard.TargetProperty="Opacity">
-                        <LinearDoubleKeyFrame KeyTime="0:0:0.1" Value="0.9" />
-                        <LinearDoubleKeyFrame KeyTime="0:0:1.0" Value="0.9" />
-                        <LinearDoubleKeyFrame KeyTime="0:0:1.4" Value="0" />
-                    </DoubleAnimationUsingKeyFrames>
-                </Storyboard>
-                <Storyboard x:Key="StoryboardShowInfoRapide">
-                    <DoubleAnimationUsingKeyFrames Storyboard.Target="{Binding Source={x:Reference infoPopup}}" Storyboard.TargetProperty="Opacity">
-                        <LinearDoubleKeyFrame KeyTime="0:0:0.1" Value="0.7" />
-                        <LinearDoubleKeyFrame KeyTime="0:0:1.0" Value="0" />
-                    </DoubleAnimationUsingKeyFrames>
-                </Storyboard>
-            </Border.Resources>
-        </Border>
-
         <!-- ── Préférences ──────────────────────────────── -->
 
         <Grid x:Name="gridPreferences" 
@@ -288,7 +251,7 @@
               MouseDown="GridPreferences_MouseDown" 
               PreviewMouseWheel="GridPreferences_PreviewMouseWheel">
 
-            <Border Background="#FA1A1A1A" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1" Width="420" Height="580" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Background="#FA1A1A1A" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1" Width="480" Height="640" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Grid Margin="20">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -399,14 +362,16 @@
                                     <StackPanel Orientation="Vertical" Margin="0,12,0,0">
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                             <RadioButton x:Name="radStartAutoClose" Content="1 tour + fermeture" GroupName="StartMode" Click="RadioBtnMode_Click"/>
-                                            <TextBlock x:Name="TextAutoClose" Visibility="Hidden" Text="⚙ Durée :" Foreground="#AAFFFFFF" Margin="15,0,0,0" VerticalAlignment="Center" FontSize="11" FontStyle="Italic"/>
+                                            
                                         </StackPanel>
 
-                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                            <RadioButton x:Name="radStartAutoSuivant" Content="1 tour + panorama suivant" GroupName="StartMode" Click="RadioBtnMode_Click"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,20,0,6">
+                                            <RadioButton x:Name="radStartAutoSuivant" GroupName="StartMode" Click="RadioBtnMode_Click" VerticalContentAlignment="Center">
+                                                <TextBlock Text="1 tour + panorama suivant" TextWrapping="Wrap" MaxWidth="340"/>
+                                            </RadioButton>
+                                             <TextBlock x:Name="TextAutoClose" Visibility="Hidden" Text="⚙ Durée :" Foreground="#AAFFFFFF" Margin="0,0,0,0" VerticalAlignment="Center" FontSize="11" FontStyle="Italic"/>
                                         </StackPanel>
-
-                                        <Grid Margin="30,6,0,0">
+                                        <Grid Margin="150,0,0,0">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="45"/>
@@ -421,10 +386,10 @@
 
                         <!-- ── Onglet Autorotation ───────────────── -->
                         <TabItem Header="Autorotation">
-                            <StackPanel Margin="10,15,10,0">
+                            <StackPanel Margin="10,45,10,0">
                                 <TextBlock Text="Durée d'un tour complet (en secondes) :" Foreground="#AAFFFFFF" Margin="0,0,0,10" FontSize="12" FontStyle="Italic"/>
 
-                                <TextBlock Text="Mode Lent" Foreground="White" FontSize="11"/>
+                                <TextBlock Text="Mode Lent" Margin="0,15,0,0" Foreground="White" FontSize="11"/>
                                 <Grid Margin="0,0,0,18">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -484,5 +449,27 @@
                 </Grid>
             </Border>
         </Grid>
+        <!-- ── Info texte PopUp  ────────────────────────── -->
+        <Border x:Name="infoPopup" Padding="20,10,20,10" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#CC222222" CornerRadius="8" IsHitTestVisible="False" Opacity="0">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="15" ShadowDepth="0" Opacity="0.7"/>
+            </Border.Effect>
+            <TextBlock x:Name="txtInfoPopup" FontSize="26" FontWeight="SemiBold" Foreground="White" Text="Fermeture automatique..." />
+            <Border.Resources>
+                <Storyboard x:Key="StoryboardShowInfo">
+                    <DoubleAnimationUsingKeyFrames Storyboard.Target="{Binding Source={x:Reference infoPopup}}" Storyboard.TargetProperty="Opacity">
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.1" Value="0.9" />
+                        <LinearDoubleKeyFrame KeyTime="0:0:1.0" Value="0.9" />
+                        <LinearDoubleKeyFrame KeyTime="0:0:1.4" Value="0" />
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
+                <Storyboard x:Key="StoryboardShowInfoRapide">
+                    <DoubleAnimationUsingKeyFrames Storyboard.Target="{Binding Source={x:Reference infoPopup}}" Storyboard.TargetProperty="Opacity">
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.1" Value="0.7" />
+                        <LinearDoubleKeyFrame KeyTime="0:0:1.0" Value="0" />
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
+            </Border.Resources>
+        </Border>
     </Grid>
 </UserControl>
