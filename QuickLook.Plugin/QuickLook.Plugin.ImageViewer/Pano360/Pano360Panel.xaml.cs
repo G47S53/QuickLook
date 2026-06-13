@@ -15,7 +15,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -25,7 +28,6 @@ using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using TDxInput;
 using Media3D = System.Windows.Media.Media3D;
-using Newtonsoft.Json;
 
 namespace QuickLook.Plugin.ImageViewer.Pano360
 {
@@ -38,6 +40,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private readonly QuickLook.Common.Plugin.ContextObject _context;
         private readonly string _imagePath;
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > Navigation entre panoramas du dossier courant
+        // ─────────────────────────────────────────────────────────────────────
+        private string _currentPanoPath;          // Chemin actif (mis à jour à chaque navigation)
+        private bool _isNavigating = false;       // Verrou anti double-clic
 
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
@@ -224,8 +232,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _context = context;
             _imagePath = imagePath;
 
+            _currentPanoPath = imagePath;   // ← initialise le chemin actif de navigation
+
             // Initialisation de la scène 3D dès que le contrôle est chargé
-            Loaded += (s, e) => InitScene();
+            Loaded += (s, e) =>
+            {
+                InitScene();
+                var window = Window.GetWindow(this);
+                if (window != null)
+                    window.PreviewKeyDown += OnWindowKeyDown;
+            };
             Unloaded += (s, e) => Dispose();
 
             // Clic droit → bascule plein écran
@@ -762,6 +778,30 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             MouseUp += OnMouseUp;
             MouseMove += OnMouseMove;
             MouseWheel += OnMouseWheel;
+
+            // Navigation clavier entre panoramas
+            var window = Window.GetWindow(this);
+            if (window != null)
+                window.PreviewKeyDown += OnWindowKeyDown;
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // Gestion du clavier
+        // ─────────────────────────────────────────────────────────────────────
+        private void OnWindowKeyDown(object sender, KeyEventArgs e)
+        {
+            if (_OptionOpen) return;         // Options ouvertes → on ne capte pas
+            if (_oneTurnActive) return;      // Mode 1 tour → on ne capte pas
+
+            if (e.Key == Key.Right)
+            {
+                e.Handled = true;
+                NavigateToAdjacentPano(+1);
+            }
+            else if (e.Key == Key.Left)
+            {
+                e.Handled = true;
+                NavigateToAdjacentPano(-1);
+            }
         }
         // ─────────────────────────────────────────────────────────────────────
         // Gestion de la souris
@@ -993,6 +1033,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             _targetHorizontalAngle = _homeHorizontalAngle;
                             _targetVerticalAngle = _homeVerticalAngle;
                             //e.Handled = true;
+                            break;
+                        case 10:   // Bouton gauche-haut SpacePilot Pro → Précédent
+                            txtInfoPopup.Text = "◀ Panorama précédent";
+                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                            NavigateToAdjacentPano(-1);
+                            break;
+                        case 7:    // Bouton droit-haut SpacePilot Pro → Suivant
+                            txtInfoPopup.Text = "▶ Panorama suivant";
+                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                            NavigateToAdjacentPano(+1);
                             break;
                     }
                 }
@@ -1702,10 +1752,172 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             method?.Invoke(window, null);
         }
         // ─────────────────────────────────────────────────────────────────────
+        // NAVIGATION entre panoramas du dossier courant
+        // ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Retourne la liste triée des fichiers image du même dossier que le panorama courant.
+        /// Seules les extensions reconnues par le plugin ImageViewer sont conservées.
+        /// </summary>
+        private static readonly HashSet<string> _imageExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ".apng", ".ari", ".arw", ".avif", ".ani",
+            ".bay", ".bmp",
+            ".cap", ".cr2", ".cr3", ".crw", ".cur", ".clip",
+            ".dcr", ".dcs", ".dds", ".dng", ".drf", ".dcm", ".dicom",
+            ".eip", ".emf", ".erf", ".exr",
+            ".fff",
+            ".gif",
+            ".hdr", ".heic", ".heif",
+            ".ico", ".icon", ".icns", ".iiq",
+            ".jfif", ".jp2", ".jpeg", ".jpg", ".jxl", ".j2k", ".jpf", ".jpx", ".jpm", ".jxr",
+            ".k25", ".kdc",
+            ".mdc", ".mef", ".mos", ".mrw", ".mj2", ".miff",
+            ".nef", ".nrw",
+            ".obm", ".orf",
+            ".pbm", ".pcx", ".pef", ".pgm", ".png", ".pnm", ".ppm", ".psb", ".psd", ".ptx", ".pxn",
+            ".qoi",
+            ".r3d", ".raf", ".raw", ".rw2", ".rwl", ".rwz",
+            ".sr2", ".srf", ".srw", ".svg", ".svgz",
+            ".tga", ".tif", ".tiff",
+            ".wdp", ".webp", ".wmf",
+            ".x3f", ".xcf", ".xbm", ".xpm",
+        };
+
+        private List<string> GetPanoFilesInFolder()
+        {
+            string folder = System.IO.Path.GetDirectoryName(_currentPanoPath);
+            if (folder == null || !System.IO.Directory.Exists(folder))
+                return new List<string>();
+
+            return System.IO.Directory
+                .EnumerateFiles(folder)
+                .Where(f => _imageExtensions.Contains(System.IO.Path.GetExtension(f)))
+                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Tente de naviguer vers le panorama suivant (direction=+1) ou précédent (direction=-1).
+        /// Saute les images qui ne sont pas équirectangulaires.
+        /// Boucle en fin/début de liste.
+        /// </summary>
+        private void NavigateToAdjacentPano(int direction)
+        {
+            if (_isNavigating) return;
+
+            var files = GetPanoFilesInFolder();
+            if (files.Count < 2) return;
+
+            int currentIndex = files.FindIndex(
+                f => string.Equals(f, _currentPanoPath, StringComparison.OrdinalIgnoreCase));
+
+            if (currentIndex < 0) return;   // fichier courant introuvable dans la liste
+
+            int tested = 0;
+            int candidate = currentIndex;
+
+            while (tested < files.Count - 1)
+            {
+                // Avance circulairement
+                candidate = (candidate + direction + files.Count) % files.Count;
+                tested++;
+
+                string candidatePath = files[candidate];
+
+                // Test équirectangulaire (utilise la même détection que Plugin.cs)
+                MetaProvider meta;
+                try
+                {
+                    meta = new MetaProvider(candidatePath);
+                }
+                catch
+                {
+                    continue; // Fichier illisible → on passe
+                }
+
+                if (!EquirectangularDetector.IsEquirectangular(meta))
+                    continue;   // Pas un panorama → on passe au suivant
+
+                // On a trouvé un candidat valide
+                LoadNewPanorama(candidatePath);
+                return;
+            }
+
+            // Aucun autre panorama trouvé dans le dossier
+            txtInfoPopup.Text = "Aucun autre panorama dans ce dossier";
+            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+        }
+
+        /// <summary>
+        /// Recharge la texture du panorama sur la sphère existante avec un micro-fondu noir.
+        /// Ne recrée pas la sphère ni la caméra : seule la texture change.
+        /// </summary>
+        private void LoadNewPanorama(string newPath)
+        {
+            _isNavigating = true;
+
+            // ── Phase 1 : fondu au noir (150 ms) ──────────────────────────────
+            var fadeOut = new DoubleAnimation(1.0, TimeSpan.FromMilliseconds(150));
+            fadeOut.Completed += (s, _) =>
+            {
+                // ── Phase 2 : swap de texture (sur le thread UI) ───────────────
+                try
+                {
+                    var material = CreatePanoramaMaterial(newPath);
+
+                    // Retrouver le GeometryModel3D dans le viewport pour changer son matériau
+                    foreach (var child in viewport3D.Children)
+                    {
+                        if (child is ModelVisual3D mv && mv.Content is GeometryModel3D gm)
+                        {
+                            gm.Material = material;
+                            gm.BackMaterial = material;
+                            break;
+                        }
+                    }
+
+                    // Mise à jour de l'état courant
+                    _currentPanoPath = newPath;
+                    _context.Title = $"360° : {System.IO.Path.GetFileName(newPath)}";
+
+                    // Remise à zéro de la vue (optionnel : commenter si tu préfères garder l'angle)
+                    _horizontalRotation.Angle = _homeHorizontalAngle;
+                    _verticalRotation.Angle = _homeVerticalAngle;
+                    _targetFov = _camera.FieldOfView; // Conserve le FOV courant
+                }
+                catch (Exception ex)
+                {
+                    txtInfoPopup.Text = $"Erreur chargement : {ex.Message}";
+                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                }
+
+                // ── Phase 3 : fondu retour (150 ms) ───────────────────────────
+                var fadeIn = new DoubleAnimation(0.0, TimeSpan.FromMilliseconds(150));
+                fadeIn.Completed += (_, __) => _isNavigating = false;
+                overlayBlackFade.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+            };
+
+            overlayBlackFade.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+        }
+
+        /// <summary>
+        /// Gestionnaires boutons ◀ / ▶ de la barre
+        /// </summary>
+        private void BtnPrevPano_Click(object sender, RoutedEventArgs e)
+            => NavigateToAdjacentPano(-1);
+
+        private void BtnNextPano_Click(object sender, RoutedEventArgs e)
+            => NavigateToAdjacentPano(+1);
+        // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources
         // ─────────────────────────────────────────────────────────────────────
         public void Dispose()
         {
+            var window = Window.GetWindow(this);
+            if (window != null)
+                window.PreviewKeyDown -= OnWindowKeyDown;
+
             CompositionTarget.Rendering -= OnRendering;
             DeconnecterSpaceMouse();  // Coupe la connexion proprement
 

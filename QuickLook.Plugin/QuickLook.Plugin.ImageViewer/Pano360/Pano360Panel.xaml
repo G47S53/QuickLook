@@ -17,6 +17,11 @@
                 <BlurEffect x:Name="viewBlur" Radius="0" KernelType="Box"/>
             </Viewport3D.Effect>
         </Viewport3D>
+        <!-- Overlay fondu pour la navigation entre panoramas (invisible au repos) -->
+        <Border x:Name="overlayBlackFade"
+        Background="Black"
+        Opacity="0"
+        IsHitTestVisible="False" />
 
         <!-- ── Texte de chargement (masqué dès que la scène est prête) ──────── -->
         <TextBlock x:Name="txtLoading" Text="Chargement…" Foreground="White" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
