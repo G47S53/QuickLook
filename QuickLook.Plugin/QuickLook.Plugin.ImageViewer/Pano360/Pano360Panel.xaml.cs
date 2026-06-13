@@ -1432,6 +1432,125 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             e.Handled = true;
         }
         // ─────────────────────────────────────────────────────────────────────
+        // Barre de BOUTONS
+        // ─────────────────────────────────────────────────────────────────────
+        private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
+        {
+            _isMouseOverBarre = true;
+            UpdateBarreOpacity(); // Force la réapparition immédiate
+        }
+        private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
+        {
+            // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
+            _isMouseOverBarre = false;
+        }
+        private void UpdateBarreOpacity()
+        {
+            // Si la souris est physiquement au-dessus de la barre, on la force visible
+            if (_isMouseOverBarre)
+            {
+                if (_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    _isBarreMasquee = false;
+                }
+                return;
+            }
+
+            // Détermination si le panorama est considéré "en mouvement"
+            // 1. Soit la souris est enfoncée (drag)
+            // 2. Soit l'autorotation est active
+            // 3. Soit le dernier mouvement enregistré est plus récent que le délai d'inactivité
+            bool isActuellementEnMouvement = _isMouseDown ||
+                                             (_autoRotState != AutoRotationState.Off) ||
+                                             (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
+
+            if (isActuellementEnMouvement)
+            {
+                // Le panorama bouge : on applique le fondu transparent (FadeOut)
+                if (!_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    _isBarreMasquee = true;
+                }
+            }
+            else
+            {
+                // Le panorama est à l'arrêt complet depuis un moment : on réaffiche (FadeIn)
+                if (_isBarreMasquee)
+                {
+                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
+                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    _isBarreMasquee = false;
+                }
+            }
+        }
+        private void TxtFov_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                e.Handled = true;
+                MarquerMouvement();
+
+                _isBarreCompactee = !_isBarreCompactee;
+
+                // On active le ClipToBounds pour masquer proprement les boutons pendant qu'ils se font écraser
+                grpBarreGauche.ClipToBounds = true;
+                //grpBarreDroite.KeepInLayout = false; // Astuce facultative, gérée par le flux
+                grpBarreDroite.ClipToBounds = true;
+
+                // Détermination des dimensions de départ et d'arrivée
+                // Si on compacte, on part de la taille actuelle vers 0.
+                // Si on ouvre, on part de 0 vers 252 (la somme exacte de tes deux boutons de 120px + marges).
+                double maxGaucheStart = _isBarreCompactee ? grpBarreGauche.ActualWidth : 0;
+                double maxGaucheEnd = _isBarreCompactee ? 0 : 252;
+
+                double maxDroiteStart = _isBarreCompactee ? grpBarreDroite.ActualWidth : 0;
+                double maxDroiteEnd = _isBarreCompactee ? 0 : 252;
+
+                // Animation de l'opacité pour accompagner la glissière
+                double opaciteCible = _isBarreCompactee ? 0 : 1;
+
+                IEasingFunction fonctionDouce = new QuarticEase { EasingMode = EasingMode.EaseOut };
+                Duration dureeAnimation = new Duration(TimeSpan.FromMilliseconds(300));
+
+                // Création des animations de Largeur Maximale
+                DoubleAnimation animMaxGauche = new DoubleAnimation { From = maxGaucheStart, To = maxGaucheEnd, Duration = dureeAnimation, EasingFunction = fonctionDouce };
+                DoubleAnimation animMaxDroite = new DoubleAnimation { From = maxDroiteStart, To = maxDroiteEnd, Duration = dureeAnimation, EasingFunction = fonctionDouce };
+
+                DoubleAnimation animOpaciteG = new DoubleAnimation { To = opaciteCible, Duration = dureeAnimation };
+                DoubleAnimation animOpaciteD = new DoubleAnimation { To = opaciteCible, Duration = dureeAnimation };
+
+                // Libération des contraintes à la fin de l'ouverture pour garder l'adaptabilité du mode Auto
+                if (!_isBarreCompactee)
+                {
+                    animMaxGauche.Completed += (s, args) => {
+                        grpBarreGauche.BeginAnimation(StackPanel.MaxWidthProperty, null);
+                        grpBarreGauche.MaxWidth = 500; // Largeur max par défaut confortable
+                    };
+                    animMaxDroite.Completed += (s, args) => {
+                        grpBarreDroite.BeginAnimation(StackPanel.MaxWidthProperty, null);
+                        grpBarreDroite.MaxWidth = 500;
+                    };
+                }
+
+                // Exécution simultanée (un seul temps visuel)
+                grpBarreGauche.BeginAnimation(StackPanel.MaxWidthProperty, animMaxGauche);
+                grpBarreDroite.BeginAnimation(StackPanel.MaxWidthProperty, animMaxDroite);
+                grpBarreGauche.BeginAnimation(StackPanel.OpacityProperty, animOpaciteG);
+                grpBarreDroite.BeginAnimation(StackPanel.OpacityProperty, animOpaciteD);
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // BOUTONS panorama précedent / Suivant
+        // ─────────────────────────────────────────────────────────────────────
+        private void BtnBarrePrevPano_Click(object sender, RoutedEventArgs e)
+            => NavigateToAdjacentPano(-1);
+        private void BtnBarreNextPano_Click(object sender, RoutedEventArgs e)
+            => NavigateToAdjacentPano(+1);
+        // ─────────────────────────────────────────────────────────────────────
         // BOUTON AUTOROTATION
         // ─────────────────────────────────────────────────────────────────────
         private void BtnAutoRotate_Click(object sender, RoutedEventArgs e)
@@ -1552,119 +1671,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 }
             }
         }
-        // ─────────────────────────────────────────────────────────────────────
-        // Barre de BOUTONS
-        // ─────────────────────────────────────────────────────────────────────
-        private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
-        {
-            _isMouseOverBarre = true;
-            UpdateBarreOpacity(); // Force la réapparition immédiate
-        }
-        private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
-        {
-            // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
-            _isMouseOverBarre = false;
-        }
-        private void UpdateBarreOpacity()
-        {
-            // Si la souris est physiquement au-dessus de la barre, on la force visible
-            if (_isMouseOverBarre)
-            {
-                if (_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
-                    _isBarreMasquee = false;
-                }
-                return;
-            }
-
-            // Détermination si le panorama est considéré "en mouvement"
-            // 1. Soit la souris est enfoncée (drag)
-            // 2. Soit l'autorotation est active
-            // 3. Soit le dernier mouvement enregistré est plus récent que le délai d'inactivité
-            bool isActuellementEnMouvement = _isMouseDown ||
-                                             (_autoRotState != AutoRotationState.Off) ||
-                                             (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
-
-            if (isActuellementEnMouvement)
-            {
-                // Le panorama bouge : on applique le fondu transparent (FadeOut)
-                if (!_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
-                    _isBarreMasquee = true;
-                }
-            }
-            else
-            {
-                // Le panorama est à l'arrêt complet depuis un moment : on réaffiche (FadeIn)
-                if (_isBarreMasquee)
-                {
-                    (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
-                    (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
-                    _isBarreMasquee = false;
-                }
-            }
-        }
-        private void TxtFov_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (e.ClickCount == 2)
-            {
-                e.Handled = true;
-                MarquerMouvement();
-
-                _isBarreCompactee = !_isBarreCompactee;
-
-                // On active le ClipToBounds pour masquer proprement les boutons pendant qu'ils se font écraser
-                grpBarreGauche.ClipToBounds = true;
-                //grpBarreDroite.KeepInLayout = false; // Astuce facultative, gérée par le flux
-                grpBarreDroite.ClipToBounds = true;
-
-                // Détermination des dimensions de départ et d'arrivée
-                // Si on compacte, on part de la taille actuelle vers 0.
-                // Si on ouvre, on part de 0 vers 252 (la somme exacte de tes deux boutons de 120px + marges).
-                double maxGaucheStart = _isBarreCompactee ? grpBarreGauche.ActualWidth : 0;
-                double maxGaucheEnd = _isBarreCompactee ? 0 : 252;
-
-                double maxDroiteStart = _isBarreCompactee ? grpBarreDroite.ActualWidth : 0;
-                double maxDroiteEnd = _isBarreCompactee ? 0 : 252;
-
-                // Animation de l'opacité pour accompagner la glissière
-                double opaciteCible = _isBarreCompactee ? 0 : 1;
-
-                IEasingFunction fonctionDouce = new QuarticEase { EasingMode = EasingMode.EaseOut };
-                Duration dureeAnimation = new Duration(TimeSpan.FromMilliseconds(300));
-
-                // Création des animations de Largeur Maximale
-                DoubleAnimation animMaxGauche = new DoubleAnimation { From = maxGaucheStart, To = maxGaucheEnd, Duration = dureeAnimation, EasingFunction = fonctionDouce };
-                DoubleAnimation animMaxDroite = new DoubleAnimation { From = maxDroiteStart, To = maxDroiteEnd, Duration = dureeAnimation, EasingFunction = fonctionDouce };
-
-                DoubleAnimation animOpaciteG = new DoubleAnimation { To = opaciteCible, Duration = dureeAnimation };
-                DoubleAnimation animOpaciteD = new DoubleAnimation { To = opaciteCible, Duration = dureeAnimation };
-
-                // Libération des contraintes à la fin de l'ouverture pour garder l'adaptabilité du mode Auto
-                if (!_isBarreCompactee)
-                {
-                    animMaxGauche.Completed += (s, args) => {
-                        grpBarreGauche.BeginAnimation(StackPanel.MaxWidthProperty, null);
-                        grpBarreGauche.MaxWidth = 500; // Largeur max par défaut confortable
-                    };
-                    animMaxDroite.Completed += (s, args) => {
-                        grpBarreDroite.BeginAnimation(StackPanel.MaxWidthProperty, null);
-                        grpBarreDroite.MaxWidth = 500;
-                    };
-                }
-
-                // Exécution simultanée (un seul temps visuel)
-                grpBarreGauche.BeginAnimation(StackPanel.MaxWidthProperty, animMaxGauche);
-                grpBarreDroite.BeginAnimation(StackPanel.MaxWidthProperty, animMaxDroite);
-                grpBarreGauche.BeginAnimation(StackPanel.OpacityProperty, animOpaciteG);
-                grpBarreDroite.BeginAnimation(StackPanel.OpacityProperty, animOpaciteD);
-            }
-        }
-
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
