@@ -244,12 +244,7 @@
 
         <!-- ── Préférences ──────────────────────────────── -->
 
-        <Grid x:Name="gridPreferences" 
-              Visibility="Collapsed" 
-              Background="#33000000" 
-              Panel.ZIndex="1000"
-              MouseDown="GridPreferences_MouseDown" 
-              PreviewMouseWheel="GridPreferences_PreviewMouseWheel">
+        <Grid x:Name="gridPreferences" Visibility="Collapsed" Background="#33000000" Panel.ZIndex="1000" MouseDown="GridPreferences_MouseDown" PreviewMouseWheel="GridPreferences_PreviewMouseWheel">
 
             <Border Background="#FA1A1A1A" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1" Width="480" Height="640" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Grid Margin="20">

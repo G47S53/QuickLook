@@ -157,6 +157,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double ZoomSensitivity = 0.05;  // Pas extrêmement faible                     (début:0.01)
         private const double ZoomFreeSpeedXY = 1000;  // À monter si le zoom se bloque trop souvent (début:50)
 
+        //private bool _isPopupShownSpaceMouse = false;
+
         // ─────────────────────────────────────────────────────────────────────
         // > Raccourcis Clavier SpaceMouse — navigation vers angle cible
         // ─────────────────────────────────────────────────────────────────────
@@ -496,15 +498,39 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Partie rotation du panorama
             if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
             {
-                if (_autoRotState == AutoRotationState.Off && !_oneTurnActive)
-                {
-                    _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
-                }
+                // ToDo:Gestion des abus d'outils
+                //if (_isMouseDown)
+                //{
+                //    txtInfoPopup.Text = "Souris ou spacemouse, il faut choisir! 😉";
+                //    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                //    return;  // ⬅️ sortie immédiate de la méthode
+                //}
 
+                //if (_isMouseDown)
+                //{
+                //    if (!_isPopupShownSpaceMouse)
+                //    {
+                //        _isPopupShownSpaceMouse = true;
+                //        txtInfoPopup.Text = "Souris ou spacemouse, il faut choisir";
+                //        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                //    }
+                //    return;  // ⬅️ sortie immédiate de la méthode
+                //}
+                //else
+                //{
+                //    _isPopupShownSpaceMouse = false;
+                //}
+
+                //Gestion des abus d'outils (bis)
                 if (Math.Abs(spaceMouseSpeedY) > 500 && (_autoRotState != AutoRotationState.Off || _oneTurnActive))
                 {
                     txtInfoPopup.Text = "🕹️ Axe horizontal vérouillé dans ce mode";
                     (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                }
+
+                if (_autoRotState == AutoRotationState.Off && !_oneTurnActive)
+                {
+                    _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
                 }
 
                 ClampVertical(_verticalRotation.Angle + (spaceMouseSpeedX * elapsed * sensibiliteTangage));
@@ -1892,10 +1918,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (files.Count < 2) return;
 
                 // 1. La "Liste Blanche" des fichiers qui ont le droit de rester en RAM
-                var validPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            _currentPanoPath
-        };
+                var validPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { _currentPanoPath };
 
                 // Liste ordonnée des fichiers à charger (du plus proche au plus lointain)
                 var pathsToLoad = new List<string>();
@@ -1907,25 +1930,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     string prevPath = GetAdjacentPanoPath(-i, files);
 
                     // On ajoute le suivant (priorité 1)
-                    if (nextPath != null && validPaths.Add(nextPath))
-                        pathsToLoad.Add(nextPath);
-
+                    if (nextPath != null && validPaths.Add(nextPath)) pathsToLoad.Add(nextPath);
                     // On ajoute le précédent (priorité 2)
-                    if (prevPath != null && validPaths.Add(prevPath))
-                        pathsToLoad.Add(prevPath);
+                    if (prevPath != null && validPaths.Add(prevPath)) pathsToLoad.Add(prevPath);
                 }
 
                 // 2. Le Nettoyeur (Garbage Collector manuel)
                 // On supprime du dictionnaire tout ce qui n'est PAS dans la liste blanche
-                var keysToRemove = _imageCache.Keys
-                    .Where(k => !validPaths.Contains(k))
-                    .ToList();
-
+                var keysToRemove = _imageCache.Keys.Where(k => !validPaths.Contains(k)).ToList();
                 foreach (var k in keysToRemove)
                 {
                     _imageCache.Remove(k);
-                    System.Diagnostics.Debug.WriteLine($"[Cache] RAM libérée : {System.IO.Path.GetFileName(k)}");
                 }
+
+                // On met à jour l'UI juste après le nettoyage
+                UpdateCacheVisuals();
 
                 // 3. Le Chargeur
                 // On parcourt la liste ordonnée. Les fichiers +1 et -1 seront traités avant les +2 et -2.
@@ -1934,8 +1953,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     if (!_imageCache.ContainsKey(path))
                     {
                         await LoadImageToCacheAsync(path);
+
+                        // Appels Étape 2 : À chaque fois qu'UNE image a fini de charger,
+                        // l'UI se met à jour immédiatement sans attendre les autres !
+                        UpdateCacheVisuals();
                     }
                 }
+                // Rapport DEBUG de fin de préchargement
+                //LogCacheStatus();
             }
             finally
             {
@@ -1994,6 +2019,106 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
             return null;
         }
+        private void UpdateCacheVisuals()
+        {
+            // On s'assure d'être sur le thread UI pour toucher aux composants graphiques
+            Dispatcher.VerifyAccess();
+
+            var files = GetPanoFilesInFolder();
+            if (files == null || files.Count < 2) return;
+
+            int prevCachedCount = 0;
+            int nextCachedCount = 0;
+
+            // 1. On compte ce qui est réellement en cache actuellement
+            for (int i = 1; i <= _preloadHorizon; i++)
+            {
+                string nextPath = GetAdjacentPanoPath(i, files);
+                if (nextPath != null && _imageCache.ContainsKey(nextPath)) nextCachedCount++;
+
+                string prevPath = GetAdjacentPanoPath(-i, files);
+                if (prevPath != null && _imageCache.ContainsKey(prevPath)) prevCachedCount++;
+            }
+
+            // 2. On détermine les couleurs (Brushes) en fonction du compte
+            if (btnPrevPano != null) btnPrevPano.Foreground = GetBrushForCacheCount(prevCachedCount);
+            if (btnNextPano != null) btnNextPano.Foreground = GetBrushForCacheCount(nextCachedCount);
+
+            // En bonus, on garde un petit log en temps réel pour tes tests
+            System.Diagnostics.Debug.WriteLine($"[Cache UI] Précédents: {prevCachedCount} | Suivants: {nextCachedCount}");
+        }
+        private Brush GetBrushForCacheCount(int count)
+        {
+            //          Version plus simple ne prennant en compte que 3 états
+            //─────────────────────────────────────────────────────────────────────────────────
+            //private Brush GetBrushForCacheCount(int count)
+            //{
+            //    // Règle de correspondance des couleurs
+            //    if (count == 0) return Brushes.Black; // 0%
+            //    if (count == 1) return Brushes.Gray;  // 50% (si horizon = 2)
+            //    return Brushes.White;                 // 100% (2 fichiers ou plus)
+            //}
+            //─────────────────────────────────────────────────────────────────────────────────
+
+            if (_preloadHorizon <= 0) return Brushes.White;
+
+            // 1. Calcul du ratio de chargement (entre 0.0 et 1.0)
+            double ratio = (double)count / _preloadHorizon;
+
+            // Sécurité pour ne pas dépasser 100%
+            if (ratio > 1.0) ratio = 1.0;
+
+            // 2. Calcul de la valeur de gris (Inversion : 0% = 255 [Blanc], 100% = 0 [Noir])
+            byte grayValue = (byte)(255 * ratio);
+
+            // 3. Création du Brush avec le code RGB identique pour le R, G et B
+            var color = Color.FromRgb(grayValue, grayValue, grayValue);
+            var brush = new SolidColorBrush(color);
+
+            // ⚠️ TRÈS IMPORTANT EN WPF : On fige le pinceau (Freeze)
+            // Comme cette méthode est appelée souvent pendant le chargement, 
+            // l'allocation de nouveaux pinceaux non figés peut ralentir l'UI.
+            brush.Freeze();
+
+            return brush;
+        }
+        private void LogCacheStatus()
+        {
+            var files = GetPanoFilesInFolder();
+            if (files == null || files.Count < 2) return;
+
+            int nextCachedCount = 0;
+            int prevCachedCount = 0;
+
+            // On parcourt l'horizon pour compter les fichiers présents dans le cache
+            for (int i = 1; i <= _preloadHorizon; i++)
+            {
+                // Analyse des suivants (+i)
+                string nextPath = GetAdjacentPanoPath(i, files);
+                if (nextPath != null && _imageCache.ContainsKey(nextPath))
+                {
+                    nextCachedCount++;
+                }
+
+                // Analyse des précédents (-i)
+                string prevPath = GetAdjacentPanoPath(-i, files);
+                if (prevPath != null && _imageCache.ContainsKey(prevPath))
+                {
+                    prevCachedCount++;
+                }
+            }
+
+            bool isCurrentCached = _imageCache.ContainsKey(_currentPanoPath);
+
+            // Affichage dans la console de Debug de Visual Studio
+            System.Diagnostics.Debug.WriteLine(
+                $"[CACHE STATUS] Total en RAM : {_imageCache.Count} | " +
+                $"Pano Actuel en cache : {(isCurrentCached ? "Oui ✅" : "Non ❌")} | " +
+                $"Précédents (-1 à -{_preloadHorizon}) : {prevCachedCount} | " +
+                $"Suivants (+1 à +{_preloadHorizon}) : {nextCachedCount}"
+            );
+        }
+
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
