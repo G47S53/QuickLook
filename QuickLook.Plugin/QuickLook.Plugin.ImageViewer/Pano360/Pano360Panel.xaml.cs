@@ -1055,15 +1055,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     switch (keyCode)
                     {
                         case 9:
-                            //
-                            txtInfoPopup.Text = "◀ Panorama précédent";
-                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                            NavigateToAdjacentPano(-1);
+                            _ = ShowMessageAndNavigateAsync(-1);
+
                             break;
                         case 3:
-                            txtInfoPopup.Text = "Chargement Panorama suivant ▶";
-                            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                            NavigateToAdjacentPano(+1);
+                            _ = ShowMessageAndNavigateAsync(+1);
                             break;
                         case 6:
                             txtInfoPopup.Text = $"Rotation - {_camera.FieldOfView:F0}°";
@@ -1806,6 +1802,47 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Reflection.BindingFlags.NonPublic);
 
             method?.Invoke(window, null);
+        }
+        private async Task ShowMessageAndNavigateAsync(int direction)
+        {
+            txtInfoPopup.Text = direction > 0
+                ? "Panorama suivant ▶"
+                : "◀ Panorama précédent";
+
+            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+
+            await Task.Delay(350);
+
+            NavigateToAdjacentPano(direction);
+        }
+        private void ShowPopupThen(string message, Action action)
+        {
+            // Alternative (non utilisée pour afficher un message pour le changement de panorama (par exemple)
+            // Il faudra alors utiliser par exemple :
+            // ShowPopupThen("Panorama suivant ▶", () => NavigateToAdjacentPano(+1));
+            // ou
+            // ShowPopupThen("◀ Panorama précédent", () => NavigateToAdjacentPano(-1));
+
+            txtInfoPopup.Text = message;
+
+            var sb = infoPopup.Resources["StoryboardShowInfoUltraRapide"] as Storyboard;
+
+            if (sb == null)
+            {
+                action();
+                return;
+            }
+
+            void Handler(object sender, EventArgs e)
+            {
+                sb.Completed -= Handler;
+                action();
+            }
+
+            sb.Completed += Handler;
+            sb.Begin(infoPopup);
         }
         // ─────────────────────────────────────────────────────────────────────
         // NAVIGATION entre panoramas du dossier courant

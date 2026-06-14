@@ -469,6 +469,12 @@
                         <LinearDoubleKeyFrame KeyTime="0:0:1.0" Value="0" />
                     </DoubleAnimationUsingKeyFrames>
                 </Storyboard>
+                <Storyboard x:Key="StoryboardShowInfoUltraRapide">
+                    <DoubleAnimationUsingKeyFrames Storyboard.Target="{Binding Source={x:Reference infoPopup}}" Storyboard.TargetProperty="Opacity">
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.2" Value="0.7" />
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.6" Value="0" />
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
             </Border.Resources>
         </Border>
     </Grid>
