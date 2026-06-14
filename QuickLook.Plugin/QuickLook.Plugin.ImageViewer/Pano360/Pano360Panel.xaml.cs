@@ -864,7 +864,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (_context != null) _context.BlocageShowCaption = true;
 
-            if (e.MiddleButton == MouseButtonState.Pressed)
+            if (e.MiddleButton == MouseButtonState.Pressed && !_OptionOpen)
             {
                 e.Handled = true;
                 Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(this)?.Close()));
@@ -1718,160 +1718,15 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
         }
         // ─────────────────────────────────────────────────────────────────────
-        // Helpers
-        // ─────────────────────────────────────────────────────────────────────
-        private static double Clamp(double value, double min, double max)
-            // Contraint une valeur entre un minimum et un maximum.
-            => value < min ? min : value > max ? max : value;
-        private void ClampVertical(double newAngle)
-            // Applique la contrainte verticale à l'angle de la caméra.
-            => _verticalRotation.Angle = Clamp(newAngle, VerticalAngleMin, VerticalAngleMax);
-        private static double NormalizeAngle(double angle)
-        {
-            // Ramène un angle dans [0, 360[
-            angle %= 360.0;
-            return angle < 0 ? angle + 360.0 : angle;
-        }
-        private static double AngleDiff(double target, double current)
-        {
-            // Retourne la différence signée la plus courte entre deux angles ([-180, +180])
-            double diff = (target - current + 540.0) % 360.0 - 180.0;
-            return diff;
-        }
-        private double ComputeAutoCloseTimeRemaining()
-        {
-            // ─────────────────────────────────────────────────────────────────────
-            // Calcul du temps restant avant AutoClose (3 phases)
-            // ─────────────────────────────────────────────────────────────────────
-
-            double vMax = 0;
-            if (_autoRotState == AutoRotationState.Lent) vMax = 360.0 / AutoRotateSlowSeconds;
-            else if (_autoRotState == AutoRotationState.Normal) vMax = 360.0 / AutoRotateNormalSeconds;
-            else if (_autoRotState == AutoRotationState.Rapide) vMax = 360.0 / AutoRotateFastSeconds;
-
-            if (vMax <= 0) return 0;
-
-            // ── Phase de freinage final : on ne se base plus sur la géométrie ──
-            // On estime directement depuis la vitesse instantanée qui décroît
-            if (_isAutoClosingPhase)
-            {
-                double v0 = Math.Max(_currentRotationSpeed, 0);
-                double decelEff = _isMouseInertia
-                    ? DecelerationRate + 0.02 * v0 * v0 * 0.33
-                    : DecelerationRate;
-
-                // t = v / a  (freinage linéaire depuis la vitesse courante)
-                return decelEff > 0 ? v0 / decelEff : 0;
-            }
-
-            // ── Phases normales : accélération résiduelle + croisière + freinage futur ──
-            double v_current = _currentRotationSpeed;
-
-            // Phase 1 — accélération résiduelle
-            double tAccel = 0, θAccel = 0;
-            if (v_current < vMax)
-            {
-                tAccel = (vMax - v_current) / AccelerationRate;
-                θAccel = (vMax * vMax - v_current * v_current) / (2.0 * AccelerationRate);
-            }
-
-            // Phase 3 — décélération future (calculée à vMax, pas encore commencée)
-            double decelEffFuture = _isMouseInertia
-                ? DecelerationRate + 0.02 * vMax * vMax * 0.33
-                : DecelerationRate;
-            double tDecel = vMax / decelEffFuture;
-            double θDecel = vMax * tDecel / 2.0;
-
-            // Phase 2 — croisière
-            double angleParcouru = (_horizontalRotation.Angle - _autoCloseStartAngle + 360.0) % 360.0;
-            double angleRestantTotal = 360.0 - angleParcouru;
-            double θConstante = angleRestantTotal - θAccel - θDecel;
-            double tConstante = θConstante > 0 ? θConstante / vMax : 0;
-
-            return tAccel + tConstante + tDecel;
-        }
-        private void ToggleFullscreen()
-        {
-            var window = Window.GetWindow(this);
-            if (window == null) return;
-
-            var method = window.GetType().GetMethod(
-                "ToggleFullscreen",
-                System.Reflection.BindingFlags.Instance |
-                System.Reflection.BindingFlags.Public |
-                System.Reflection.BindingFlags.NonPublic);
-
-            method?.Invoke(window, null);
-        }
-        private async Task ShowMessageAndNavigateAsync(int direction)
-        {
-            txtInfoPopup.Text = direction > 0
-                ? "Panorama suivant ▶"
-                : "◀ Panorama précédent";
-
-            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-
-            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
-
-            await Task.Delay(350);
-
-            NavigateToAdjacentPano(direction);
-        }
-        private void ShowPopupThen(string message, Action action)
-        {
-            // Alternative (non utilisée pour afficher un message pour le changement de panorama (par exemple)
-            // Il faudra alors utiliser par exemple :
-            // ShowPopupThen("Panorama suivant ▶", () => NavigateToAdjacentPano(+1));
-            // ou
-            // ShowPopupThen("◀ Panorama précédent", () => NavigateToAdjacentPano(-1));
-
-            txtInfoPopup.Text = message;
-
-            var sb = infoPopup.Resources["StoryboardShowInfoUltraRapide"] as Storyboard;
-
-            if (sb == null)
-            {
-                action();
-                return;
-            }
-
-            void Handler(object sender, EventArgs e)
-            {
-                sb.Completed -= Handler;
-                action();
-            }
-
-            sb.Completed += Handler;
-            sb.Begin(infoPopup);
-        }
-        // ─────────────────────────────────────────────────────────────────────
         // NAVIGATION entre panoramas du dossier courant
         // ─────────────────────────────────────────────────────────────────────
         private static readonly HashSet<string> _imageExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             // Retourne la liste triée des fichiers image du même dossier que le panorama courant.
-            // Seules les extensions reconnues par le plugin ImageViewer sont conservées.
-            ".apng", ".ari", ".arw", ".avif", ".ani",
-            ".bay", ".bmp",
-            ".cap", ".cr2", ".cr3", ".crw", ".cur", ".clip",
-            ".dcr", ".dcs", ".dds", ".dng", ".drf", ".dcm", ".dicom",
-            ".eip", ".emf", ".erf", ".exr",
-            ".fff",
-            ".gif",
-            ".hdr", ".heic", ".heif",
-            ".ico", ".icon", ".icns", ".iiq",
-            ".jfif", ".jp2", ".jpeg", ".jpg", ".jxl", ".j2k", ".jpf", ".jpx", ".jpm", ".jxr",
-            ".k25", ".kdc",
-            ".mdc", ".mef", ".mos", ".mrw", ".mj2", ".miff",
-            ".nef", ".nrw",
-            ".obm", ".orf",
-            ".pbm", ".pcx", ".pef", ".pgm", ".png", ".pnm", ".ppm", ".psb", ".psd", ".ptx", ".pxn",
-            ".qoi",
-            ".r3d", ".raf", ".raw", ".rw2", ".rwl", ".rwz",
-            ".sr2", ".srf", ".srw", ".svg", ".svgz",
-            ".tga", ".tif", ".tiff",
-            ".wdp", ".webp", ".wmf",
-            ".x3f", ".xcf", ".xbm", ".xpm",
+            // Seules les extensions reconnues sont conservées.
+            ".jpeg", ".jpg",
+            ".tif", ".tiff",
+            ".webp"
         };
         private List<string> GetPanoFilesInFolder()
         {
@@ -2028,7 +1883,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 await PreloadImagesAsync();
             }
         }
-
         private async Task PreloadImagesAsync()
         {
             _isPreloading = true;
@@ -2088,7 +1942,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _isPreloading = false;
             }
         }
-
         private async Task LoadImageToCacheAsync(string path)
         {
             try
@@ -2116,7 +1969,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // Si le fichier est illisible ou corrompu, on l'ignore silencieusement
             }
         }
-
         private string GetAdjacentPanoPath(int direction, List<string> files)
         {
             // C'est une déclinaison muette de NavigateToAdjacentPano, sans la navigation
@@ -2142,7 +1994,137 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
             return null;
         }
+        // ─────────────────────────────────────────────────────────────────────
+        // Helpers
+        // ─────────────────────────────────────────────────────────────────────
+        // ────────────────────────── Math ─────────────────────────────────────
+        private static double Clamp(double value, double min, double max)
+            // Contraint une valeur entre un minimum et un maximum.
+            => value < min ? min : value > max ? max : value;
+        private void ClampVertical(double newAngle)
+            // Applique la contrainte verticale à l'angle de la caméra.
+            => _verticalRotation.Angle = Clamp(newAngle, VerticalAngleMin, VerticalAngleMax);
+        private static double NormalizeAngle(double angle)
+        {
+            // Ramène un angle dans [0, 360[
+            angle %= 360.0;
+            return angle < 0 ? angle + 360.0 : angle;
+        }
+        private static double AngleDiff(double target, double current)
+        {
+            // Retourne la différence signée la plus courte entre deux angles ([-180, +180])
+            double diff = (target - current + 540.0) % 360.0 - 180.0;
+            return diff;
+        }
+        private double ComputeAutoCloseTimeRemaining()
+        {
+            // ─────────────────────────────────────────────────────────────────────
+            // Calcul du temps restant avant AutoClose (3 phases)
+            // ─────────────────────────────────────────────────────────────────────
 
+            double vMax = 0;
+            if (_autoRotState == AutoRotationState.Lent) vMax = 360.0 / AutoRotateSlowSeconds;
+            else if (_autoRotState == AutoRotationState.Normal) vMax = 360.0 / AutoRotateNormalSeconds;
+            else if (_autoRotState == AutoRotationState.Rapide) vMax = 360.0 / AutoRotateFastSeconds;
+
+            if (vMax <= 0) return 0;
+
+            // ── Phase de freinage final : on ne se base plus sur la géométrie ──
+            // On estime directement depuis la vitesse instantanée qui décroît
+            if (_isAutoClosingPhase)
+            {
+                double v0 = Math.Max(_currentRotationSpeed, 0);
+                double decelEff = _isMouseInertia
+                    ? DecelerationRate + 0.02 * v0 * v0 * 0.33
+                    : DecelerationRate;
+
+                // t = v / a  (freinage linéaire depuis la vitesse courante)
+                return decelEff > 0 ? v0 / decelEff : 0;
+            }
+
+            // ── Phases normales : accélération résiduelle + croisière + freinage futur ──
+            double v_current = _currentRotationSpeed;
+
+            // Phase 1 — accélération résiduelle
+            double tAccel = 0, θAccel = 0;
+            if (v_current < vMax)
+            {
+                tAccel = (vMax - v_current) / AccelerationRate;
+                θAccel = (vMax * vMax - v_current * v_current) / (2.0 * AccelerationRate);
+            }
+
+            // Phase 3 — décélération future (calculée à vMax, pas encore commencée)
+            double decelEffFuture = _isMouseInertia
+                ? DecelerationRate + 0.02 * vMax * vMax * 0.33
+                : DecelerationRate;
+            double tDecel = vMax / decelEffFuture;
+            double θDecel = vMax * tDecel / 2.0;
+
+            // Phase 2 — croisière
+            double angleParcouru = (_horizontalRotation.Angle - _autoCloseStartAngle + 360.0) % 360.0;
+            double angleRestantTotal = 360.0 - angleParcouru;
+            double θConstante = angleRestantTotal - θAccel - θDecel;
+            double tConstante = θConstante > 0 ? θConstante / vMax : 0;
+
+            return tAccel + tConstante + tDecel;
+        }
+        // ──────────────────────── Affichage ──────────────────────────────────
+        private void ToggleFullscreen()
+        {
+            if (_OptionOpen) return;
+
+            var window = Window.GetWindow(this);
+            if (window == null) return;
+
+            var method = window.GetType().GetMethod(
+                "ToggleFullscreen",
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic);
+
+            method?.Invoke(window, null);
+        }
+        private async Task ShowMessageAndNavigateAsync(int direction)
+        {
+            txtInfoPopup.Text = direction > 0
+                ? "Panorama suivant ▶"
+                : "◀ Panorama précédent";
+
+            (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Render);
+
+            await Task.Delay(350);
+
+            NavigateToAdjacentPano(direction);
+        }
+        private void ShowPopupThen(string message, Action action)
+        {
+            // Alternative (non utilisée pour afficher un message pour le changement de panorama (par exemple)
+            // Il faudra alors utiliser par exemple :
+            // ShowPopupThen("Panorama suivant ▶", () => NavigateToAdjacentPano(+1));
+            // ou
+            // ShowPopupThen("◀ Panorama précédent", () => NavigateToAdjacentPano(-1));
+
+            txtInfoPopup.Text = message;
+
+            var sb = infoPopup.Resources["StoryboardShowInfoUltraRapide"] as Storyboard;
+
+            if (sb == null)
+            {
+                action();
+                return;
+            }
+
+            void Handler(object sender, EventArgs e)
+            {
+                sb.Completed -= Handler;
+                action();
+            }
+
+            sb.Completed += Handler;
+            sb.Begin(infoPopup);
+        }
         // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources
         // ─────────────────────────────────────────────────────────────────────
