@@ -50,6 +50,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _isNavigating = false;       // Verrou anti double-clic
 
         // ─────────────────────────────────────────────────────────────────────
+        // > Préchargement (Cache)
+        // ─────────────────────────────────────────────────────────────────────
+        private readonly Dictionary<string, BitmapImage> _imageCache = new Dictionary<string, BitmapImage>(StringComparer.OrdinalIgnoreCase);
+        private bool _isPreloading = false;
+        private System.Windows.Threading.DispatcherTimer _idleTimer;
+
+        // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
         // ─────────────────────────────────────────────────────────────────────
         // Attention d'autres options sont aussi dispo dans la section "Mode Tour Unique de démarrage avec accélération/décélération"
@@ -222,44 +229,45 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         public Pano360Panel(QuickLook.Common.Plugin.ContextObject context, string imagePath)
         {
-            // ── Forcer la priorité haute pour éliminer les micro-saccades Windows ──
+            // ── 0. Optimisation système ──
             try
             {
                 using var currentProcess = System.Diagnostics.Process.GetCurrentProcess();
-                // On passe en priorité haute pour garantir la synchronisation thread UI / Render
                 currentProcess.PriorityClass = System.Diagnostics.ProcessPriorityClass.High;
             }
-            catch
-            {
-                // Sécurité au cas où Windows refuserait le changement de priorité
-            }
+            catch { }
 
+            // ── 1. Construction de l'interface XAML (Obligatoire en premier) ──
             InitializeComponent();
+
+            // ── 2. Variables de base ──
             _context = context;
             _imagePath = imagePath;
+            _currentPanoPath = imagePath;
 
-            _currentPanoPath = imagePath;   // ← initialise le chemin actif de navigation
+            // ── 3. Paramètres et état initial ──
+            Mouse.OverrideCursor = null;
+            MajEtatAutoClose();
+            LoadSettings();
 
-            // Initialisation de la scène 3D dès que le contrôle est chargé
+            // ── 4. Abonnements aux événements différés (Au moment de l'affichage) ──
             Loaded += (s, e) =>
             {
+                // Initialisation de la scène
                 InitScene();
+
                 var window = Window.GetWindow(this);
                 if (window != null)
                     window.PreviewKeyDown += OnWindowKeyDown;
+
+                // Démarrage du chronomètre de préchargement une fois que tout est prêt
+                _idleTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+                _idleTimer.Tick += OnIdleTimerTick;
+                _idleTimer.Start();
             };
+
             Unloaded += (s, e) => Dispose();
-
-            // Clic droit → bascule plein écran
             MouseRightButtonUp += (s, e) => ToggleFullscreen();
-
-            Mouse.OverrideCursor = null;
-
-            // AutoClose désactivé par défaut au démarrage
-            MajEtatAutoClose();
-
-            // Charger et appliquer les options utilisateurs
-            LoadSettings();
         }
         // ─────────────────────────────────────────────────────────────────────
         // Scène 3D
@@ -374,30 +382,42 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // Chargement de la texture panoramique
         // ─────────────────────────────────────────────────────────────────────
-        private static Material CreatePanoramaMaterial(string imagePath)
+        private Material CreatePanoramaMaterial(string imagePath)
         {
-            var image = new BitmapImage();
-            try
+            ImageSource imageSource;
+
+            if (_imageCache.TryGetValue(imagePath, out var cachedImg))
             {
-                image.BeginInit();
-                image.UriSource = new Uri(imagePath, UriKind.Absolute);
-                image.CacheOption = BitmapCacheOption.OnLoad;
-                image.EndInit();
+                // Cache Hit : le fichier a été préchargé en fond !
+                imageSource = cachedImg;
+                System.Diagnostics.Debug.WriteLine($"[Cache] HIT pour : {System.IO.Path.GetFileName(imagePath)}");
             }
-            catch (Exception ex)
+            else
             {
-                MessageBox.Show("Erreur chargement image 360° : " + ex.Message);
-                return new DiffuseMaterial(new SolidColorBrush(Colors.DimGray));
+                // Cache Miss : Chargement classique de secours
+                var image = new BitmapImage();
+                try
+                {
+                    image.BeginInit();
+                    image.UriSource = new Uri(imagePath, UriKind.Absolute);
+                    image.CacheOption = BitmapCacheOption.OnLoad;
+                    image.EndInit();
+                    imageSource = image;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Erreur chargement image 360° : " + ex.Message);
+                    return new DiffuseMaterial(new SolidColorBrush(Colors.DimGray));
+                }
             }
 
-            var brush = new ImageBrush(image)
+            var brush = new ImageBrush(imageSource)
             {
                 ViewportUnits = BrushMappingMode.RelativeToBoundingBox,
                 TileMode = TileMode.FlipX,
                 Stretch = Stretch.Fill
             };
 
-            // Force un filtrage fluide et matériel de la texture (dernière modifi de gemini, peut-etre pas utile)
             RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.Linear);
 
             return new DiffuseMaterial(brush);
@@ -1954,17 +1974,148 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             btnAutoRotate.IsEnabled = false;
         }
         // ─────────────────────────────────────────────────────────────────────
+        // Logique de détection d'inactivité et de préchargement
+        // ─────────────────────────────────────────────────────────────────────
+        private async void OnIdleTimerTick(object sender, EventArgs e)
+        {
+            // Vérification stricte : aucun mouvement utilisateur, aucun mode auto, et vitesse à zéro
+            bool isIdle = !_isMouseDown &&
+                          _autoRotState == AutoRotationState.Off &&
+                          !_oneTurnActive &&
+                          Math.Abs(_currentRotationSpeed) < 0.01 &&
+                          (DateTime.Now - _lastMovementTime).TotalSeconds > 1.0; // 1 seconde de répit confirmée
+
+            if (isIdle && !_isPreloading)
+            {
+                await PreloadImagesAsync();
+            }
+        }
+
+        private async Task PreloadImagesAsync()
+        {
+            _isPreloading = true;
+            try
+            {
+                var files = GetPanoFilesInFolder();
+                if (files.Count < 2) return;
+
+                // Récupération sécurisée des chemins cible
+                string nextPath = GetAdjacentPanoPath(1, files);
+                string prevPath = GetAdjacentPanoPath(-1, files);
+
+                // Nettoyage de la RAM : on retire du dictionnaire tout ce qui n'est ni le pano actuel, ni le +1, ni le -1
+                var keysToRemove = _imageCache.Keys
+                    .Where(k => k != _currentPanoPath && k != nextPath && k != prevPath)
+                    .ToList();
+                foreach (var k in keysToRemove)
+                {
+                    _imageCache.Remove(k);
+                }
+
+                // 1. Chargement en priorité du panorama +1
+                if (!string.IsNullOrEmpty(nextPath) && !_imageCache.ContainsKey(nextPath))
+                {
+                    await LoadImageToCacheAsync(nextPath);
+                }
+
+                // 2. Puis du panorama -1
+                if (!string.IsNullOrEmpty(prevPath) && !_imageCache.ContainsKey(prevPath))
+                {
+                    await LoadImageToCacheAsync(prevPath);
+                }
+            }
+            finally
+            {
+                _isPreloading = false;
+            }
+        }
+
+        private async Task LoadImageToCacheAsync(string path)
+        {
+            try
+            {
+                // Le décodage lourd se fait sur un Thread du ThreadPool pour ne pas bloquer l'UI
+                var bmp = await Task.Run(() =>
+                {
+                    var image = new BitmapImage();
+                    image.BeginInit();
+                    image.UriSource = new Uri(path, UriKind.Absolute);
+                    image.CacheOption = BitmapCacheOption.OnLoad; // Oblige la lecture du fichier immédiatement
+                    image.EndInit();
+
+                    // CRUCIAL : "Gèle" l'image pour la rendre thread-safe et accessible à l'UI
+                    image.Freeze();
+                    return image;
+                });
+
+                // De retour sur le thread UI, on injecte l'image prête à l'emploi
+                _imageCache[path] = bmp;
+                System.Diagnostics.Debug.WriteLine($"[Cache] Préchargé : {System.IO.Path.GetFileName(path)}");
+            }
+            catch
+            {
+                // Si le fichier est illisible ou corrompu, on l'ignore silencieusement
+            }
+        }
+
+        private string GetAdjacentPanoPath(int direction, List<string> files)
+        {
+            // C'est une déclinaison muette de NavigateToAdjacentPano, sans la navigation
+            int currentIndex = files.FindIndex(f => string.Equals(f, _currentPanoPath, StringComparison.OrdinalIgnoreCase));
+            if (currentIndex < 0) return null;
+
+            int tested = 0;
+            int candidate = currentIndex;
+
+            while (tested < files.Count - 1)
+            {
+                candidate = (candidate + direction + files.Count) % files.Count;
+                tested++;
+                string candidatePath = files[candidate];
+
+                try
+                {
+                    MetaProvider meta = new MetaProvider(candidatePath);
+                    if (EquirectangularDetector.IsEquirectangular(meta))
+                        return candidatePath;
+                }
+                catch { continue; }
+            }
+            return null;
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources
         // ─────────────────────────────────────────────────────────────────────
         public void Dispose()
         {
+            // 1. ARRÊTER LES PROCESSUS ACTIFS ET ÉVÉNEMENTS GLOBAUX
+            // On coupe la boucle de rendu en priorité pour geler l'affichage
+            CompositionTarget.Rendering -= OnRendering;
+
+            // On arrête le timer de préchargement pour éviter qu'il ne se lance pendant la destruction
+            if (_idleTimer != null)
+            {
+                _idleTimer.Stop();
+                _idleTimer.Tick -= OnIdleTimerTick;
+            }
+
+            // On se désabonne des événements de la fenêtre parente
             var window = Window.GetWindow(this);
             if (window != null)
+            {
                 window.PreviewKeyDown -= OnWindowKeyDown;
+            }
 
-            CompositionTarget.Rendering -= OnRendering;
-            DeconnecterSpaceMouse();  // Coupe la connexion proprement
+            // 2. DÉCONNECTER LE MATÉRIEL
+            // Libération des ressources de la souris 3D (COM/USB)
+            DeconnecterSpaceMouse();
 
+            // 3. NETTOYER LES DONNÉES LOURDES ET L'INTERFACE
+            // On vide la RAM utilisée par les images préchargées
+            _imageCache?.Clear();
+
+            // Enfin, on vide la scène 3D
             viewport3D.Children.Clear();
         }
     }
