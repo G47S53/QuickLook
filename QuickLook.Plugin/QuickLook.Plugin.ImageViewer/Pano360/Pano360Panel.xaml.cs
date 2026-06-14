@@ -55,6 +55,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private readonly Dictionary<string, BitmapImage> _imageCache = new Dictionary<string, BitmapImage>(StringComparer.OrdinalIgnoreCase);
         private bool _isPreloading = false;
         private System.Windows.Threading.DispatcherTimer _idleTimer;
+        private int _preloadHorizon = 2; // Nombres d'images adjacentes préchargés (1 = 3 images, 2 = 5 images, etc.)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
@@ -1999,29 +2000,50 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 var files = GetPanoFilesInFolder();
                 if (files.Count < 2) return;
 
-                // Récupération sécurisée des chemins cible
-                string nextPath = GetAdjacentPanoPath(1, files);
-                string prevPath = GetAdjacentPanoPath(-1, files);
+                // 1. La "Liste Blanche" des fichiers qui ont le droit de rester en RAM
+                var validPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            _currentPanoPath
+        };
 
-                // Nettoyage de la RAM : on retire du dictionnaire tout ce qui n'est ni le pano actuel, ni le +1, ni le -1
+                // Liste ordonnée des fichiers à charger (du plus proche au plus lointain)
+                var pathsToLoad = new List<string>();
+
+                // On balaie l'horizon dynamiquement
+                for (int i = 1; i <= _preloadHorizon; i++)
+                {
+                    string nextPath = GetAdjacentPanoPath(i, files);
+                    string prevPath = GetAdjacentPanoPath(-i, files);
+
+                    // On ajoute le suivant (priorité 1)
+                    if (nextPath != null && validPaths.Add(nextPath))
+                        pathsToLoad.Add(nextPath);
+
+                    // On ajoute le précédent (priorité 2)
+                    if (prevPath != null && validPaths.Add(prevPath))
+                        pathsToLoad.Add(prevPath);
+                }
+
+                // 2. Le Nettoyeur (Garbage Collector manuel)
+                // On supprime du dictionnaire tout ce qui n'est PAS dans la liste blanche
                 var keysToRemove = _imageCache.Keys
-                    .Where(k => k != _currentPanoPath && k != nextPath && k != prevPath)
+                    .Where(k => !validPaths.Contains(k))
                     .ToList();
+
                 foreach (var k in keysToRemove)
                 {
                     _imageCache.Remove(k);
+                    System.Diagnostics.Debug.WriteLine($"[Cache] RAM libérée : {System.IO.Path.GetFileName(k)}");
                 }
 
-                // 1. Chargement en priorité du panorama +1
-                if (!string.IsNullOrEmpty(nextPath) && !_imageCache.ContainsKey(nextPath))
+                // 3. Le Chargeur
+                // On parcourt la liste ordonnée. Les fichiers +1 et -1 seront traités avant les +2 et -2.
+                foreach (var path in pathsToLoad)
                 {
-                    await LoadImageToCacheAsync(nextPath);
-                }
-
-                // 2. Puis du panorama -1
-                if (!string.IsNullOrEmpty(prevPath) && !_imageCache.ContainsKey(prevPath))
-                {
-                    await LoadImageToCacheAsync(prevPath);
+                    if (!_imageCache.ContainsKey(path))
+                    {
+                        await LoadImageToCacheAsync(path);
+                    }
                 }
             }
             finally
