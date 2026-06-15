@@ -210,7 +210,7 @@
                             </Button>
                             <!-- ── Bouton AUTOCLOSE ──────────────────────────────── -->
                             <Button x:Name="btnAutoClose" Width="120" Padding="8,4" Margin="6,0,0,0" Foreground="White" Cursor="Hand" Click="BtnAutoClose_Click">
-                                <TextBlock x:Name="txtAutoClose" Text="AutoClose: Off" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="txtAutoClose" Text="1 tour + ✖️📷 ▶️" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                 <Button.Style>
                                     <Style TargetType="Button">
                                         <Setter Property="Template">
