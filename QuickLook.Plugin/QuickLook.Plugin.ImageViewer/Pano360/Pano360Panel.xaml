@@ -185,13 +185,13 @@
                         <!-- ── Barre de droite ───────────────────────────────── -->
                         <StackPanel x:Name="grpBarreDroite" Orientation="Horizontal" VerticalAlignment="Center" MaxWidth="500">
                             <!-- ── Bouton AUTOROTATION ───────────────────────────── -->
-                            <Button x:Name="btnAutoRotate" Content="Rotation auto." Width="120" Padding="8,4" Margin="6,0,0,0" Foreground="White" Cursor="Hand" Click="BtnAutoRotate_Click">
+                            <Button x:Name="btnAutoRotate" Background="Transparent" Content="Rotation auto." Width="120" Padding="8,4" Margin="6,0,0,0" Foreground="White" Cursor="Hand" Click="BtnAutoRotate_Click">
                                 <Button.Style>
                                     <Style TargetType="Button">
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
                                                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Border>
                                                     <ControlTemplate.Triggers>
@@ -209,14 +209,14 @@
                                 </Button.Style>
                             </Button>
                             <!-- ── Bouton AUTOCLOSE ──────────────────────────────── -->
-                            <Button x:Name="btnAutoClose" Width="120" Padding="8,4" Margin="6,0,0,0" Foreground="White" Cursor="Hand" Click="BtnAutoClose_Click">
-                                <TextBlock x:Name="txtAutoClose" Text="1 tour + ✖️📷 ▶️" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            <Button x:Name="btnAutoClose" Background="Transparent" Width="120" Padding="8,4" Margin="6,0,0,0" Foreground="White" Cursor="Hand" Click="BtnAutoClose_Click">
+                                <TextBlock x:Name="txtAutoClose" Text="1 tour + ... : Off" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                 <Button.Style>
                                     <Style TargetType="Button">
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
                                                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                     </Border>
                                                     <ControlTemplate.Triggers>

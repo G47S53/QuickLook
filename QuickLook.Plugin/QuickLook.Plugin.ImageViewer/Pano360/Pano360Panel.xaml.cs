@@ -28,6 +28,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
+using System.Windows.Navigation;
 using TDxInput;
 using Media3D = System.Windows.Media.Media3D;
 
@@ -607,6 +608,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     _StartOneTurnNext = false;
                     _autoCloseActive = false;
                     btnAutoRotate.Content = "Rotation auto.";
+                    btnAutoRotate.Background = Brushes.Transparent;
                     btnAutoRotate.IsEnabled = true;
                     _isPopupShown = false;
                     MajEtatAutoClose();
@@ -932,6 +934,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 _autoRotState = AutoRotationState.Off;
                 btnAutoRotate.Content = "Rotation auto.";
+                btnAutoRotate.Background = Brushes.Transparent;
                 MajEtatAutoClose();
             }
 
@@ -947,7 +950,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             Mouse.OverrideCursor = null;
 
-            //if (_context != null) _context.BlocageShowCaption = false;
+            //permet de réafficher la barre haute lorqu'on relache le clic de la souris
+            if (_context != null) _context.BlocageShowCaption = false;
 
             _isMouseDown = false;
             Mouse.Capture(null);
@@ -1303,16 +1307,22 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                     case 1:
                                         _autoRotState = AutoRotationState.Lent;
                                         btnAutoRotate.Content = "🐢 Lent";
+                                        btnAutoRotate.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                                         break;
                                     case 2:
                                         _autoRotState = AutoRotationState.Normal;
                                         btnAutoRotate.Content = "▶️ Normal";
+                                        btnAutoRotate.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                                         break;
                                     case 3:
                                         _autoRotState = AutoRotationState.Rapide;
                                         btnAutoRotate.Content = "▶️▶️ Rapide";
+                                        btnAutoRotate.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                                         break;
                                 }
+                                //_autoCloseActive = true;
+                                btnAutoClose.IsEnabled = true;
+                                txtAutoClose.Opacity = 1.0;
                                 AfficheEtatAutoRotation();
                             }
 
@@ -1338,17 +1348,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                     : "Rotation 1 tour + fermeture";
 
                                 (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                               
-                                // Bouton Autoclose : activation et mise à jour de l'affichage
-                                _autoCloseActive = true;
-                                txtAutoClose.Opacity = 1.0;
-                                txtAutoClose.Text = _StartOneTurnNext ? "AutoNext: On" : "AutoClose: On";
-                                txtAutoClose.TextDecorations = null;                           // Pas barré
-                                panelAutoCloseProgress.Visibility = Visibility.Visible;        // 🟢 Visible si AutoClose Actif
 
                                 // Affiche un texte différent sur le bouton RotationAuto
-                                btnAutoRotate.Content = _StartOneTurnNext ? "Mode 1 💫+📷" : "Mode 1 💫+✖️";
+                                btnAutoRotate.Content = "Rotation auto.";
+                                btnAutoRotate.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                                 btnAutoRotate.IsEnabled = false;
+
+                                // Bouton Autoclose : activation et mise à jour de l'affichage
+                                _autoCloseActive = true;
+                                btnAutoClose.IsEnabled = true;
+                                txtAutoClose.Opacity = 1.0;
+                                txtAutoClose.Text = _StartOneTurnNext ? "1 tour + 📷 ▶️" : "1 tour + ✖️";
+                                btnAutoClose.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
+                                panelAutoCloseProgress.Visibility = Visibility.Visible;        // 🟢 Visible si AutoClose Actif
 
                                 // Mise à jour de l'info popup sur la durée de l'autorotation
                                 _autoCloseStartAngle = _horizontalRotation.Angle;
@@ -1414,6 +1426,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Arrêt immédiat de l'autorotation et de l'autoclose
             _autoRotState = AutoRotationState.Off;
             btnAutoRotate.Content = "Rotation auto.";
+            btnAutoRotate.Background = Brushes.Transparent;
             _autoCloseActive = false;
             MajEtatAutoClose();
 
@@ -1649,18 +1662,66 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void BtnBarrePrevPano_Click(object sender, RoutedEventArgs e)
         {
+            if (_oneTurnActive)
+            {
+                txtInfoPopup.Text = "Bouton désactivé dans ce mode";
+                if (_oneTurnDuration > 6)
+                {
+                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                }
+                else
+                {
+                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                }
+                return;
+            }
+            if (_autoRotState != AutoRotationState.Off)
+            { 
+                txtInfoPopup.Text = "Bouton désactivé dans ce mode";
+                if (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)
+                {
+                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                }
+                else
+                {
+                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                }
+                return;
+            }
             _ = ShowMessageAndNavigateAsync(-1);
             e.Handled = true;
-            //=> NavigateToAdjacentPano(-1);
         }
-
         private void BtnBarreNextPano_Click(object sender, RoutedEventArgs e)
         {
+            if (_oneTurnActive)
+            {
+                txtInfoPopup.Text = "Bouton désactivé dans ce mode";
+                if (_oneTurnDuration > 6)
+                {
+                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                }
+                else
+                {
+                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                }
+                return;
+            }
+            if (_autoRotState != AutoRotationState.Off)
+            {
+                txtInfoPopup.Text = "Bouton désactivé dans ce mode";
+                if (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)
+                {
+                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                }
+                else
+                {
+                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                }
+                return;
+            }
             _ = ShowMessageAndNavigateAsync(+1);
             e.Handled = true;
-            //=> NavigateToAdjacentPano(+1);
         }
-        
         // ─────────────────────────────────────────────────────────────────────
         // BOUTON AUTOROTATION
         // ─────────────────────────────────────────────────────────────────────
@@ -1676,21 +1737,25 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 case AutoRotationState.Off:
                     _autoRotState = AutoRotationState.Lent;
                     btnAutoRotate.Content = "🐢 Lent";
+                    btnAutoRotate.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                     break;
 
                 case AutoRotationState.Lent:
                     _autoRotState = AutoRotationState.Normal;
                     btnAutoRotate.Content = "▶️ Normal";
+                    btnAutoRotate.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                     break;
 
                 case AutoRotationState.Normal:
                     _autoRotState = AutoRotationState.Rapide;
                     btnAutoRotate.Content = "▶️▶️ Rapide";
+                    btnAutoRotate.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                     break;
 
                 case AutoRotationState.Rapide:
                     _autoRotState = AutoRotationState.Off;
                     btnAutoRotate.Content = "Rotation auto.";
+                    btnAutoRotate.Background = Brushes.Transparent;
                     _lastMovementTime = DateTime.Now;
                     break;
             }
@@ -1719,7 +1784,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
         }
         // ─────────────────────────────────────────────────────────────────────
-        // BOUTON AUTOCLOSE 
+        // BOUTON AUTOCLOSE & AUTONEXT 
         // ─────────────────────────────────────────────────────────────────────
         private void BtnAutoClose_Click(object sender, RoutedEventArgs e)
         {
@@ -1739,10 +1804,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 // État 1 → État 2 : AutoNext (1 tour + panorama suivant)
                 // On GARDE _autoCloseActive = true : c'est lui qui pilote le moteur de suivi
-                _autoCloseActive = true;          // ← clé du correctif
+                _autoCloseActive = true;          
                 _oneTurnNextActive = true;
                 _autoNextFromButton = true;        
-                _autoNextSavedRotState = _autoRotState;    // ← AJOUT
+                _autoNextSavedRotState = _autoRotState;    
                 // On repart de l'angle actuel pour repartir d'un tour complet
                 _autoCloseStartAngle = _horizontalRotation.Angle;
                 _autoCloseTargetAngle = _autoCloseStartAngle;
@@ -1755,7 +1820,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // État 2 → Off
                 _autoCloseActive = false;
                 _oneTurnNextActive = false;
-                _autoNextFromButton = false;       // ← AJOUT
+                _autoNextFromButton = false;       
                 _autoCloseTargetAngle = -1;
                 _autoCloseStartAngle = -1;
                 _hasLeftStartZone = false;
@@ -1776,8 +1841,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _hasLeftStartZone = false;
 
                 btnAutoClose.IsEnabled = false;
-                txtAutoClose.Text = "AutoClose: Off";
-                txtAutoClose.TextDecorations = TextDecorations.Strikethrough;
+                txtAutoClose.Text = "1 tour + ... : Off";
                 txtAutoClose.Opacity = 0.5;
                 panelAutoCloseProgress.Visibility = Visibility.Collapsed;
             }
@@ -1790,26 +1854,27 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (_autoCloseActive && _oneTurnNextActive)
                 {
                     // État 2 : 1 tour + panorama suivant
-                    txtAutoClose.Text = "AutoNext: On";
-                    txtAutoClose.Foreground = new SolidColorBrush(Color.FromRgb(0, 0xAA, 0xFF));
+                    txtAutoClose.Text = "1 tour + 📷 ▶️";
+                    btnAutoClose.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                     panelAutoCloseProgress.Visibility = Visibility.Visible;
                 }
                 else if (_autoCloseActive)
                 {
                     // État 1 : 1 tour + fermeture
-                    txtAutoClose.Text = "AutoClose: On";
-                    txtAutoClose.Foreground = new SolidColorBrush(Colors.White);
+                    txtAutoClose.Text = "1 tour + ✖️";
+                    btnAutoClose.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                     panelAutoCloseProgress.Visibility = Visibility.Visible;
                 }
                 else
                 {
                     // État 0 : désactivé
-                    txtAutoClose.Text = "AutoClose: Off";
-                    txtAutoClose.Foreground = new SolidColorBrush(Colors.White);
+                    txtAutoClose.Text = "1 tour + ... : Off";
+                    btnAutoClose.Background = Brushes.Transparent;
                     panelAutoCloseProgress.Visibility = Visibility.Collapsed;
                 }
             }
-        }        // ─────────────────────────────────────────────────────────────────────
+        }        
+        // ─────────────────────────────────────────────────────────────────────
         // NAVIGATION entre panoramas du dossier courant
         // ─────────────────────────────────────────────────────────────────────
         private static readonly HashSet<string> _imageExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -1975,11 +2040,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _isPopupShownPour1TourNum2 = false;
 
             txtAutoClose.Opacity = 1.0;
-            txtAutoClose.Text = "AutoNext: On";
-            txtAutoClose.TextDecorations = null;
+            txtAutoClose.Text = "1 tour + 📷 ▶️";
             panelAutoCloseProgress.Visibility = Visibility.Visible;
 
-            btnAutoRotate.Content = "Mode 1 💫+📷";
+            //btnAutoRotate.Content = "Rotation auto.";
+            //btnAutoRotate.Background = Brushes.Transparent;
             btnAutoRotate.IsEnabled = false;
         }
         // ─────────────────────────────────────────────────────────────────────
@@ -2252,8 +2317,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private async Task ShowMessageAndNavigateAsync(int direction)
         {
             txtInfoPopup.Text = direction > 0
-                ? "Panorama suivant ▶"
-                : "◀ Panorama précédent";
+                ? "Panorama suivant  ▶"
+                : "◀  Panorama précédent";
 
             (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
 
