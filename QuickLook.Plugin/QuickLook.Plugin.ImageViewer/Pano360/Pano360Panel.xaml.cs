@@ -867,8 +867,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void OnWindowKeyDown(object sender, KeyEventArgs e)
         {
-            if (_OptionOpen) return;         // Options ouvertes → on ne capte pas
-            if (_oneTurnActive) return;      // Mode 1 tour → on ne capte pas
+            if (_OptionOpen)// Options ouvertes → on ne capte pas
+            {
+                return;
+            }         
+            if (_oneTurnActive)// Mode 1 tour → on ne capte pas
+            {
+                MessageClavierNonAccessible();
+                return;
+            }
+      
+            if (_autoRotState == AutoRotationState.Lent || _autoRotState == AutoRotationState.Normal || _autoRotState == AutoRotationState.Rapide)
+            {
+                MessageClavierNonAccessible();
+                return;
+            }
 
             if (e.Key == Key.Right)
             {
@@ -880,6 +893,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 e.Handled = true;
                 NavigateToAdjacentPano(-1);
             }
+        }
+        private void MessageClavierNonAccessible()
+        {
+            txtInfoPopup.Text = "⌨️ Clavier désactivé dans ce mode";
+            (infoPopup.Resources["StoryboardShowInfoMoyen"] as Storyboard)?.Begin(infoPopup);
         }
         // ─────────────────────────────────────────────────────────────────────
         // Gestion de la souris

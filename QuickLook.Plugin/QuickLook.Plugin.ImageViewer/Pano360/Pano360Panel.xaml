@@ -458,6 +458,13 @@
                         <LinearDoubleKeyFrame KeyTime="0:0:1.4" Value="0" />
                     </DoubleAnimationUsingKeyFrames>
                 </Storyboard>
+                <Storyboard x:Key="StoryboardShowInfoMoyen">
+                    <DoubleAnimationUsingKeyFrames Storyboard.Target="{Binding Source={x:Reference infoPopup}}" Storyboard.TargetProperty="Opacity">
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.1" Value="0.9" />
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.6" Value="0.9" />
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.8" Value="0" />
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
                 <Storyboard x:Key="StoryboardShowInfoRapide">
                     <DoubleAnimationUsingKeyFrames Storyboard.Target="{Binding Source={x:Reference infoPopup}}" Storyboard.TargetProperty="Opacity">
                         <LinearDoubleKeyFrame KeyTime="0:0:0.1" Value="0.7" />
