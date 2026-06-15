@@ -9,6 +9,28 @@
     Background="Black"
     Focusable="True">
 
+    <UserControl.Resources>
+        <Storyboard x:Key="AnimatePrevArrow">
+            <ColorAnimation Storyboard.TargetName="btnPrevPano" 
+                        Storyboard.TargetProperty="(Button.Foreground).(SolidColorBrush.Color)"
+                        Duration="0:0:0.7">
+                <ColorAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </ColorAnimation.EasingFunction>
+            </ColorAnimation>
+        </Storyboard>
+
+        <Storyboard x:Key="AnimateNextArrow">
+            <ColorAnimation Storyboard.TargetName="btnNextPano" 
+                        Storyboard.TargetProperty="(Button.Foreground).(SolidColorBrush.Color)"
+                        Duration="0:0:0.7">
+                <ColorAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </ColorAnimation.EasingFunction>
+            </ColorAnimation>
+        </Storyboard>
+    </UserControl.Resources>
+
     <Grid>
 
         <!-- ── Viewport 3D : la sphère panoramique ────────────────────────── -->
@@ -92,7 +114,10 @@
                             </ToggleButton>
                         </StackPanel>
                         <!-- ── Bouton Panorama Précédent ─────────────────────── -->
-                        <Button x:Name="btnPrevPano" Content="◀" Width="28" Height="28" Margin="4,0,0,0" Foreground="White" Cursor="Hand" ToolTip="Panorama précédent (←)" Click="BtnBarrePrevPano_Click">
+                        <Button x:Name="btnPrevPano" Content="◀" Width="28" Height="28" Margin="4,0,0,0" Cursor="Hand" ToolTip="Panorama précédent (←)" Click="BtnBarrePrevPano_Click">
+                            <Button.Foreground>
+                                <SolidColorBrush Color="Black" />
+                            </Button.Foreground>
                             <Button.Style>
                                 <Style TargetType="Button">
                                     <Setter Property="Template">
@@ -130,7 +155,10 @@
                         </TextBlock>
 
                         <!-- ── Bouton Panorama Suivant ───────────────────────── -->
-                        <Button x:Name="btnNextPano" Content="▶" Width="28" Height="28" Margin="0,0,4,0" Foreground="White" Cursor="Hand" ToolTip="Panorama suivant (→)" Click="BtnBarreNextPano_Click">
+                        <Button x:Name="btnNextPano" Content="▶" Width="28" Height="28" Margin="0,0,4,0" Cursor="Hand" ToolTip="Panorama suivant (→)" Click="BtnBarreNextPano_Click">
+                            <Button.Foreground>
+                                <SolidColorBrush Color="Black" />
+                            </Button.Foreground>
                             <Button.Style>
                                 <Style TargetType="Button">
                                     <Setter Property="Template">

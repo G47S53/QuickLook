@@ -867,6 +867,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void OnWindowKeyDown(object sender, KeyEventArgs e)
         {
+            //Différents cas où le clavier n'est pas accessible
             if (_OptionOpen)// Options ouvertes → on ne capte pas
             {
                 return;
@@ -883,15 +884,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 return;
             }
 
+            //Fléches gauche et droites
             if (e.Key == Key.Right)
             {
                 e.Handled = true;
-                NavigateToAdjacentPano(+1);
+                _ = ShowMessageAndNavigateAsync(+1);
+                //NavigateToAdjacentPano(+1);
             }
             else if (e.Key == Key.Left)
             {
                 e.Handled = true;
-                NavigateToAdjacentPano(-1);
+                _ = ShowMessageAndNavigateAsync(-1);
+                //NavigateToAdjacentPano(-1);
             }
         }
         private void MessageClavierNonAccessible()
@@ -1637,9 +1641,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // BOUTONS panorama précedent / Suivant
         // ─────────────────────────────────────────────────────────────────────
         private void BtnBarrePrevPano_Click(object sender, RoutedEventArgs e)
-            => NavigateToAdjacentPano(-1);
+        {
+            _ = ShowMessageAndNavigateAsync(-1);
+            e.Handled = true;
+            //=> NavigateToAdjacentPano(-1);
+        }
+
         private void BtnBarreNextPano_Click(object sender, RoutedEventArgs e)
-            => NavigateToAdjacentPano(+1);
+        {
+            _ = ShowMessageAndNavigateAsync(+1);
+            e.Handled = true;
+            //=> NavigateToAdjacentPano(+1);
+        }
+        
         // ─────────────────────────────────────────────────────────────────────
         // BOUTON AUTOROTATION
         // ─────────────────────────────────────────────────────────────────────
@@ -1977,8 +1991,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         UpdateCacheVisuals();
                     }
                 }
-                // Rapport DEBUG de fin de préchargement
-                //LogCacheStatus();
             }
             finally
             {
@@ -2058,85 +2070,37 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (prevPath != null && _imageCache.ContainsKey(prevPath)) prevCachedCount++;
             }
 
-            // 2. On détermine les couleurs (Brushes) en fonction du compte
-            if (btnPrevPano != null) btnPrevPano.Foreground = GetBrushForCacheCount(prevCachedCount);
-            if (btnNextPano != null) btnNextPano.Foreground = GetBrushForCacheCount(nextCachedCount);
+            // Déclenchement des animations progressives
+            AnimateArrow("AnimatePrevArrow", prevCachedCount);
+            AnimateArrow("AnimateNextArrow", nextCachedCount);
 
-            // En bonus, on garde un petit log en temps réel pour tes tests
+            // Log en temps réel pour tes tests
             System.Diagnostics.Debug.WriteLine($"[Cache UI] Précédents: {prevCachedCount} | Suivants: {nextCachedCount}");
         }
-        private Brush GetBrushForCacheCount(int count)
+        private void AnimateArrow(string storyboardKey, int count)
         {
-            //          Version plus simple ne prennant en compte que 3 états
-            //─────────────────────────────────────────────────────────────────────────────────
-            //private Brush GetBrushForCacheCount(int count)
-            //{
-            //    // Règle de correspondance des couleurs
-            //    if (count == 0) return Brushes.Black; // 0%
-            //    if (count == 1) return Brushes.Gray;  // 50% (si horizon = 2)
-            //    return Brushes.White;                 // 100% (2 fichiers ou plus)
-            //}
-            //─────────────────────────────────────────────────────────────────────────────────
-
-            if (_preloadHorizon <= 0) return Brushes.White;
-
-            // 1. Calcul du ratio de chargement (entre 0.0 et 1.0)
-            double ratio = (double)count / _preloadHorizon;
-
-            // Sécurité pour ne pas dépasser 100%
-            if (ratio > 1.0) ratio = 1.0;
-
-            // 2. Calcul de la valeur de gris (Inversion : 0% = 255 [Blanc], 100% = 0 [Noir])
-            byte grayValue = (byte)(255 * ratio);
-
-            // 3. Création du Brush avec le code RGB identique pour le R, G et B
-            var color = Color.FromRgb(grayValue, grayValue, grayValue);
-            var brush = new SolidColorBrush(color);
-
-            // ⚠️ TRÈS IMPORTANT EN WPF : On fige le pinceau (Freeze)
-            // Comme cette méthode est appelée souvent pendant le chargement, 
-            // l'allocation de nouveaux pinceaux non figés peut ralentir l'UI.
-            brush.Freeze();
-
-            return brush;
-        }
-        private void LogCacheStatus()
-        {
-            var files = GetPanoFilesInFolder();
-            if (files == null || files.Count < 2) return;
-
-            int nextCachedCount = 0;
-            int prevCachedCount = 0;
-
-            // On parcourt l'horizon pour compter les fichiers présents dans le cache
-            for (int i = 1; i <= _preloadHorizon; i++)
+            if (this.Resources[storyboardKey] is Storyboard sb)
             {
-                // Analyse des suivants (+i)
-                string nextPath = GetAdjacentPanoPath(i, files);
-                if (nextPath != null && _imageCache.ContainsKey(nextPath))
+                // 1. Calcul du ratio (0.0 à 1.0)
+                double ratio = _preloadHorizon > 0 ? (double)count / _preloadHorizon : 1.0;
+                if (ratio > 1.0) ratio = 1.0;
+
+                // 2. Alignement sur ton choix : 
+                // 0% chargé (ratio 0) = 0 (Noir total)
+                // 100% chargé (ratio 1) = 255 (Blanc pur)
+                byte gray = (byte)(255 * ratio);
+                Color targetColor = Color.FromRgb(gray, gray, gray);
+
+                // 3. Injection de la couleur cible dans le Storyboard
+                if (sb.Children.Count > 0 && sb.Children[0] is ColorAnimation anim)
                 {
-                    nextCachedCount++;
+                    anim.To = targetColor;
                 }
 
-                // Analyse des précédents (-i)
-                string prevPath = GetAdjacentPanoPath(-i, files);
-                if (prevPath != null && _imageCache.ContainsKey(prevPath))
-                {
-                    prevCachedCount++;
-                }
+                // 4. Lancement de la transition fluide
+                sb.Begin();
             }
-
-            bool isCurrentCached = _imageCache.ContainsKey(_currentPanoPath);
-
-            // Affichage dans la console de Debug de Visual Studio
-            System.Diagnostics.Debug.WriteLine(
-                $"[CACHE STATUS] Total en RAM : {_imageCache.Count} | " +
-                $"Pano Actuel en cache : {(isCurrentCached ? "Oui ✅" : "Non ❌")} | " +
-                $"Précédents (-1 à -{_preloadHorizon}) : {prevCachedCount} | " +
-                $"Suivants (+1 à +{_preloadHorizon}) : {nextCachedCount}"
-            );
         }
-
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
