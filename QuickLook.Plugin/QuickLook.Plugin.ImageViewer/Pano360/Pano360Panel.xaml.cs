@@ -772,7 +772,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 if (_context != null && !_context.BlocageShowCaption)
                 {
-                    _context.BlocageShowCaption = true;
+                    _context.BlocageShowCaption = true; 
                 }
 
                 MarquerMouvement();
@@ -912,7 +912,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             Mouse.OverrideCursor = Cursors.None;
 
-            if (_context != null) _context.BlocageShowCaption = true;
+            if (_context != null) _context.BlocageShowCaption = true; 
 
             if (e.MiddleButton == MouseButtonState.Pressed && !_OptionOpen)
             {
@@ -1212,6 +1212,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                                 grpBarreGauche.ClipToBounds = true;
                                 grpBarreDroite.ClipToBounds = true;
+                            }
+
+                            //Barre de rating
+                            if (_isBarreCompactee)
+                            {
+                                panelRating.Visibility = Visibility.Collapsed;
+                            }
+                            else
+                            {
+                                panelRating.Visibility = Visibility.Visible;
                             }
 
                             // ── Application de l'autorotation si sélectionnée ────────────────
@@ -1580,6 +1590,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
                     (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    (panelRating.Resources["FadeInRating"] as Storyboard)?.Begin(panelRating);
                     _isBarreMasquee = false;
                 }
                 return;
@@ -1598,6 +1609,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
                     (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    (panelRating.Resources["FadeOutRating"] as Storyboard)?.Begin(panelRating);
                     _isBarreMasquee = true;
                 }
             }
@@ -1608,8 +1620,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
                     (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    (panelRating.Resources["FadeInRating"] as Storyboard)?.Begin(panelRating);
                     _isBarreMasquee = false;
                 }
+                _context.BlocageShowCaption = false;
             }
         }
         private void TxtFov_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1620,6 +1634,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 MarquerMouvement();
 
                 _isBarreCompactee = !_isBarreCompactee;
+
+                //Barre de rating
+                if (_isBarreCompactee)
+                {
+                    panelRating.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    panelRating.Visibility = Visibility.Visible;
+                }
 
                 // On active le ClipToBounds pour masquer proprement les boutons pendant qu'ils se font écraser
                 grpBarreGauche.ClipToBounds = true;
@@ -2267,9 +2291,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 var starBtn = this.FindName($"Star{i}") as System.Windows.Controls.Button;
                 if (starBtn != null)
                 {
-                    // Si l'index est inférieur ou égal à la note, l'étoile est pleine (jaune), sinon vide (grise)
+                    // Si l'index est inférieur ou égal à la note, l'étoile est pleine, sinon vide (grise)
                     starBtn.Content = i <= rating ? "★" : "☆";
-                    starBtn.Foreground = i <= rating ? System.Windows.Media.Brushes.Gold : System.Windows.Media.Brushes.Gray;
+                    starBtn.Foreground = i <= rating ? System.Windows.Media.Brushes.White : System.Windows.Media.Brushes.Gray;
                 }
             }
         }
