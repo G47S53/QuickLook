@@ -41,192 +41,190 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // > Référence au contexte QuickLook et au chemin du fichier image
         // ─────────────────────────────────────────────────────────────────────
-        private readonly QuickLook.Common.Plugin.ContextObject _context;
-        private readonly string _imagePath;
+        private readonly QuickLook.Common.Plugin.ContextObject _context;   // Objet QuickLook : title, IsBusy, BlocageShowCaption...
+        private readonly string _imagePath;                                // Chemin du fichier panorama passé à l'ouverture du plugin (ne change jamais)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Navigation entre panoramas du dossier courant
         // ─────────────────────────────────────────────────────────────────────
-        private string _currentPanoPath;          // Chemin actif (mis à jour à chaque navigation)
-        private bool _isNavigating = false;       // Verrou anti double-clic
+        private string _currentPanoPath;                                   // Chemin du panorama actuellement affiché (mis à jour à chaque navigation ◀/▶)
+        private bool _isNavigating = false;                                // Verrou pour éviter un double déclenchement de navigation (clic rapide, touche + bouton, etc.)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Préchargement (Cache)
         // ─────────────────────────────────────────────────────────────────────
-        private readonly Dictionary<string, BitmapImage> _imageCache = new Dictionary<string, BitmapImage>(StringComparer.OrdinalIgnoreCase);
-        private bool _isPreloading = false;
-        private System.Windows.Threading.DispatcherTimer _idleTimer;
-        private int _preloadHorizon = 2; // Nombres d'images adjacentes préchargés (1 = 3 images, 2 = 5 images, etc.)
+        private readonly Dictionary<string, BitmapImage> _imageCache = new Dictionary<string, BitmapImage>(StringComparer.OrdinalIgnoreCase); // Cache RAM des BitmapImage déjà décodées, indexées par chemin fichier
+        private bool _isPreloading = false;                                // Verrou : empêche deux passes de préchargement simultanées
+        private System.Windows.Threading.DispatcherTimer _idleTimer;       // Timer déclenché toutes les 500 ms pour lancer le préchargement quand l'utilisateur ne fait rien
+        private int _preloadHorizon = 2;                                   // Nombre de voisins préchargés de chaque côté (2 → 5 images en RAM : -2, -1, courant, +1, +2)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
         // ─────────────────────────────────────────────────────────────────────
-        // Attention d'autres options sont aussi dispo dans la section "Mode Tour Unique de démarrage avec accélération/décélération"
+        // ─────── Attention : d'autres paramètres liés au tour unique se trouvent aussi ─────────────────
+        // ─────── dans la section "Mode Tour Unique de démarrage avec accélération/décélération". ───────
         private readonly string _configPath = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "QuickLook",
-        "Pano360Settings.json");
+        "Pano360Settings.json");                                           // Chemin complet du fichier JSON de configuration (%APPDATA%\QuickLook\Pano360Settings.json)
 
-        private bool _chkFullscreenSavedValue = false;
-        private int _StartAutoRotate = 1;
-        private int _StartRadioBouton = 1;
-        private bool _StartOneTurnActive = false;
-        private bool _StartOneTurnNext = false;
-        private bool _oneTurnNextActive = false; // True si le mode "1 tour + suivant" est en cours
-        private bool _autoNextFromButton = false; // True si AutoNext a été déclenché via le bouton
-        private AutoRotationState _autoNextSavedRotState = AutoRotationState.Normal; // Vitesse mémorisée au clic
-        private double _OptionFov = 90.0;
-        private bool _OptionOpen = false;
-        private bool _OptionBarreReduite = false;
+        private bool _chkFullscreenSavedValue = false;                     // Option : démarrer en plein écran (lue depuis le JSON, appliquée au Loaded)
+        private int _StartAutoRotate = 1;                                  // Option : vitesse de l'autorotation au démarrage (1=Lent, 2=Normal, 3=Rapide)
+        private int _StartRadioBouton = 1;                                 // Option : mode de démarrage sélectionné (1=Statique, 2=AutoRotate, 3=1tour+Fermeture, 4=1tour+Suivant)
+        private bool _StartOneTurnActive = false;                          // Option : activer "1 tour + fermeture" au démarrage (issu du JSON)
+        private bool _StartOneTurnNext = false;                            // Option : activer "1 tour + panorama suivant" au démarrage (issu du JSON)
+        private bool _oneTurnNextActive = false;                           // État d'exécution : true quand le mode "1 tour + suivant" est en cours de rotation
+        private bool _autoNextFromButton = false;                          // True si le mode AutoNext a été déclenché par le bouton (et non par les options de démarrage) — sert à le relancer après navigation
+        private AutoRotationState _autoNextSavedRotState = AutoRotationState.Normal; // Vitesse d'autorotation mémorisée au moment du clic "AutoNext bouton", pour la restaurer après navigation
+        private double _OptionFov = 90.0;                                  // Option : FOV par défaut en degrés (lu depuis JSON, appliqué à la caméra au démarrage)
+        private bool _OptionOpen = false;                                  // True quand le panneau Options est affiché (bloque clavier, SpaceMouse, autorotation)
+        private bool _OptionBarreReduite = false;                          // Option : démarrer avec la barre de boutons en mode compact (sans les groupes gauche/droite)
 
-        private Pano360Settings settings;
+        private Pano360Settings settings;                                  // Instance désérialisée du fichier JSON (utilisée par LoadSettings / SaveSettings)
 
-        // Structure pour le stockage des options
+        // ─────── Structure pour le stockage des options ───────
         public class Pano360Settings
         {
-            public double AutoRotateSlowSeconds { get; set; } = 60.0;
-            public double AutoRotateNormalSeconds { get; set; } = 20.0;
-            public double AutoRotateFastSeconds { get; set; } = 10.0;
-            public bool FullscreenStartup { get; set; } = false;
-            public bool StartBarreReduite { get; set; } = false;
-            public double DefaultFov { get; set; } = 90.0;
-            public int StartRadioBouton { get; set; } = 1;
-            public int StartAutoRotate { get; set; } = 1;
-            public bool StartOneTurnAndNext { get; set; } = false; // 1 tour + panorama suivant
-            public bool StartOneTurnAndClose { get; set; } = false; // Le Flag de démarrage
-            public double StartOneTurnDuration { get; set; } = 15.0; // Durée par défaut (ex: 15s)
+            public double AutoRotateSlowSeconds { get; set; } = 60.0;      // Durée d'un tour complet en mode Lent (secondes)
+            public double AutoRotateNormalSeconds { get; set; } = 20.0;    // Durée d'un tour complet en mode Normal (secondes)
+            public double AutoRotateFastSeconds { get; set; } = 10.0;      // Durée d'un tour complet en mode Rapide (secondes)
+            public bool FullscreenStartup { get; set; } = false;           // Ouvre la fenêtre en plein écran au démarrage
+            public bool StartBarreReduite { get; set; } = false;           // Démarre avec la barre de boutons compactée (uniquement FOV + ◀▶)
+            public double DefaultFov { get; set; } = 90.0;                 // Champ de vision par défaut (degrés), appliqué à la caméra à l'ouverture
+            public int StartRadioBouton { get; set; } = 1;                 // Mode de démarrage (voir _StartRadioBouton)
+            public int StartAutoRotate { get; set; } = 1;                  // Vitesse d'autorotation au démarrage (voir _StartAutoRotate)
+            public bool StartOneTurnAndNext { get; set; } = false;         // Démarrer directement en mode "1 tour + panorama suivant"
+            public bool StartOneTurnAndClose { get; set; } = false;        // Démarrer directement en mode "1 tour + fermeture"
+            public double StartOneTurnDuration { get; set; } = 15.0;       // Durée totale du tour unique en secondes (profil trapézoïdal accel/croisière/decel)
         }
 
         // ─────────────────────────────────────────────────────────────────────
         // > Constantes — paramètres de la sphère et de la navigation
         // ─────────────────────────────────────────────────────────────────────
-        private const int SphereSlices = 72;
-        private const int SphereStacks = 36;
+        private const int SphereSlices = 72;             // Nombre de segments horizontaux du mesh sphérique (plus = plus lisse, plus coûteux)
+        private const int SphereStacks = 36;             // Nombre de segments verticaux du mesh sphérique
 
-        private const double FovMin = 30.0;
-        private const double FovMax = 135.0;
-        private const double FovDefault = 90.0;
-        private const double FovZoomStep = 5.0;
+        private const double FovMin = 30.0;              // FOV minimum autorisé en degrés (zoom maximum — vision très zoomée)
+        private const double FovMax = 135.0;             // FOV maximum autorisé en degrés (zoom minimum — grand angle)
+        private const double FovDefault = 90.0;          // FOV utilisé à l'initialisation de la caméra (avant lecture des settings)
+        private const double FovZoomStep = 5.0;          // Pas de zoom fixe (non utilisé directement — remplacé par le pas adaptatif de la molette)
 
-        private const double MouseSensitivity = 1.0;
-        private const double MouseDeadZone = 5.0;
+        private const double MouseSensitivity = 1.0;     // Coefficient multiplicateur appliqué au déplacement souris → vitesse de rotation
+        private const double MouseDeadZone = 5.0;        // Zone morte en pixels : déplacements inférieurs à cette valeur sont ignorés (évite les micro-tremblements)
 
-        private const double VerticalAngleMin = -90.0;
-        private const double VerticalAngleMax = 45.0;
+        private const double VerticalAngleMin = -90.0;   // Angle vertical minimum (regarde vers le bas, axe X) — en degrés
+        private const double VerticalAngleMax = 45.0;    // Angle vertical maximum (regarde vers le haut, axe X) — en degrés
 
         // ─────────────────────────────────────────────────────────────────────
         // > Champs 3D
         // ─────────────────────────────────────────────────────────────────────
-        private PerspectiveCamera _camera = new PerspectiveCamera();
-        private AxisAngleRotation3D _horizontalRotation = new AxisAngleRotation3D();
-        private AxisAngleRotation3D _verticalRotation = new AxisAngleRotation3D();
+        private PerspectiveCamera _camera = new PerspectiveCamera();                     // Caméra WPF positionnée au centre de la sphère (position fixe 0,0,0)
+        private AxisAngleRotation3D _horizontalRotation = new AxisAngleRotation3D();     // Rotation autour de l'axe Y (panoramique horizontal, lacet / yaw)
+        private AxisAngleRotation3D _verticalRotation = new AxisAngleRotation3D();       // Rotation autour de l'axe X (inclinaison verticale, tangage / pitch)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Champs navigation souris
         // ─────────────────────────────────────────────────────────────────────
-        private bool _isMouseDown = false;
-        private double _startMouseX;
-        private double _startMouseY;
-        private double _lastMouseX;
-        private double _lastMouseY;
-        private TimeSpan _lastRenderTime;
-        private bool _isMouseInertia = false;    // Indique si le mouvement résiduel vient d'un lancer de souris
-        private bool _isPopupShown = false;      // Évite les déclenchements multiples du popup avant la fermeture
-        private bool _isPopupShownPour1Tour = false;
-        private bool _isPopupShownPour1TourNum2 = false;
-        private double _targetFov = FovDefault;  // Implémentation d'un comportement en douceur de la roulette
-        private bool _isFovAnimating = false;
+        private bool _isMouseDown = false;               // True tant que le bouton gauche est enfoncé (mode drag en cours)
+        private double _startMouseX;                     // Position X de la souris au moment du MouseDown (référence pour calculer le delta)
+        private double _startMouseY;                     // Position Y de la souris au moment du MouseDown (référence pour calculer le delta)
+        private double _lastMouseX;                      // Dernière position X connue de la souris (mise à jour à chaque MouseMove)
+        private double _lastMouseY;                      // Dernière position Y connue de la souris (mise à jour à chaque MouseMove)
+        private TimeSpan _lastRenderTime;                // Horodatage du dernier frame rendu (pour calculer le delta temps entre deux frames)
+        private bool _isMouseInertia = false;            // True quand la vitesse courante est due à un "lancer" de souris (applique le frein aérodynamique quadratique)
+        private bool _isPopupShown = false;              // Verrou : empêche le popup "Fermeture automatique" de se déclencher plusieurs fois sur le même tour (AutoClose classique)
+        private bool _isPopupShownPour1Tour = false;     // Verrou : empêche le popup de fin de tour de s'afficher plusieurs fois (mode OneTurn + fermeture)
+        private bool _isPopupShownPour1TourNum2 = false; // Verrou : même chose pour le popup "Chargement suivant..." (mode OneTurn + panorama suivant)
+        private double _targetFov = FovDefault;          // FOV cible vers lequel la caméra converge en douceur (interpolation exponentielle dans OnRendering)
+        private bool _isFovAnimating = false;            // True pendant qu'une animation FOV est en cours (évite de relancer le storyboard à chaque frame)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Champs SpaceMouse 3Dconnexion
         // ─────────────────────────────────────────────────────────────────────
-        private Device _smDevice;
-        private Sensor _smSensor;
-        private TDxInput.Keyboard _keyboardSpaceMouse;
+        private Device _smDevice;                        // Périphérique COM TDxInput (objet racine de la SpaceMouse)
+        private Sensor _smSensor;                        // Capteur 6 DOF de la SpaceMouse (rotations + translations)
+        private TDxInput.Keyboard _keyboardSpaceMouse;   // Clavier de la SpaceMouse (boutons latéraux programmables)
 
-        private double sensibiliteTangage = 0.05;     //X, Pitch
-        private double sensibiliteLacet = 0.05;       //Y, Yaw 
-        //private double sensibiliteRoulis = 0.002;     //Z, Roll
+        private double sensibiliteTangage = 0.05;        // Coefficient de sensibilité pour l'axe X (tangage / pitch)
+        private double sensibiliteLacet = 0.05;          // Coefficient de sensibilité pour l'axe Y (lacet / yaw — rotation horizontale du panorama)
+        //private double sensibiliteRoulis = 0.002;       // [Non utilisé] Coefficient pour l'axe Z (roulis / roll — non implémenté)
 
-        private bool _spaceMouseEnabled = false;
+        private bool _spaceMouseEnabled = false;         // True quand la SpaceMouse est connectée et active (évite une double connexion)
 
-        private readonly object _spaceMouseLock = new object();
-        private double _rawSpaceMouseX = 0;
-        private double _rawSpaceMouseY = 0;
-        private double _rawSpaceMouseZ = 0;
-        private double _rawSpaceMouseZoom = 0;
+        private readonly object _spaceMouseLock = new object(); // Verrou thread-safe : les valeurs brutes sont écrites depuis le thread COM de la SpaceMouse et lues depuis le thread UI
+        private double _rawSpaceMouseX = 0;              // Valeur brute de l'axe X de rotation (tangage), mise à jour par l'événement COM SensorInput
+        private double _rawSpaceMouseY = 0;              // Valeur brute de l'axe Y de rotation (lacet), mise à jour par l'événement COM SensorInput
+        private double _rawSpaceMouseZ = 0;              // Valeur brute de l'axe Z de rotation (roulis, non utilisé en pratique)
+        private double _rawSpaceMouseZoom = 0;           // Valeur brute de Translation.Z (avant/arrière du manche), utilisée pour le zoom FOV
 
-        private const double ZoomDeadZone = 50.0;     // Large zone morte                           (début:100)
-        private const double ZoomSensitivity = 0.05;  // Pas extrêmement faible                     (début:0.01)
-        private const double ZoomFreeSpeedXY = 1000;  // À monter si le zoom se bloque trop souvent (début:50)
+        private const double ZoomDeadZone = 50.0;        // Zone morte du zoom SpaceMouse : valeurs Translation.Z en-dessous de ce seuil sont ignorées (évite le zoom involontaire lors des rotations)
+        private const double ZoomSensitivity = 0.05;     // Coefficient multiplicateur du zoom SpaceMouse (valeur faible = zoom progressif et précis)
+        private const double ZoomFreeSpeedXY = 1000;     // Seuil de vitesse XY au-dessus duquel le zoom est inhibé (si on tourne vite, on ne zoome pas accidentellement)
 
-        //private bool _isPopupShownSpaceMouse = false;
+        //private bool _isPopupShownSpaceMouse = false;  // [Non utilisé] Verrou pour le popup de conflit souris/SpaceMouse (fonctionnalité désactivée)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Raccourcis Clavier SpaceMouse — navigation vers angle cible
         // ─────────────────────────────────────────────────────────────────────
-        private double _targetHorizontalAngle = double.NaN; // NaN = pas de cible active
-        private double _targetVerticalAngle = double.NaN;
-        private const double KeySnapSpeed = 180.0;          // °/s de rotation animée
-        private double _homeHorizontalAngle = 0.0;          // Angle de départ mémorisé
-        private double _homeVerticalAngle = 0.0;
+        private double _targetHorizontalAngle = double.NaN;  // Angle horizontal cible pour le snap clavier (NaN = aucun snap actif, la sphère tourne librement)
+        private double _targetVerticalAngle = double.NaN;    // Angle vertical cible pour le snap clavier (NaN = aucun snap actif)
+        private const double KeySnapSpeed = 180.0;           // Vitesse maximale de rotation animée lors d'un snap clavier (°/s) — interpolation ease-out
+        private double _homeHorizontalAngle = 0.0;           // Angle horizontal mémorisé au chargement de la scène (vue "Home", touche Fit de la SpaceMouse)
+        private double _homeVerticalAngle = 0.0;             // Angle vertical mémorisé au chargement de la scène (vue "Home")
 
         // ─────────────────────────────────────────────────────────────────────
         // > Autorotation
         // ─────────────────────────────────────────────────────────────────────
-        private enum AutoRotationState { Off, Lent, Normal, Rapide }
+        private enum AutoRotationState { Off, Lent, Normal, Rapide } // Quatre états possibles de la rotation automatique (Off = arrêtée)
 
-        // État courant de l'autorotation (commence arrêté).
-        private AutoRotationState _autoRotState = AutoRotationState.Off;
+        private AutoRotationState _autoRotState = AutoRotationState.Off; // État courant de l'autorotation — démarre toujours à Off
 
-        // Durée d'un tour complet (360°) en secondes.
-        // Changez ces valeurs pour accélérer ou ralentir chaque mode.
-        private double AutoRotateFastSeconds = 10.0;   // Tour rapide   : 10 s
-        private double AutoRotateNormalSeconds = 20.0; // Tour normal   : 20 s
-        private double AutoRotateSlowSeconds = 60.0;   // Tour lent     : 60 s
+        // ─────── Durées d'un tour complet (360°) par mode. Modifiables via le panneau Options. ───────
+        // ─────── Ces valeurs sont écrasées par les settings JSON au chargement. ──────────────────────
+        private double AutoRotateFastSeconds = 10.0;         // Durée du tour en mode Rapide (secondes) — valeur par défaut
+        private double AutoRotateNormalSeconds = 20.0;       // Durée du tour en mode Normal (secondes) — valeur par défaut
+        private double AutoRotateSlowSeconds = 60.0;         // Durée du tour en mode Lent (secondes) — valeur par défaut
 
         // ─────────────────────────────────────────────────────────────────────
         // > AutoClose - Moteur Physique "La Jamais Contente" 🏎️ (Accélération / Décélération)
         // ─────────────────────────────────────────────────────────────────────
-        private double _currentRotationSpeed = 0.0;   // Vitesse angulaire actuelle (°/s)
-        private const double AccelerationRate = 18.0; // Taux d'accélération (°/s²)
-        private const double DecelerationRate = 45.0; // Taux de freinage/décélération (°/s²)
+        private double _currentRotationSpeed = 0.0;          // Vitesse angulaire instantanée appliquée à la sphère (°/s) — peut être négative (inertie vers la gauche)
+        private const double AccelerationRate = 18.0;        // Taux d'accélération du moteur physique (°/s²) — montée en vitesse lors du démarrage de l'autorotation
+        private const double DecelerationRate = 45.0;        // Taux de décélération de base (°/s²) — frein appliqué à l'arrêt et à la fin du tour AutoClose
 
-        private bool _autoCloseActive = false;
-        private double _autoCloseTargetAngle = -1;
-        private double _autoCloseStartAngle = -1;
-        private bool _hasLeftStartZone = false;       // Sécurité pour éviter la fermeture instantanée au clic
-        private bool _isAutoClosingPhase = false;     // True quand le tour est fini et qu'on freine avant fermeture
+        private bool _autoCloseActive = false;               // True quand le mode "1 tour + fermeture/suivant" est actif (moteur de suivi d'angle en route)
+        private double _autoCloseTargetAngle = -1;           // Angle horizontal de destination pour fermer/passer au suivant (-1 = non défini) — égal à _autoCloseStartAngle (tour complet)
+        private double _autoCloseStartAngle = -1;            // Angle horizontal au moment du déclenchement AutoClose (-1 = non défini) — sert à calculer l'arc parcouru
+        private bool _hasLeftStartZone = false;              // Devient True quand la sphère a quitté la zone de départ (±6°) — sécurité contre la fermeture immédiate au déclenchement
+        private bool _isAutoClosingPhase = false;            // True uniquement pendant la phase de freinage final (après le tour complet, avant l'arrêt)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Mode Tour Unique de démarrage avec accélération/décélération
         // ─────────────────────────────────────────────────────────────────────
-        private bool _oneTurnActive = false;
-        private double _oneTurnTimer = 0.0;
-        private double _oneTurnDuration = 15.0; // Récupéré depuis les settings
-        private double _oneTurnStartAngle = 0.0;
-        private double _oneTurnAccelTime = 2.5;  // Durée des phases d'accel/decel en secondes
-        private double _oneTurnVMax = 0.0;
-        private double _oneTurnAccelRate = 0.0;
+        private bool _oneTurnActive = false;                 // True pendant l'exécution d'un tour unique (profil trapézoïdal géré dans OnRendering)
+        private double _oneTurnTimer = 0.0;                  // Chronomètre interne du tour unique (secondes écoulées depuis le démarrage)
+        private double _oneTurnDuration = 15.0;              // Durée totale imposée du tour unique (secondes) — récupérée depuis les settings
+        private double _oneTurnStartAngle = 0.0;             // Angle horizontal au démarrage du tour unique (pour le recalage parfait à 360° à la fin)
+        private double _oneTurnAccelTime = 2.5;              // Durée des phases d'accélération et de décélération (secondes) — profil symétrique trapézoïdal
+        private double _oneTurnVMax = 0.0;                   // Vitesse de croisière calculée pour tenir le tour en _oneTurnDuration (°/s) — calculée au démarrage
+        private double _oneTurnAccelRate = 0.0;              // Taux d'accélération/décélération calculé pour atteindre _oneTurnVMax en _oneTurnAccelTime (°/s²)
 
         // ─────────────────────────────────────────────────────────────────────
-        // > barre de boutons
+        // > Barre de boutons
         // ─────────────────────────────────────────────────────────────────────
-        // Délai d'inactivité (en secondes) avant de réafficher les boutons.
-        private const double InactivityDelay = 0.5;
-        private bool _isBarreCompactee = false;
+        private const double InactivityDelay = 0.5;           // Délai d'inactivité (secondes) après lequel la barre repasse en opaque si la scène s'est arrêtée
+        private bool _isBarreCompactee = false;               // True quand la barre est en mode compact (double-clic sur le FOV) — les groupes gauche/droite sont masqués
 
         // ─────────────────────────────────────────────────────────────────────
-        // > Opacité progressive
+        // > Opacité progressive de la barre de boutons
         // ─────────────────────────────────────────────────────────────────────
-        // Horodatage du dernier mouvement détecté (souris OU autorotation OU SpaceMouse).
-        private DateTime _lastMovementTime = DateTime.MinValue;
+        private DateTime _lastMovementTime = DateTime.MinValue; // Horodatage du dernier mouvement détecté (souris, autorotation ou SpaceMouse) — sert à déclencher le fondu de la barre
 
-        // Indique si un mouvement était actif au frame précédent.
-        // Sert à détecter le passage repos ↔ mouvement sans heuristique trop lourde.
+        // ─────── Indique si un mouvement était actif au frame précédent. ────────────────────────────
+        // ─────── Sert à détecter le passage repos ↔ mouvement sans heuristique trop lourde. ─────────
 
-        private bool _isBarreMasquee = false;
-        private bool _isMouseOverBarre = false;
+        private bool _isBarreMasquee = false;                   // True quand la barre est actuellement en opacité réduite (animation FadeOut appliquée) — évite de relancer le storyboard à chaque frame
+        private bool _isMouseOverBarre = false;                 // True quand le curseur survole la barre ou le panneau de progression — force la barre à rester visible
 
         #endregion Constantes et Déclarations de champs
 
@@ -253,7 +251,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // ── 3. Paramètres et état initial ──
             Mouse.OverrideCursor = null;
-            MajEtatAutoClose();
+            MajEtatAutoCloseAutoNext();
             LoadSettings();
 
             // ── 4. Abonnements aux événements différés (Au moment de l'affichage) ──
@@ -501,29 +499,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Partie rotation du panorama
             if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
             {
-                // ToDo:Gestion des abus d'outils
-                //if (_isMouseDown)
-                //{
-                //    txtInfoPopup.Text = "Souris ou spacemouse, il faut choisir! 😉";
-                //    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                //    return;  // ⬅️ sortie immédiate de la méthode
-                //}
-
-                //if (_isMouseDown)
-                //{
-                //    if (!_isPopupShownSpaceMouse)
-                //    {
-                //        _isPopupShownSpaceMouse = true;
-                //        txtInfoPopup.Text = "Souris ou spacemouse, il faut choisir";
-                //        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                //    }
-                //    return;  // ⬅️ sortie immédiate de la méthode
-                //}
-                //else
-                //{
-                //    _isPopupShownSpaceMouse = false;
-                //}
-
                 //Gestion des abus d'outils (bis)
                 if (Math.Abs(spaceMouseSpeedY) > 500 && (_autoRotState != AutoRotationState.Off || _oneTurnActive))
                 {
@@ -611,7 +586,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     btnAutoRotate.Background = Brushes.Transparent;
                     btnAutoRotate.IsEnabled = true;
                     _isPopupShown = false;
-                    MajEtatAutoClose();
+                    MajEtatAutoCloseAutoNext();
                 }
                 else
                 {
@@ -635,7 +610,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     else if (_oneTurnTimer >= (_oneTurnDuration - _oneTurnAccelTime))
                     {
                         // ── Phase 3 : Décélération
-                        
                         if (tempsRestantPour1Tour < 0) tempsRestantPour1Tour = 0;
                         _currentRotationSpeed = _oneTurnAccelRate * tempsRestantPour1Tour;
                     }
@@ -722,8 +696,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     {
                         double vitesseAbsolue = Math.Abs(_currentRotationSpeed);
 
-                        // Formule physique : Frein linéaire de base + (Coefficient * Vitesse²)
-                        // Le coefficient 0.02 est notre "profil aérodynamique" à ajuster.
+                        // Formule physique : Frein linéaire de base + (Coefficient * Vitesse²), le coefficient 0.02 est notre "profil aérodynamique" à ajuster.
                         actuelDecelRate = DecelerationRate + (0.02 * vitesseAbsolue * vitesseAbsolue);
                     }
 
@@ -839,7 +812,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(this)?.Close()));
                 }
-                MajEtatAutoClose();
+                MajEtatAutoCloseAutoNext();
                 return;
             }
 
@@ -877,40 +850,24 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private void OnWindowKeyDown(object sender, KeyEventArgs e)
         {
             //Différents cas où le clavier n'est pas accessible
-            if (_OptionOpen)// Options ouvertes → on ne capte pas
-            {
-                return;
-            }         
-            if (_oneTurnActive)// Mode 1 tour → on ne capte pas
-            {
-                MessageClavierNonAccessible();
-                return;
-            }
-      
-            if (_autoRotState == AutoRotationState.Lent || _autoRotState == AutoRotationState.Normal || _autoRotState == AutoRotationState.Rapide)
-            {
-                MessageClavierNonAccessible();
-                return;
-            }
+            if (_OptionOpen) return;
+
+            if (_oneTurnActive) return;
+
+
+            if (_autoRotState == AutoRotationState.Lent || _autoRotState == AutoRotationState.Normal || _autoRotState == AutoRotationState.Rapide) return;
 
             //Fléches gauche et droites
             if (e.Key == Key.Right)
             {
                 e.Handled = true;
                 _ = ShowMessageAndNavigateAsync(+1);
-                //NavigateToAdjacentPano(+1);
             }
             else if (e.Key == Key.Left)
             {
                 e.Handled = true;
                 _ = ShowMessageAndNavigateAsync(-1);
-                //NavigateToAdjacentPano(-1);
             }
-        }
-        private void MessageClavierNonAccessible()
-        {
-            txtInfoPopup.Text = "⌨️ Clavier désactivé dans ce mode";
-            (infoPopup.Resources["StoryboardShowInfoMoyen"] as Storyboard)?.Begin(infoPopup);
         }
         // ─────────────────────────────────────────────────────────────────────
         // Gestion de la souris
@@ -935,7 +892,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _autoRotState = AutoRotationState.Off;
                 btnAutoRotate.Content = "Rotation auto.";
                 btnAutoRotate.Background = Brushes.Transparent;
-                MajEtatAutoClose();
+                MajEtatAutoCloseAutoNext();
             }
 
             _isMouseDown = true;
@@ -1185,95 +1142,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     settings = Newtonsoft.Json.JsonConvert.DeserializeObject<Pano360Settings>(json);
                     if (settings != null)
                     {
-                        // ✅ Paramètres non-visuels : application immédiate
-                        // Attribution des vitesses de l'autorotation
-                        AutoRotateFastSeconds = settings.AutoRotateFastSeconds;
-                        AutoRotateNormalSeconds = settings.AutoRotateNormalSeconds;
-                        AutoRotateSlowSeconds = settings.AutoRotateSlowSeconds;
-                        sldFast.Value = AutoRotateFastSeconds;
-                        sldNormal.Value = AutoRotateNormalSeconds;
-                        sldSlow.Value = AutoRotateSlowSeconds;
-
-                        // Attribution des autres options aux variables locales
-                        _chkFullscreenSavedValue = settings.FullscreenStartup;
-                        _OptionBarreReduite = settings.StartBarreReduite;
-                        _OptionFov = settings.DefaultFov;
-
-                        _StartRadioBouton = settings.StartRadioBouton;
-                        _StartAutoRotate = settings.StartAutoRotate;
-                        _StartOneTurnActive = settings.StartOneTurnAndClose;
-                        _StartOneTurnNext = settings.StartOneTurnAndNext;
-                        _oneTurnDuration = settings.StartOneTurnDuration;
-
-                        // Mise à jour boite de dialogue: Fullscreen
-                        chkFullscreen.IsChecked = _chkFullscreenSavedValue;
-
-                        // Mise à jour boite de dialogue: Barre reduite
-                        chkBarreReduite.IsChecked = _OptionBarreReduite;
-
-                        // Mise à jour boite de dialogue: Fov
-                        _targetFov = _OptionFov;
-                        sldFov.Value = _OptionFov;
-                        txtFov.Text = string.Format("(FOV: {0:F0}°)", _OptionFov);
-
-                        // Mise à jour boite de dialogue: durée autoclose
-                        sldAutoCloseDelay.Value = _oneTurnDuration;
-                        lblAutoCloseDelayValue.Text = _oneTurnDuration.ToString() +" s";
-
-                        // Mise à jour boite de dialogue: boutonOptionAutoRotate
-                        switch (_StartAutoRotate)
-                        {
-                            case 1:
-                                txtOptionAutoRotate.Text = "🐢 Lent";
-                                break;
-                            case 2:
-                                txtOptionAutoRotate.Text = "▶️ Normal";
-                                break;
-                            case 3:
-                                txtOptionAutoRotate.Text = "▶️▶️ Rapide";
-                                break;
-                        }
-                        // Mise à jour boite de dialogue: RadioBouton
-                        switch (_StartRadioBouton)
-                        {
-                            case 1:
-                                radStartNormal.IsChecked = true;
-                                _StartOneTurnActive = false;
-
-                                btnOptionAutoRotate.Visibility = Visibility.Hidden;
-                                TextAutoClose.Visibility = Visibility.Hidden;
-                                sldAutoCloseDelay.Visibility = Visibility.Hidden;
-                                lblAutoCloseDelayValue.Visibility = Visibility.Hidden;
-                                break;
-                            case 2:
-                                radStartAutoClose.IsChecked = true;
-                                _StartOneTurnActive = false;
-
-                                btnOptionAutoRotate.Visibility = Visibility.Visible;
-                                TextAutoClose.Visibility = Visibility.Hidden;
-                                sldAutoCloseDelay.Visibility = Visibility.Hidden;
-                                lblAutoCloseDelayValue.Visibility = Visibility.Hidden;
-                                break;
-                            case 3:
-                                radStartAutoClose.IsChecked = true;
-                                _StartOneTurnActive = true;
-
-                                btnOptionAutoRotate.Visibility = Visibility.Hidden;
-                                TextAutoClose.Visibility = Visibility.Visible;
-                                sldAutoCloseDelay.Visibility = Visibility.Visible;
-                                lblAutoCloseDelayValue.Visibility = Visibility.Visible;
-                                break;
-                            case 4:
-                                radStartAutoSuivant.IsChecked = true;
-                                _StartOneTurnActive = false;
-                                _StartOneTurnNext = true;
-
-                                btnOptionAutoRotate.Visibility = Visibility.Hidden;
-                                TextAutoClose.Visibility = Visibility.Visible;
-                                sldAutoCloseDelay.Visibility = Visibility.Visible;
-                                lblAutoCloseDelayValue.Visibility = Visibility.Visible;
-                                break;
-                        }
+                        MiseAJourSettings();
 
                         // ✅ Paramètres visuels : différés après chargement complet de la fenêtre
                         Dispatcher.BeginInvoke(new Action(() =>
@@ -1360,7 +1229,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 txtAutoClose.Opacity = 1.0;
                                 txtAutoClose.Text = _StartOneTurnNext ? "1 tour + 📷 ▶️" : "1 tour + ✖️";
                                 btnAutoClose.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
-                                panelAutoCloseProgress.Visibility = Visibility.Visible;        // 🟢 Visible si AutoClose Actif
+                                panelAutoCloseProgress.Visibility = Visibility.Visible;        
 
                                 // Mise à jour de l'info popup sur la durée de l'autorotation
                                 _autoCloseStartAngle = _horizontalRotation.Angle;
@@ -1381,6 +1250,98 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             catch
             {
                 settings = new Pano360Settings();
+            }
+        }
+        private void MiseAJourSettings()
+        {
+            // ✅ Paramètres non-visuels : application immédiate
+            // Attribution des vitesses de l'autorotation
+            AutoRotateFastSeconds = settings.AutoRotateFastSeconds;
+            AutoRotateNormalSeconds = settings.AutoRotateNormalSeconds;
+            AutoRotateSlowSeconds = settings.AutoRotateSlowSeconds;
+            sldFast.Value = AutoRotateFastSeconds;
+            sldNormal.Value = AutoRotateNormalSeconds;
+            sldSlow.Value = AutoRotateSlowSeconds;
+
+            // Attribution des autres options aux variables locales
+            _chkFullscreenSavedValue = settings.FullscreenStartup;
+            _OptionBarreReduite = settings.StartBarreReduite;
+            _OptionFov = settings.DefaultFov;
+
+            _StartRadioBouton = settings.StartRadioBouton;
+            _StartAutoRotate = settings.StartAutoRotate;
+            _StartOneTurnActive = settings.StartOneTurnAndClose;
+            _StartOneTurnNext = settings.StartOneTurnAndNext;
+            _oneTurnDuration = settings.StartOneTurnDuration;
+
+            // Mise à jour boite de dialogue: Fullscreen
+            chkFullscreen.IsChecked = _chkFullscreenSavedValue;
+
+            // Mise à jour boite de dialogue: Barre reduite
+            chkBarreReduite.IsChecked = _OptionBarreReduite;
+
+            // Mise à jour boite de dialogue: Fov
+            _targetFov = _OptionFov;
+            sldFov.Value = _OptionFov;
+            txtFov.Text = string.Format("(FOV: {0:F0}°)", _OptionFov);
+
+            // Mise à jour boite de dialogue: durée autoclose
+            sldAutoCloseDelay.Value = _oneTurnDuration;
+            lblAutoCloseDelayValue.Text = _oneTurnDuration.ToString() + " s";
+
+            // Mise à jour boite de dialogue: boutonOptionAutoRotate
+            switch (_StartAutoRotate)
+            {
+                case 1:
+                    txtOptionAutoRotate.Text = "🐢 Lent";
+                    break;
+                case 2:
+                    txtOptionAutoRotate.Text = "▶️ Normal";
+                    break;
+                case 3:
+                    txtOptionAutoRotate.Text = "▶️▶️ Rapide";
+                    break;
+            }
+            // Mise à jour boite de dialogue: RadioBouton
+            switch (_StartRadioBouton)
+            {
+                case 1:
+                    radStartNormal.IsChecked = true;
+                    _StartOneTurnActive = false;
+
+                    btnOptionAutoRotate.Visibility = Visibility.Hidden;
+                    TextAutoClose.Visibility = Visibility.Hidden;
+                    sldAutoCloseDelay.Visibility = Visibility.Hidden;
+                    lblAutoCloseDelayValue.Visibility = Visibility.Hidden;
+                    break;
+                case 2:
+                    radStartAutoRotate.IsChecked = true;
+                    _StartOneTurnActive = false;
+
+                    btnOptionAutoRotate.Visibility = Visibility.Visible;
+                    TextAutoClose.Visibility = Visibility.Hidden;
+                    sldAutoCloseDelay.Visibility = Visibility.Hidden;
+                    lblAutoCloseDelayValue.Visibility = Visibility.Hidden;
+                    break;
+                case 3:
+                    radStartAutoClose.IsChecked = true;
+                    _StartOneTurnActive = true;
+
+                    btnOptionAutoRotate.Visibility = Visibility.Hidden;
+                    TextAutoClose.Visibility = Visibility.Visible;
+                    sldAutoCloseDelay.Visibility = Visibility.Visible;
+                    lblAutoCloseDelayValue.Visibility = Visibility.Visible;
+                    break;
+                case 4:
+                    radStartAutoSuivant.IsChecked = true;
+                    _StartOneTurnActive = false;
+                    _StartOneTurnNext = true;
+
+                    btnOptionAutoRotate.Visibility = Visibility.Hidden;
+                    TextAutoClose.Visibility = Visibility.Visible;
+                    sldAutoCloseDelay.Visibility = Visibility.Visible;
+                    lblAutoCloseDelayValue.Visibility = Visibility.Visible;
+                    break;
             }
         }
         private void SaveSettings()
@@ -1428,7 +1389,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             btnAutoRotate.Content = "Rotation auto.";
             btnAutoRotate.Background = Brushes.Transparent;
             _autoCloseActive = false;
-            MajEtatAutoClose();
+            MajEtatAutoCloseAutoNext();
 
             // Arrêt immédiat de 1tour et on ferme (ou on change)
             _oneTurnActive = false;
@@ -1439,7 +1400,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             
             // 🎯 ON ALLUME LE FLOU DERRIÈRE : Un rayon de 15 rend le panorama magnifiquement flou
             viewBlur.Radius = 15;
-            
+
             // Affichage de l'incrustation des options
             gridPreferences.Visibility = Visibility.Visible;
         }
@@ -1576,9 +1537,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // 1. Soit la souris est enfoncée (drag)
             // 2. Soit l'autorotation est active
             // 3. Soit le dernier mouvement enregistré est plus récent que le délai d'inactivité
-            bool isActuellementEnMouvement = _isMouseDown ||
-                                             (_autoRotState != AutoRotationState.Off) ||
-                                             (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
+            bool isActuellementEnMouvement = _isMouseDown || (_autoRotState != AutoRotationState.Off) || (DateTime.Now - _lastMovementTime).TotalSeconds < InactivityDelay;
 
             if (isActuellementEnMouvement)
             {
@@ -1759,7 +1718,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     _lastMovementTime = DateTime.Now;
                     break;
             }
-            MajEtatAutoClose();
+            MajEtatAutoCloseAutoNext();
         }
         private void AfficheEtatAutoRotation() 
         {
@@ -1786,7 +1745,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // BOUTON AUTOCLOSE & AUTONEXT 
         // ─────────────────────────────────────────────────────────────────────
-        private void BtnAutoClose_Click(object sender, RoutedEventArgs e)
+        private void BtnAutoCloseAutoNext_Click(object sender, RoutedEventArgs e)
         {
             if (_autoRotState == AutoRotationState.Off) return;
 
@@ -1827,9 +1786,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _isAutoClosingPhase = false;
             }
 
-            MajEtatAutoClose();
+            MajEtatAutoCloseAutoNext();
         }
-        private void MajEtatAutoClose()
+        private void MajEtatAutoCloseAutoNext()
         {
             if (_autoRotState == AutoRotationState.Off)
             {
@@ -1973,11 +1932,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _currentPanoPath = newPath;
                 _context.Title = $"360° : {System.IO.Path.GetFileName(newPath)}";
 
-                // Stoppe proprement tout popup en cours
-                //(infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Stop(infoPopup);
-                //(infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Stop(infoPopup);
-                //infoPopup.Opacity = 0;
-
                 // Démarrage
                 if (_StartOneTurnNext)
                     DemarrerOneTurnNext();
@@ -2014,7 +1968,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _isPopupShown = false;
             _isAutoClosingPhase = false;
 
-            MajEtatAutoClose();
+            MajEtatAutoCloseAutoNext();
         }
         private void DemarrerOneTurnNext()
         {
@@ -2043,8 +1997,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             txtAutoClose.Text = "1 tour + 📷 ▶️";
             panelAutoCloseProgress.Visibility = Visibility.Visible;
 
-            //btnAutoRotate.Content = "Rotation auto.";
-            //btnAutoRotate.Background = Brushes.Transparent;
             btnAutoRotate.IsEnabled = false;
         }
         // ─────────────────────────────────────────────────────────────────────
@@ -2306,11 +2258,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             var window = Window.GetWindow(this);
             if (window == null) return;
 
-            var method = window.GetType().GetMethod(
-                "ToggleFullscreen",
-                System.Reflection.BindingFlags.Instance |
-                System.Reflection.BindingFlags.Public |
-                System.Reflection.BindingFlags.NonPublic);
+            var method = window.GetType().GetMethod("ToggleFullscreen", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
 
             method?.Invoke(window, null);
         }
@@ -2327,33 +2275,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             await Task.Delay(350);
 
             NavigateToAdjacentPano(direction);
-        }
-        private void ShowPopupThen(string message, Action action)
-        {
-            // Alternative (non utilisée pour afficher un message pour le changement de panorama (par exemple)
-            // Il faudra alors utiliser par exemple :
-            // ShowPopupThen("Panorama suivant ▶", () => NavigateToAdjacentPano(+1));
-            // ou
-            // ShowPopupThen("◀ Panorama précédent", () => NavigateToAdjacentPano(-1));
-
-            txtInfoPopup.Text = message;
-
-            var sb = infoPopup.Resources["StoryboardShowInfoUltraRapide"] as Storyboard;
-
-            if (sb == null)
-            {
-                action();
-                return;
-            }
-
-            void Handler(object sender, EventArgs e)
-            {
-                sb.Completed -= Handler;
-                action();
-            }
-
-            sb.Completed += Handler;
-            sb.Begin(infoPopup);
         }
         // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources

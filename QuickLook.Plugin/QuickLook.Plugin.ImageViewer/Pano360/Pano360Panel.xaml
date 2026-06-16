@@ -209,7 +209,7 @@
                                 </Button.Style>
                             </Button>
                             <!-- ── Bouton AUTOCLOSE ──────────────────────────────── -->
-                            <Button x:Name="btnAutoClose" Background="Transparent" Width="120" Padding="8,4" Margin="6,0,0,0" Foreground="White" Cursor="Hand" Click="BtnAutoClose_Click">
+                            <Button x:Name="btnAutoClose" Background="Transparent" Width="120" Padding="8,4" Margin="6,0,0,0" Foreground="White" Cursor="Hand" Click="BtnAutoCloseAutoNext_Click">
                                 <TextBlock x:Name="txtAutoClose" Text="1 tour + ... : Off" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                 <Button.Style>
                                     <Style TargetType="Button">
