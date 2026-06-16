@@ -166,7 +166,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double ZoomSensitivity = 0.05;     // Coefficient multiplicateur du zoom SpaceMouse (valeur faible = zoom progressif et précis)
         private const double ZoomFreeSpeedXY = 1000;     // Seuil de vitesse XY au-dessus duquel le zoom est inhibé (si on tourne vite, on ne zoome pas accidentellement)
 
-        //private bool _isPopupShownSpaceMouse = false;  // [Non utilisé] Verrou pour le popup de conflit souris/SpaceMouse (fonctionnalité désactivée)
+        private bool _isSpaceMouseZoom = false;          // Verrou mis à true si le zoom via la spacemouse est actif, dans ce cas cela désactive la roulette
+        private bool _isSpaceMouseHighForce = false;     // Utilisé pour avertir que l'on utilise en même temps la souris et la spacemouse 
 
         // ─────────────────────────────────────────────────────────────────────
         // > Raccourcis Clavier SpaceMouse — navigation vers angle cible
@@ -450,6 +451,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // ── 1. NAVIGATION SOURIS (Capture de la vitesse pour l'inertie) ───────
             if (_isMouseDown)
             {
+                //Gestion des abus d'outils
+                if (_isSpaceMouseHighForce)
+                {
+                    txtInfoPopup.Text = "La souris l'emporte, arrête de jouer. 😉";
+                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                }
+
                 double deltaX = _lastMouseX - _startMouseX;
                 double deltaY = _lastMouseY - _startMouseY;
 
@@ -486,6 +494,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // ──────────────────────────────────────────────────────────────────────
             // ── 1b. NAVIGATION SPACEMOUSE (Directe & Instinctive) ─────────────────
+
             double spaceMouseSpeedX = 0;
             double spaceMouseSpeedY = 0;
             double spaceMouseSpeedZ = 0;
@@ -499,71 +508,82 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 spaceMouseZoom = _rawSpaceMouseZoom;
             }
 
-            // Partie rotation du panorama
-            if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
-            {
-                //Gestion des abus d'outils (bis)
-                if (Math.Abs(spaceMouseSpeedY) > 500 && (_autoRotState != AutoRotationState.Off || _oneTurnActive))
+            //Pour le flag de la souris, savoir si il y a utilisation des 2 periphériques (Gestion des abus d'outils)
+            _isSpaceMouseHighForce = (Math.Abs(spaceMouseSpeedX) > 500 || Math.Abs(spaceMouseSpeedY) > 500 || Math.Abs(spaceMouseSpeedZ) > 500);
+
+            if (!_isMouseDown)
+            { 
+                // Partie rotation du panorama
+                if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
                 {
-                    txtInfoPopup.Text = "🕹️ Axe horizontal vérouillé dans ce mode";
-                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                    //Gestion des abus d'outils
+                    if (Math.Abs(spaceMouseSpeedY) > 500 && (_autoRotState != AutoRotationState.Off || _oneTurnActive))
+                    {
+                        txtInfoPopup.Text = "🕹️ Axe horizontal vérouillé dans ce mode";
+                        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                    }
+
+                    if (_autoRotState == AutoRotationState.Off && !_oneTurnActive)
+                    {
+                        _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
+                    }
+
+                    ClampVertical(_verticalRotation.Angle + (spaceMouseSpeedX * elapsed * sensibiliteTangage));
+
+                    MarquerMouvement();
                 }
 
-                if (_autoRotState == AutoRotationState.Off && !_oneTurnActive)
+                // Partie Zoom via le déplacement du manche vers l'avant/arrière
+                bool panoramaEnMouvement = Math.Abs(spaceMouseSpeedX) > ZoomFreeSpeedXY || Math.Abs(spaceMouseSpeedY) > ZoomFreeSpeedXY;
+
+                if (!panoramaEnMouvement && Math.Abs(_rawSpaceMouseZoom) > ZoomDeadZone)
                 {
-                    _horizontalRotation.Angle -= spaceMouseSpeedY * elapsed * sensibiliteLacet;
-                }
-
-                ClampVertical(_verticalRotation.Angle + (spaceMouseSpeedX * elapsed * sensibiliteTangage));
-
-                MarquerMouvement();
-            }
-
-            // Partie Zoom via le déplacement du manche vers l'avant/arrière
-            bool panoramaEnMouvement = Math.Abs(spaceMouseSpeedX) > ZoomFreeSpeedXY || Math.Abs(spaceMouseSpeedY) > ZoomFreeSpeedXY;
-
-            if (!panoramaEnMouvement && Math.Abs(_rawSpaceMouseZoom) > ZoomDeadZone)
-            {
-                _targetFov = Clamp(_targetFov + _rawSpaceMouseZoom * ZoomSensitivity * elapsed, FovMin, FovMax);
-            }
-
-            // ──────────────────────────────────────────────────────────────────────
-            // ── 1c. CLAVIER SPACEMOUSE — interpolation vers angle cible ───────────
-            if (!double.IsNaN(_targetHorizontalAngle))
-            {
-                double diff = AngleDiff(_targetHorizontalAngle, _horizontalRotation.Angle);
-
-                if (Math.Abs(diff) < 0.2)
-                {
-                    // Arrivé à destination : on verrouille et on efface la cible
-                    _horizontalRotation.Angle = _targetHorizontalAngle;
-                    _targetHorizontalAngle = double.NaN;
-                    _currentRotationSpeed = 0;
+                    _isSpaceMouseZoom = true;   // Pour la gestion des abus d'outils
+                    _targetFov = Clamp(_targetFov + _rawSpaceMouseZoom * ZoomSensitivity * elapsed, FovMin, FovMax);
                 }
                 else
                 {
-                    // Interpolation exponentielle (ease-out naturel)
-                    double step = diff * Math.Min(KeySnapSpeed * elapsed / Math.Abs(diff), 1.0);
-                    _horizontalRotation.Angle = NormalizeAngle(_horizontalRotation.Angle + step);
-                    _currentRotationSpeed = 0; // Coupe l'inertie souris pendant le snap
-                    MarquerMouvement();
+                    _isSpaceMouseZoom = false;  // Pour la gestion des abus d'outils
                 }
-            }
 
-            if (!double.IsNaN(_targetVerticalAngle))
-            {
-                double diff = _targetVerticalAngle - _verticalRotation.Angle;
-
-                if (Math.Abs(diff) < 0.2)
+                // ──────────────────────────────────────────────────────────────────────
+                // ── 1c. CLAVIER SPACEMOUSE — interpolation vers angle cible ───────────
+                if (!double.IsNaN(_targetHorizontalAngle))
                 {
-                    _verticalRotation.Angle = _targetVerticalAngle;
-                    _targetVerticalAngle = double.NaN;
+                    double diff = AngleDiff(_targetHorizontalAngle, _horizontalRotation.Angle);
+
+                    if (Math.Abs(diff) < 0.2)
+                    {
+                        // Arrivé à destination : on verrouille et on efface la cible
+                        _horizontalRotation.Angle = _targetHorizontalAngle;
+                        _targetHorizontalAngle = double.NaN;
+                        _currentRotationSpeed = 0;
+                    }
+                    else
+                    {
+                        // Interpolation exponentielle (ease-out naturel)
+                        double step = diff * Math.Min(KeySnapSpeed * elapsed / Math.Abs(diff), 1.0);
+                        _horizontalRotation.Angle = NormalizeAngle(_horizontalRotation.Angle + step);
+                        _currentRotationSpeed = 0; // Coupe l'inertie souris pendant le snap
+                        MarquerMouvement();
+                    }
                 }
-                else
+
+                if (!double.IsNaN(_targetVerticalAngle))
                 {
-                    double step = diff * Math.Min(KeySnapSpeed * elapsed / Math.Abs(diff), 1.0);
-                    ClampVertical(_verticalRotation.Angle + step);
-                    MarquerMouvement();
+                    double diff = _targetVerticalAngle - _verticalRotation.Angle;
+
+                    if (Math.Abs(diff) < 0.2)
+                    {
+                        _verticalRotation.Angle = _targetVerticalAngle;
+                        _targetVerticalAngle = double.NaN;
+                    }
+                    else
+                    {
+                        double step = diff * Math.Min(KeySnapSpeed * elapsed / Math.Abs(diff), 1.0);
+                        ClampVertical(_verticalRotation.Angle + step);
+                        MarquerMouvement();
+                    }
                 }
             }
 
@@ -641,12 +661,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         if (_oneTurnNextActive)
                         {
                             _oneTurnNextActive = false;
-                            System.Diagnostics.Debug.WriteLine("Pano suivant !");
+                            System.Diagnostics.Debug.WriteLine("Pano suivant !");                     //Debug
                             Dispatcher.BeginInvoke(new Action(() => NavigateToAdjacentPano(+1)));
                         }
                         else
                         {
-                            System.Diagnostics.Debug.WriteLine("Fermeture de la fenetre !");
+                            System.Diagnostics.Debug.WriteLine("Fermeture de la fenetre !");          //Debug
                             Dispatcher.BeginInvoke(new Action(() => Window.GetWindow(this)?.Close()));
                         }
                         return;
@@ -857,6 +877,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (_oneTurnActive) return;
 
+            if (_isMouseDown) return;
 
             if (_autoRotState == AutoRotationState.Lent || _autoRotState == AutoRotationState.Normal || _autoRotState == AutoRotationState.Rapide) return;
 
@@ -929,6 +950,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void OnMouseWheel(object sender, MouseWheelEventArgs e)
         {
+            // Pour la gestion des abus d'outils
+            if (_isSpaceMouseZoom)
+            {
+                txtInfoPopup.Text = "Spacemouse l'emporte, arrête de jouer. 😉";
+                (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+                return;
+            }
+            
             // Pas adaptatif : quadratique, ~1° aux extrêmes, ~5° au centre
             double t = (_targetFov - FovMin) / (FovMax - FovMin);
             double step = 1.0 + 4.0 * (1.0 - Math.Abs(2.0 * t - 1.0));
@@ -1037,7 +1066,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Ignore si le panneau d'options est ouvert
             if (_OptionOpen) return;
 
-            if (_oneTurnActive)
+            if (_isMouseDown) return;
+
+                if (_oneTurnActive)
             {
                 txtInfoPopup.Text = "⌨️ Clavier désactivé dans ce mode";
                 if (_oneTurnDuration > 6)
