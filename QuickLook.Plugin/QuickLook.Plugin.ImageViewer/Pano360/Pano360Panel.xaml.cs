@@ -1429,6 +1429,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _oneTurnActive = false;
             _oneTurnNextActive = false;
 
+            // Passe le bouton option en bleu pour montrer qu'il est sélectionné
+            btnOptions.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
+
             // Indique que la boite de dialogue d'option est ouverte (utile pour désactiver la spacemouse)
             _OptionOpen = true;
             
@@ -1505,6 +1508,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Masquage de la boîte
             gridPreferences.Visibility = Visibility.Collapsed;
+
+            // Passe le bouton option en transparent
+            btnOptions.Background = Brushes.Transparent;
 
             // Sauvegarde définitive
             SaveSettings();
