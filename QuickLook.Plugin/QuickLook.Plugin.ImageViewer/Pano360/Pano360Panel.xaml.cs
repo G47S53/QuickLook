@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+using FellowOakDicom.Imaging.Reconstruction;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -57,6 +58,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _isPreloading = false;                                // Verrou : empêche deux passes de préchargement simultanées
         private System.Windows.Threading.DispatcherTimer _idleTimer;       // Timer déclenché toutes les 500 ms pour lancer le préchargement quand l'utilisateur ne fait rien
         private int _preloadHorizon = 2;                                   // Nombre de voisins préchargés de chaque côté (2 → 5 images en RAM : -2, -1, courant, +1, +2)
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > Extraction données Exif/Xmp
+        // ─────────────────────────────────────────────────────────────────────
+        private PanoMetadata _currentMetadata;
 
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
@@ -297,6 +303,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _context.IsBusy = false;  // Signale à QuickLook que le chargement est terminé
 
             Focus();
+
+            // Debug pour les données Exif/Xmp
+            //PanoMetadataService.DiagnostiquerMetadonnees(_currentPanoPath);
+
+            // lire les données Exif/Xmp
+            LoadAndDisplayMetadata(_currentPanoPath);
 
             // ── Connexion SpaceMouse une fois la scène complètement prête ──
             ConnecterSpaceMouse();
@@ -1898,7 +1910,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void NavigateToAdjacentPano(int direction)
         {
-            // Tente de naviguer vers le panorama suivant (direction=+1) ou précédent (direction=-1).
+            // ÉTAPE 1 : Sauvegarde automatique des métadonnées du panorama actuel avant de le quitter
+            if (!string.IsNullOrEmpty(_currentPanoPath) && _currentMetadata != null)
+            {
+                PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
+            }
+
+            // ÉTAPE 2 :  Tente de naviguer vers le panorama suivant (direction=+1) ou précédent (direction=-1).
             // Saute les images qui ne sont pas équirectangulaires.
             // Boucle en fin/début de liste.
             if (_isNavigating) return;
@@ -1971,6 +1989,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // Mise à jour de l'état courant
                 _currentPanoPath = newPath;
                 _context.Title = $"360° : {System.IO.Path.GetFileName(newPath)}";
+
+                // lire les données Exif/Xmp
+                LoadAndDisplayMetadata(_currentPanoPath);
 
                 // Démarrage
                 if (_StartOneTurnNext)
@@ -2217,6 +2238,63 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
         }
         // ─────────────────────────────────────────────────────────────────────
+        // Gestion Exif et Xmp
+        // ─────────────────────────────────────────────────────────────────────
+        private void LoadAndDisplayMetadata(string filePath)
+        {
+            // Gère la lecture et l'affichage de la note
+            _currentPanoPath = filePath;
+
+            // Étape 1 : Lecture via notre service
+            _currentMetadata = PanoMetadataService.ReadMetadata(filePath);
+
+            // Étape 2 : Mise à jour de l'affichage des étoiles
+            UpdateRatingUI(_currentMetadata.Rating ?? 0);
+            System.Diagnostics.Debug.WriteLine($"Rating : {_currentMetadata.Rating}");
+
+            // Optionnel : Afficher les infos EXIF dans votre popup de débogage si vous le souhaitez
+            if (_currentMetadata.Iso.HasValue)
+            {
+                System.Diagnostics.Debug.WriteLine($"ISO détecté : {_currentMetadata.Iso}");
+            }
+        }
+        private void UpdateRatingUI(int rating)
+        {
+            // Colore les étoiles en fonction de la note(de 0 à 5)
+            // On boucle sur nos 5 TextBlocks d'étoiles définis dans le XAML
+            for (int i = 1; i <= 5; i++)
+            {
+                var starBtn = this.FindName($"Star{i}") as System.Windows.Controls.Button;
+                if (starBtn != null)
+                {
+                    // Si l'index est inférieur ou égal à la note, l'étoile est pleine (jaune), sinon vide (grise)
+                    starBtn.Content = i <= rating ? "★" : "☆";
+                    starBtn.Foreground = i <= rating ? System.Windows.Media.Brushes.Gold : System.Windows.Media.Brushes.Gray;
+                }
+            }
+        }
+        private void Star_Click(object sender, RoutedEventArgs e)
+        {
+            // Gestion du clic sur une étoile pour changer la note
+            if (sender is System.Windows.Controls.Button clickedButton)
+            {
+                // On récupère le numéro de l'étoile cliquée via sa propriété Tag
+                if (short.TryParse(clickedButton.Tag?.ToString(), out short newRating))
+                {
+                    // Si on clique sur l'étoile 1 alors que la note est déjà 1, on bascule à 0 (annulation)
+                    if (_currentMetadata.Rating == newRating && newRating == 1)
+                        _currentMetadata.Rating = 0;
+                    else
+                        _currentMetadata.Rating = newRating;
+
+                    // On rafraîchit l'affichage graphique
+                    UpdateRatingUI(_currentMetadata.Rating ?? 0);
+
+                    System.Diagnostics.Debug.WriteLine($"Nouvelle note demandée : {_currentMetadata.Rating}");
+                }
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
         // ────────────────────────── Math ─────────────────────────────────────
@@ -2321,7 +2399,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         public void Dispose()
         {
-            // 1. ARRÊTER LES PROCESSUS ACTIFS ET ÉVÉNEMENTS GLOBAUX
+            // 1. Sauvegarde finale du panorama en cours avant la fermeture complète
+            if (!string.IsNullOrEmpty(_currentPanoPath) && _currentMetadata != null)
+            {
+                PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
+            }
+
+            // 2. ARRÊTER LES PROCESSUS ACTIFS ET ÉVÉNEMENTS GLOBAUX
             // On coupe la boucle de rendu en priorité pour geler l'affichage
             CompositionTarget.Rendering -= OnRendering;
 
@@ -2339,15 +2423,15 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 window.PreviewKeyDown -= OnWindowKeyDown;
             }
 
-            // 2. DÉCONNECTER LE MATÉRIEL
+            // 3. DÉCONNECTER LE MATÉRIEL
             // Libération des ressources de la souris 3D (COM/USB)
             DeconnecterSpaceMouse();
 
-            // 3. NETTOYER LES DONNÉES LOURDES ET L'INTERFACE
+            // 4. NETTOYER LES DONNÉES LOURDES ET L'INTERFACE
             // On vide la RAM utilisée par les images préchargées
             _imageCache?.Clear();
 
-            // Enfin, on vide la scène 3D
+            // 5. Enfin, on vide la scène 3D
             viewport3D.Children.Clear();
         }
     }
