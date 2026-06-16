@@ -115,6 +115,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double VerticalAngleMin = -90.0;   // Angle vertical minimum (regarde vers le bas, axe X) — en degrés
         private const double VerticalAngleMax = 45.0;    // Angle vertical maximum (regarde vers le haut, axe X) — en degrés
 
+        private const double SphereVPower = 1.0;         // Déformation UV verticale : 1.0 = aucune (standard équirectangulaire)
+                                                         // < 1.0 → étirement vers les pôles (effet "little planet")
+                                                         // > 1.0 → compression vers les pôles (ciel/sol plus "plat")
+                                                         // Plage utile : 0.5 à 2.0
+
         // ─────────────────────────────────────────────────────────────────────
         // > Champs 3D
         // ─────────────────────────────────────────────────────────────────────
@@ -355,9 +360,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     double z = Math.Sin(phi) * Math.Sin(theta);
 
                     mesh.Positions.Add(new Point3D(x, y, z));
-                    mesh.TextureCoordinates.Add(new Point(
-                        slice / (double)SphereSlices,
-                        phi / Math.PI));
+                    mesh.TextureCoordinates.Add(new Point(slice / (double)SphereSlices, Math.Pow(phi / Math.PI, SphereVPower)));
                 }
             }
 
