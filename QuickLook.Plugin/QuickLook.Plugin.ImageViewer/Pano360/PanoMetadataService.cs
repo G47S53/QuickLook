@@ -10,7 +10,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // Données XMP
         public short? Rating { get; set; }
         public string Label { get; set; }
-
         // Données EXIF
         public ushort? Iso { get; set; }
         public string ShutterSpeed { get; set; }
@@ -92,7 +91,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                     if (decoder.Frames.Count > 0 && decoder.Frames[0].Metadata is BitmapMetadata bitmapMetadata)
                     {
-                        // 1. Lecture des données XMP (Correction pour gérer le type String)
+                        // ──── 1. Lecture des données XMP
+
+                        // Pour les étoiles
                         if (bitmapMetadata.ContainsQuery("/xmp/xmp:Rating"))
                         {
                             var ratingRaw = bitmapMetadata.GetQuery("/xmp/xmp:Rating");
@@ -101,8 +102,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 data.Rating = r;
                             }
                         }
+                        // Pour les couleurs
+                        if (bitmapMetadata.ContainsQuery("/xmp/xmp:Label"))
+                            data.Label = bitmapMetadata.GetQuery("/xmp/xmp:Label") as string;
 
-                        // 2. Lecture des données EXIF (Requêtes IFD/Exif spécifiques au format JPG)
+                        // ──── 2. Lecture des données EXIF (Requêtes IFD/Exif spécifiques au format JPG)
                         if (bitmapMetadata.ContainsQuery("/app1/ifd/exif/{ushort=34855}")) // Tag ISO
                             data.Iso = bitmapMetadata.GetQuery("/app1/ifd/exif/{ushort=34855}") as ushort?;
 
@@ -111,11 +115,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                         // Exemple d'extraction générique pour vos futurs tests
                         // Vous pouvez stocker n'allant chercher que la clé brute
-                        if (bitmapMetadata.ContainsQuery("/app1/ifd/gps/"))
-                        {
-                            // On stocke temporairement l'objet GPS si présent pour vos futurs développements
-                            data.CustomTags["GPS_Raw"] = bitmapMetadata.GetQuery("/app1/ifd/gps/");
-                        }
+                        //if (bitmapMetadata.ContainsQuery("/app1/ifd/gps/"))
+                        //{
+                        //    // On stocke temporairement l'objet GPS si présent pour vos futurs développements
+                        //    data.CustomTags["GPS_Raw"] = bitmapMetadata.GetQuery("/app1/ifd/gps/");
+                        //}
                     }
                 }
             }
@@ -147,6 +151,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         var metadataClone = frame.Metadata is BitmapMetadata bm ? bm.Clone() : new BitmapMetadata("jpg");
 
                         // APPLICATION DES MODIFICATIONS XMP
+                        // Pour le rating
                         if (data.Rating.HasValue)
                         {
                             //On passe la valeur en String pour correspondre au type attendu par le fichier
@@ -156,6 +161,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         {
                             metadataClone.RemoveQuery("/xmp/xmp:Rating");
                         }
+
+                        // Pour la couleur
+                        if (data.Label != null)
+                            metadataClone.SetQuery("/xmp/xmp:Label", data.Label);
 
                         // Reconstruction du fichier
                         var encoder = new JpegBitmapEncoder();

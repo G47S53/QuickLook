@@ -560,13 +560,13 @@
 
             </Border.Resources>
             <StackPanel Orientation="Horizontal">
-                <Button x:Name="PointColorLeft" Content="⚫" FontSize="6" Foreground="Gray" Background="Transparent" BorderThickness="0" Cursor="Hand" Margin="2,0"/>
+                <Button x:Name="PointColorLeft" Content="⚫" FontSize="6" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Color_Click" Cursor="Hand" Margin="2,0"/>
                 <Button x:Name="Star1" Tag="1" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
                 <Button x:Name="Star2" Tag="2" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
                 <Button x:Name="Star3" Tag="3" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
                 <Button x:Name="Star4" Tag="4" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
                 <Button x:Name="Star5" Tag="5" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
-                <Button x:Name="PointColorRight" Content="⚫" FontSize="6" Foreground="Gray" Background="Transparent" BorderThickness="0" Cursor="Hand" Margin="2,0"/>
+                <Button x:Name="PointColorRight" Content="⚫" FontSize="6" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Color_Click" Cursor="Hand" Margin="2,0"/>
             </StackPanel>
         </Border>
     </Grid>

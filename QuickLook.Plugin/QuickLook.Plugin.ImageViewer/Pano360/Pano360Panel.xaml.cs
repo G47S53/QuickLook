@@ -2291,13 +2291,55 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Étape 2 : Mise à jour de l'affichage des étoiles
             UpdateRatingUI(_currentMetadata.Rating ?? 0);
+
+            // Étape 3 : Mise à jour des couleurs
+            SetColorPanelRating(_currentMetadata.Label);
+
+            // Debug
             System.Diagnostics.Debug.WriteLine($"Rating : {_currentMetadata.Rating}");
+            System.Diagnostics.Debug.WriteLine($"Label : {_currentMetadata.Label}");
 
             // Optionnel : Afficher les infos EXIF dans votre popup de débogage si vous le souhaitez
-            if (_currentMetadata.Iso.HasValue)
+            //if (_currentMetadata.Iso.HasValue)
+            //{
+            //    System.Diagnostics.Debug.WriteLine($"ISO détecté : {_currentMetadata.Iso}");
+            //}
+        }
+        private void SetColorPanelRating(string couleur)
+        {
+            switch (couleur)
             {
-                System.Diagnostics.Debug.WriteLine($"ISO détecté : {_currentMetadata.Iso}");
+                case "Vert":
+                    panelRating.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#2004FF00"));
+                    SetPointColorOnPanelRating(Brushes.Green);
+                    break;
+                case "Rouge":
+                    panelRating.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#30FF2B00"));
+                    SetPointColorOnPanelRating(Brushes.Red);
+                    break;
+                case "Jaune":
+                    panelRating.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#25FFFB00"));
+                    SetPointColorOnPanelRating(Brushes.Yellow);
+                    break;
+                case "Bleu":
+                    panelRating.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#300077FF"));
+                    SetPointColorOnPanelRating(Brushes.Blue);
+                    break;
+                case "Violet":
+                    panelRating.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#25AA00FF"));
+                    SetPointColorOnPanelRating(Brushes.Purple);
+                    break;
+                default:
+                    panelRating.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#80000000"));
+                    SetPointColorOnPanelRating(Brushes.Gray);
+                    break;
             }
+        }
+        private void SetPointColorOnPanelRating(Brush brush)
+        {
+            // Permet de synchroniser la couleur des points gauche et droit dans la barre de notation
+            PointColorLeft.Foreground = brush;
+            PointColorRight.Foreground = brush;
         }
         private void UpdateRatingUI(int rating)
         {
@@ -2337,6 +2379,55 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 }
             }
         }
+        private void Color_Click(object sender, RoutedEventArgs e)
+        {
+            switch (_currentMetadata.Label)
+            {
+                case "Vert":
+                    _currentMetadata.Label = "Rouge";
+                    break;
+                case "Rouge":
+                    _currentMetadata.Label = "Jaune";
+                    break;
+                case "Jaune":
+                    _currentMetadata.Label = "Bleu";
+                    break;
+                case "Bleu":
+                    _currentMetadata.Label = "Violet";
+                    break;
+                case "Violet":
+                    _currentMetadata.Label = "";
+                    break;
+                default:
+                    _currentMetadata.Label = "Vert";
+                    break;
+            }
+            // Indique qu'il est nécessaire de sauvegarder
+            _isMetaChanging = true;      
+            
+            // Mise à jour des couleurs de l'interface
+            SetColorPanelRating(_currentMetadata.Label);
+
+        }
+        public void SauvegardeMeta()
+        {
+            // Texte d'information pour l'utilisateur
+            txtInfoPopup.Text = "💾 Mise à jour des metadonnées 📷";
+            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+
+            // Debug
+            //System.Diagnostics.Debug.WriteLine("--Debut sauvegarde--");
+            //System.Diagnostics.Debug.WriteLine($"Rating : {_currentMetadata.Rating}");
+            //System.Diagnostics.Debug.WriteLine($"Label : {_currentMetadata.Label}");
+            //System.Diagnostics.Debug.WriteLine("--Fin sauvegarde--");
+
+            //sauvegarde dans le fichier
+            if (!string.IsNullOrEmpty(_currentPanoPath) && _currentMetadata != null)
+            {
+                PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
+            }
+        }
+
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
@@ -2497,18 +2588,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // 5. Enfin, on vide la scène 3D
             viewport3D.Children.Clear();
-        }
-        public void SauvegardeMeta()
-        {
-            // Texte d'information pour l'utilisateur
-            txtInfoPopup.Text = "💾 Mise à jour des metadonnées 📷";
-            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-
-            //sauvegarde dans le fichier
-            if (!string.IsNullOrEmpty(_currentPanoPath) && _currentMetadata != null)
-            {
-                PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
-            }
         }
     }
 }
