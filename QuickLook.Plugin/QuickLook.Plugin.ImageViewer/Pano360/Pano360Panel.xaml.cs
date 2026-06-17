@@ -63,6 +63,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // > Extraction données Exif/Xmp
         // ─────────────────────────────────────────────────────────────────────
         private PanoMetadata _currentMetadata;
+        private bool _isMetaChanging = false;                              // Indique si les données Exif/Xmp ont changé et si il faut les sauvegarder
 
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
@@ -309,6 +310,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // lire les données Exif/Xmp
             LoadAndDisplayMetadata(_currentPanoPath);
+            _isMetaChanging = false;                         // initialise l'état de l'indicateur de sauvegarde
 
             // ── Connexion SpaceMouse une fois la scène complètement prête ──
             ConnecterSpaceMouse();
@@ -1576,9 +1578,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _isMouseOverBarre = true;
             UpdateBarreOpacity(); // Force la réapparition immédiate
         }
+        private void BarrePanelRating_MouseEnter(object sender, MouseEventArgs e)
+        {
+            _isMouseOverBarre = true;
+            UpdateBarreOpacity(); // Force la réapparition immédiate
+        }
         private void BarreBtn_MouseLeave(object sender, MouseEventArgs e)
         {
             // On remet une "bûche" dans le compteur pour donner un petit sursis avant que ça ne re-disparaisse
+            _isMouseOverBarre = false;
+        }
+        private void BarrePanelRating_MouseLeave(object sender, MouseEventArgs e)
+        {
             _isMouseOverBarre = false;
         }
         private void UpdateBarreOpacity()
@@ -1609,7 +1620,15 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
                     (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
-                    (panelRating.Resources["FadeOutRating"] as Storyboard)?.Begin(panelRating);
+                    if (_autoCloseActive || _autoRotState != AutoRotationState.Off) 
+                    {
+                        (panelRating.Resources["FadeOutRating"] as Storyboard)?.Begin(panelRating); 
+                    }
+                    else
+                    {
+                        (panelRating.Resources["FadeOutFullRating"] as Storyboard)?.Begin(panelRating);
+                    }
+                    
                     _isBarreMasquee = true;
                 }
             }
@@ -1934,11 +1953,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void NavigateToAdjacentPano(int direction)
         {
-            // ÉTAPE 1 : Sauvegarde automatique des métadonnées du panorama actuel avant de le quitter
-            if (!string.IsNullOrEmpty(_currentPanoPath) && _currentMetadata != null)
-            {
-                PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
-            }
+            // ÉTAPE 1 : Sauvegarde automatique des métadonnées du panorama actuel avant de changer de panorama
+            if (_isMetaChanging) SauvegardeMeta();
 
             // ÉTAPE 2 :  Tente de naviguer vers le panorama suivant (direction=+1) ou précédent (direction=-1).
             // Saute les images qui ne sont pas équirectangulaires.
@@ -2016,6 +2032,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 // lire les données Exif/Xmp
                 LoadAndDisplayMetadata(_currentPanoPath);
+                _isMetaChanging = false;                         // initialise l'état de l'indicateur de sauvegarde
 
                 // Démarrage
                 if (_StartOneTurnNext)
@@ -2314,6 +2331,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     // On rafraîchit l'affichage graphique
                     UpdateRatingUI(_currentMetadata.Rating ?? 0);
 
+                    _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
+
                     System.Diagnostics.Debug.WriteLine($"Nouvelle note demandée : {_currentMetadata.Rating}");
                 }
             }
@@ -2448,10 +2467,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         public void Dispose()
         {
             // 1. Sauvegarde finale du panorama en cours avant la fermeture complète
-            if (!string.IsNullOrEmpty(_currentPanoPath) && _currentMetadata != null)
-            {
-                PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
-            }
+            if (_isMetaChanging) SauvegardeMeta();
 
             // 2. ARRÊTER LES PROCESSUS ACTIFS ET ÉVÉNEMENTS GLOBAUX
             // On coupe la boucle de rendu en priorité pour geler l'affichage
@@ -2481,6 +2497,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // 5. Enfin, on vide la scène 3D
             viewport3D.Children.Clear();
+        }
+        public void SauvegardeMeta()
+        {
+            // Texte d'information pour l'utilisateur
+            txtInfoPopup.Text = "💾 Mise à jour des metadonnées 📷";
+            (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+
+            //sauvegarde dans le fichier
+            if (!string.IsNullOrEmpty(_currentPanoPath) && _currentMetadata != null)
+            {
+                PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
+            }
         }
     }
 }

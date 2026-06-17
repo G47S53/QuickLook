@@ -508,7 +508,7 @@
             </Border.Resources>
         </Border>
         <!-- ── Barre Rating  ────────────────────────────── -->
-        <Border x:Name="panelRating" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,75" Background="#80000000" CornerRadius="10" Padding="8,2" RenderTransformOrigin="0.5,0.5">
+        <Border x:Name="panelRating" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,75" Background="#80000000" CornerRadius="10" Padding="8,2" RenderTransformOrigin="0.5,0.5" MouseEnter="BarrePanelRating_MouseEnter" MouseLeave="BarrePanelRating_MouseLeave">
             <Border.RenderTransform>
                 <TransformGroup>
                     <ScaleTransform x:Name="panelRatingScale" ScaleX="1" ScaleY="1"/>
@@ -517,7 +517,10 @@
             </Border.RenderTransform>
             <Border.Resources>
                 <Storyboard x:Key="FadeOutRating">
-                    <DoubleAnimation Storyboard.TargetName="panelRating" Storyboard.TargetProperty="Opacity" To="0.05" Duration="0:0:0.4" />
+                    <DoubleAnimation Storyboard.TargetName="panelRating" Storyboard.TargetProperty="Opacity" To="0.15" Duration="0:0:0.4" />
+                </Storyboard>
+                <Storyboard x:Key="FadeOutFullRating">
+                    <DoubleAnimation Storyboard.TargetName="panelRating" Storyboard.TargetProperty="Opacity" To="0.0" Duration="0:0:0.4" />
                 </Storyboard>
                 <Storyboard x:Key="FadeInRating">
                     <DoubleAnimation Storyboard.TargetName="panelRating" Storyboard.TargetProperty="Opacity" To="1.0" Duration="0:0:0.3" />
@@ -557,11 +560,13 @@
 
             </Border.Resources>
             <StackPanel Orientation="Horizontal">
+                <Button x:Name="PointColorLeft" Content="⚫" FontSize="6" Foreground="Gray" Background="Transparent" BorderThickness="0" Cursor="Hand" Margin="2,0"/>
                 <Button x:Name="Star1" Tag="1" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
                 <Button x:Name="Star2" Tag="2" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
                 <Button x:Name="Star3" Tag="3" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
                 <Button x:Name="Star4" Tag="4" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
                 <Button x:Name="Star5" Tag="5" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
+                <Button x:Name="PointColorRight" Content="⚫" FontSize="6" Foreground="Gray" Background="Transparent" BorderThickness="0" Cursor="Hand" Margin="2,0"/>
             </StackPanel>
         </Border>
     </Grid>
