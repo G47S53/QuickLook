@@ -1217,11 +1217,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             //Barre de rating
                             if (_isBarreCompactee)
                             {
-                                panelRating.Visibility = Visibility.Collapsed;
+                                HideRatingPanelZoomEtOpacity();
                             }
                             else
                             {
-                                panelRating.Visibility = Visibility.Visible;
+                                ShowRatingPanelZoomEtOpacity();
                             }
 
                             // ── Application de l'autorotation si sélectionnée ────────────────
@@ -1638,11 +1638,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 //Barre de rating
                 if (_isBarreCompactee)
                 {
-                    panelRating.Visibility = Visibility.Collapsed;
+                    HideRatingPanelZoomEtOpacity();
                 }
                 else
                 {
-                    panelRating.Visibility = Visibility.Visible;
+                    ShowRatingPanelZoomEtOpacity();
                 }
 
                 // On active le ClipToBounds pour masquer proprement les boutons pendant qu'ils se font écraser
@@ -2417,6 +2417,29 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             await Task.Delay(350);
 
             NavigateToAdjacentPano(direction);
+        }
+        private void ShowRatingPanelZoomEtOpacity()
+        {
+            // Remplace la méthode : panelRating.Visibility = Visible
+            panelRating.Visibility = Visibility.Visible;
+            var sb = (Storyboard)panelRating.Resources["FadeInEtZoomRating"];
+            sb.Begin();
+        }
+        private void HideRatingPanelZoomEtOpacity()
+        {
+            // Remplace la méthode : panelRating.Visibility = Collapsed
+            var sb = (Storyboard)panelRating.Resources["FadeOutEtZoomRating"];
+            sb.Begin();
+            // Le Collapsed est appliqué dans FadeOutRating_Completed
+        }
+        private void FadeOutZoomEtOpacityRating_Completed(object sender, EventArgs e)
+        {
+            // Handler déclenché à la fin du FadeOut
+            panelRating.Visibility = Visibility.Collapsed;
+
+            // Remet le scale à 1 pour le prochain FadeIn
+            panelRatingScale.ScaleX = 1.0;
+            panelRatingScale.ScaleY = 1.0;
         }
         // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources

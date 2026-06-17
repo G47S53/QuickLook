@@ -508,7 +508,10 @@
             </Border.Resources>
         </Border>
         <!-- ── Barre Rating  ────────────────────────────── -->
-        <Border x:Name="panelRating" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,75" Background="#80000000" CornerRadius="10" Padding="8,2">
+        <Border x:Name="panelRating" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,75" Background="#80000000" CornerRadius="10" Padding="8,2" RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+                <ScaleTransform x:Name="panelRatingScale" ScaleX="1" ScaleY="1"/>
+            </Border.RenderTransform>
             <Border.Resources>
                 <Storyboard x:Key="FadeOutRating">
                     <DoubleAnimation Storyboard.TargetName="panelRating" Storyboard.TargetProperty="Opacity" To="0.05" Duration="0:0:0.4" />
@@ -516,6 +519,32 @@
                 <Storyboard x:Key="FadeInRating">
                     <DoubleAnimation Storyboard.TargetName="panelRating" Storyboard.TargetProperty="Opacity" To="1.0" Duration="0:0:0.3" />
                 </Storyboard>
+                <!-- FadeOut : rétrécit + disparaît -->
+                <Storyboard x:Key="FadeOutEtZoomRating" Completed="FadeOutZoomEtOpacityRating_Completed">
+                    <DoubleAnimation Storyboard.TargetName="panelRating"
+                             Storyboard.TargetProperty="Opacity"
+                             To="0" Duration="0:0:0.25"/>
+                    <DoubleAnimation Storyboard.TargetName="panelRatingScale"
+                             Storyboard.TargetProperty="ScaleX"
+                             To="0.6" Duration="0:0:0.25"/>
+                    <DoubleAnimation Storyboard.TargetName="panelRatingScale"
+                             Storyboard.TargetProperty="ScaleY"
+                             To="0.6" Duration="0:0:0.25"/>
+                </Storyboard>
+
+                <!-- FadeIn : grandit + apparaît -->
+                <Storyboard x:Key="FadeInEtZoomRating">
+                    <DoubleAnimation Storyboard.TargetName="panelRating"
+                             Storyboard.TargetProperty="Opacity"
+                             To="1.0" Duration="0:0:0.3"/>
+                    <DoubleAnimation Storyboard.TargetName="panelRatingScale"
+                             Storyboard.TargetProperty="ScaleX"
+                             From="0.6" To="1.0" Duration="0:0:0.3"/>
+                    <DoubleAnimation Storyboard.TargetName="panelRatingScale"
+                             Storyboard.TargetProperty="ScaleY"
+                             From="0.6" To="1.0" Duration="0:0:0.3"/>
+                </Storyboard>
+
             </Border.Resources>
             <StackPanel Orientation="Horizontal">
                 <Button x:Name="Star1" Tag="1" Content="☆" FontSize="18" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Star_Click" Cursor="Hand" Margin="-3,0"/>
