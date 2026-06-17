@@ -2440,6 +2440,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Remet le scale à 1 pour le prochain FadeIn
             panelRatingScale.ScaleX = 1.0;
             panelRatingScale.ScaleY = 1.0;
+            panelRatingTranslate.Y = 0; // reset pour le prochain FadeIn
         }
         // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources
