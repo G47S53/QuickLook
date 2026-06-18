@@ -281,8 +281,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         /// </summary>
         private static double DecodeRationnel(ulong rationnel)
         {
-            uint numerateur = (uint)(rationnel >> 32);
-            uint denominateur = (uint)(rationnel & 0xFFFFFFFF);
+            uint numerateur = (uint)(rationnel & 0xFFFFFFFF);  // bits bas  — ordre WPF (inverse spec EXIF)
+            uint denominateur = (uint)(rationnel >> 32);                  // bits hauts
             return denominateur == 0 ? 0.0 : (double)numerateur / denominateur;
         }
 
