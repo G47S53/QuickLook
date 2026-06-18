@@ -306,7 +306,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             Focus();
 
             // Debug pour les données Exif/Xmp
-            //PanoMetadataService.DiagnostiquerMetadonnees(_currentPanoPath);
+            // PanoMetadataService.DiagnostiquerMetadonnees(_currentPanoPath);
 
             // lire les données Exif/Xmp
             LoadAndDisplayMetadata(_currentPanoPath);
@@ -2296,10 +2296,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             SetColorPanelRating(_currentMetadata.Label);
 
             // Debug
-            System.Diagnostics.Debug.WriteLine($"Rating : {_currentMetadata.Rating}");
-            System.Diagnostics.Debug.WriteLine($"Label : {_currentMetadata.Label}");
+            //System.Diagnostics.Debug.WriteLine($"Rating : {_currentMetadata.Rating}");
+            //System.Diagnostics.Debug.WriteLine($"Label : {_currentMetadata.Label}");
 
-            // Optionnel : Afficher les infos EXIF dans votre popup de débogage si vous le souhaitez
+            // GPS
+            System.Diagnostics.Debug.WriteLine($"GpsLatitude : {_currentMetadata.GpsLatitude}");
+            System.Diagnostics.Debug.WriteLine($"GpsLongitude : {_currentMetadata.GpsLongitude}");
+
+            // Afficher les infos EXIF
             //if (_currentMetadata.Iso.HasValue)
             //{
             //    System.Diagnostics.Debug.WriteLine($"ISO détecté : {_currentMetadata.Iso}");
