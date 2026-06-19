@@ -13,6 +13,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         public short? Rating { get; set; }
         public string Label { get; set; }
         public string Titre { get; set; }
+        public List<string> Keywords { get; set; } = new List<string>();
         // Données EXIF
         public ushort? Iso { get; set; }
         public string ShutterSpeed { get; set; }
@@ -68,6 +69,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         if (bitmapMetadata.ContainsQuery("/xmp/dc:title/x-default"))
                         {
                             data.Titre = bitmapMetadata.GetQuery("/xmp/dc:title/x-default") as string;
+                        }
+
+                        // Mots clé (bag XMP dc:subject : nombre d'éléments variable)
+                        int indexMotCle = 0;
+                        while (bitmapMetadata.ContainsQuery($"/xmp/dc:subject/{{ulong={indexMotCle}}}"))
+                        {
+                            var motCle = bitmapMetadata.GetQuery($"/xmp/dc:subject/{{ulong={indexMotCle}}}") as string;
+                            if (!string.IsNullOrEmpty(motCle))
+                                data.Keywords.Add(motCle);
+
+                            indexMotCle++;
                         }
 
                         // ──── 2. Lecture des données EXIF ────────────────────────────────────
@@ -152,6 +164,27 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         // Label
                         if (data.Label != null)
                             metadataClone.SetQuery("/xmp/xmp:Label", data.Label);
+
+                        // ToDo: A ajouter ?
+                        // !! Mots clé (bag XMP dc:subject)
+                        // >Normalement OK ?
+                        //if (data.CustomTags.TryGetValue("Keywords", out var keywordsObj) && keywordsObj is List<string> motsCles)
+                        //{
+                        //    // On vide d'abord les entrées existantes, sinon SetQuery se contente
+                        //    // d'écraser les index déjà présents et laisse les anciens en trop si
+                        //    // la nouvelle liste est plus courte que l'ancienne.
+                        //    int indexExistant = 0;
+                        //    while (metadataClone.ContainsQuery($"/xmp/dc:subject/{{ulong={indexExistant}}}"))
+                        //    {
+                        //        metadataClone.RemoveQuery($"/xmp/dc:subject/{{ulong={indexExistant}}}");
+                        //        indexExistant++;
+                        //    }
+
+                        //    for (int i = 0; i < motsCles.Count; i++)
+                        //    {
+                        //        metadataClone.SetQuery($"/xmp/dc:subject/{{ulong={i}}}", motsCles[i]);
+                        //    }
+                        //}
 
                         // Reconstruction du fichier
                         var encoder = new JpegBitmapEncoder();

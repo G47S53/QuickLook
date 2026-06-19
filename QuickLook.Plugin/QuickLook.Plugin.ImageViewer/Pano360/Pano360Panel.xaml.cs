@@ -64,6 +64,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private PanoMetadata _currentMetadata;
         private bool _isMetaChanging = false;                              // Indique si les données Exif/Xmp ont changé et si il faut les sauvegarder
+        private bool _isPanelVisible = false;                              // Indique si le panneau d'information est considéré comme visible (important pour enlever le panneau avec le titre si on change de panorama)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
@@ -2034,6 +2035,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 LoadAndDisplayMetadata(_currentPanoPath);
                 _isMetaChanging = false;                         // initialise l'état de l'indicateur de sauvegarde
 
+                // Permet d'afficher le panneau d'information et de retirer une partie si les informations sont manquantes
+                AffichagePanneauxInfos();
+
                 // Démarrage
                 if (_StartOneTurnNext)
                     DemarrerOneTurnNext();
@@ -2439,25 +2443,76 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void UpdateDataPanelInfo()
         {
+            txtXmpTitle.Text = _currentMetadata.Titre;
+            AfficherMotsCles(_currentMetadata, txtXmpKeywords);
+
             txtMetaFileName.Text = System.IO.Path.GetFileName(_currentPanoPath);
             txtMetaDate.Text = _currentMetadata.Date;
-            //txtMetaDate.Text = _currentMetadata.Titre;
-            //txtMetaDate.Text = "Dimanche 25 décembre 2025";  // Test pour la longueur de la string
             txtMetaTime.Text = _currentMetadata.Time;
+
             txtMetaCamera.Text = _currentMetadata.Model;
             txtMetaIso.Text = string.Format("{0:F0} ISO", _currentMetadata.Iso);
             txtMetaShutter.Text = string.Format(_currentMetadata.ShutterSpeed);
         }
+        public static void AfficherMotsCles(PanoMetadata data, TextBlock textBlock)
+        {
+            if (data.Keywords != null && data.Keywords.Count > 0)
+            {
+                textBlock.Text = string.Join(" · ", data.Keywords);
+            }
+            else
+            {
+                textBlock.Text = "Aucun mot clé";
+            }
+        }
         private void BtnToggleInfo_Click(object sender, RoutedEventArgs e)
         {
-            infoExifXmp.Visibility = Visibility.Visible;
-            btnToggleInfo.Visibility = Visibility.Collapsed;
+            _isPanelVisible = true;
 
+            AffichagePanneauxInfos();
+
+            e.Handled = true;
         }
         private void InfoExifXmp_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            infoExifXmp.Visibility = Visibility.Collapsed;
-            btnToggleInfo.Visibility = Visibility.Visible;
+            _isPanelVisible = false;
+
+            AffichagePanneauxInfos();
+
+            e.Handled = true;
+        }
+        private void InfoTitleKeywords_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _isPanelVisible = false;
+
+            AffichagePanneauxInfos();
+
+            e.Handled = true;
+        }
+        private void AffichagePanneauxInfos()
+        {
+            if (_isPanelVisible)
+            {
+                btnToggleInfo.Visibility = Visibility.Collapsed;
+
+                infoExifXmp.Visibility = Visibility.Visible;
+                if ((_currentMetadata.Titre != null) || txtXmpKeywords.Text != "Aucun mot clé") 
+                {
+                    if (_currentMetadata.Titre == null) txtXmpTitle.Text = "Pas de titre";
+                    infoTitleKeywords.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    infoTitleKeywords.Visibility = Visibility.Collapsed;
+                }
+            }
+            else
+            {
+                infoExifXmp.Visibility = Visibility.Collapsed;
+                infoTitleKeywords.Visibility = Visibility.Collapsed;
+
+                btnToggleInfo.Visibility = Visibility.Visible;
+            }
         }
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
