@@ -682,7 +682,7 @@
                   IsHitTestVisible="True"
                   Margin="0,0,0,10"
                   MouseLeftButtonDown="InfoTitleKeywords_MouseLeftButtonDown">
-                        <Border Background="#AA2E2E2E"
+                        <Border Background="#702E2E2E"
                         CornerRadius="8"
                         BorderBrush="#30FFFFFF"
                         BorderThickness="1"/>
@@ -699,7 +699,7 @@
                   Cursor="Hand"
                   IsHitTestVisible="True"
                   MouseLeftButtonDown="InfoExifXmp_MouseLeftButtonDown">
-                        <Border Background="#AA2E2E2E"
+                        <Border Background="#702E2E2E"
                         CornerRadius="8"
                         BorderBrush="#30FFFFFF"
                         BorderThickness="1"/>
@@ -719,9 +719,22 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="💾 Taille" Foreground="#80FFFFFF" FontSize="12" Margin="0,2,10,2"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" x:Name="txtMetaSize" Text="--" Foreground="White" FontSize="14" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
+                    </Grid>
+                    <Border BorderBrush="#15FFFFFF" BorderThickness="0,2,0,0" Margin="0,6,0,6"/>
+                    <Grid IsHitTestVisible="False">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="📷 Appareil" Foreground="#80FFFFFF" FontSize="12" Margin="0,2,10,2"/>
                         <TextBlock Grid.Row="0" Grid.Column="1" x:Name="txtMetaCamera" Text="--" Foreground="White" FontSize="14" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
 
@@ -731,6 +744,7 @@
                         <TextBlock Grid.Row="2" Grid.Column="0" Text="⏱️ Exposition" Foreground="#80FFFFFF" FontSize="12" Margin="0,2,10,2"/>
                         <TextBlock Grid.Row="2" Grid.Column="1" x:Name="txtMetaShutter" Text="-- s" Foreground="White" FontSize="14" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
+
                 </StackPanel>
             </Grid>
         </StackPanel>

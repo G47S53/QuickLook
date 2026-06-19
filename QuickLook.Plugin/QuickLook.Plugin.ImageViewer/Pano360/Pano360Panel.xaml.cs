@@ -2302,19 +2302,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Étape 4 : Mise à jour du panneau d'informations
             UpdateDataPanelInfo();
 
-            // Debug
-            //System.Diagnostics.Debug.WriteLine($"Rating : {_currentMetadata.Rating}");
-            //System.Diagnostics.Debug.WriteLine($"Label : {_currentMetadata.Label}");
-
             // GPS
             System.Diagnostics.Debug.WriteLine($"GpsLatitude : {_currentMetadata.GpsLatitude}");
             System.Diagnostics.Debug.WriteLine($"GpsLongitude : {_currentMetadata.GpsLongitude}");
-
-            // Afficher les infos EXIF
-            //if (_currentMetadata.Iso.HasValue)
-            //{
-            //    System.Diagnostics.Debug.WriteLine($"ISO détecté : {_currentMetadata.Iso}");
-            //}
         }
         private void SetColorPanelRating(string couleur)
         {
@@ -2451,6 +2441,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             txtMetaTime.Text = _currentMetadata.Time;
 
             txtMetaCamera.Text = _currentMetadata.Model;
+            PanelInfoSizeFile();
             txtMetaIso.Text = string.Format("{0:F0} ISO", _currentMetadata.Iso);
             txtMetaShutter.Text = string.Format(_currentMetadata.ShutterSpeed);
         }
@@ -2464,6 +2455,76 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 textBlock.Text = "Aucun mot clé";
             }
+        }
+        private void PanelInfoSizeFile()
+        {
+            // ─── 1. CALCUL DE LA TAILLE DU FICHIER SUR LE DISQUE ───
+            string tailleFichierStr = "0 Mo";
+            try
+            {
+                if (System.IO.File.Exists(_currentPanoPath))
+                {
+                    var fileInfo = new System.IO.FileInfo(_currentPanoPath);
+                    // Conversion en Mo avec une décimale
+                    double tailleMo = (double)fileInfo.Length / (1024 * 1024);
+                    tailleFichierStr = string.Format("{0:F1}Mo", tailleMo);
+                }
+            }
+            catch
+            {
+                tailleFichierStr = "??Mo";
+            }
+
+            // ─── 2. CALCUL DES MILLIONS DE PIXELS (Mpx) ───
+            string mpxStr = "??Mpx";
+            try
+            {
+                double pixelWidth = 0;
+                double pixelHeight = 0;
+
+                // On regarde si l'image est actuellement dans le cache RAM
+                if (_imageCache.TryGetValue(_currentPanoPath, out var cachedImg))
+                {
+                    pixelWidth = cachedImg.PixelWidth;
+                    pixelHeight = cachedImg.PixelHeight;
+                }
+                else
+                {
+                    // Si pas en cache, on lit uniquement les métadonnées de l'en-tête (très rapide grâce à DecodePixelWidth/Height ou DelayCreation)
+                    var imgDecoder = new BitmapImage();
+                    imgDecoder.BeginInit();
+                    imgDecoder.UriSource = new Uri(_currentPanoPath, UriKind.Absolute);
+                    imgDecoder.DecodePixelWidth = 1; // Demande minimale juste pour forcer la lecture des dimensions de l'en-tête
+                    imgDecoder.CacheOption = BitmapCacheOption.None;
+                    imgDecoder.EndInit();
+
+                    // Note : Si DecodePixelWidth écrase les dimensions réelles dans l'objet, 
+                    // vous pouvez utiliser un BitmapDecoder à la place qui est encore plus propre :
+                    using (var stream = new System.IO.FileStream(_currentPanoPath, System.IO.FileMode.Open, System.IO.FileAccess.Read, System.IO.FileShare.Read))
+                    {
+                        var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(stream, System.Windows.Media.Imaging.BitmapCreateOptions.DelayCreation, System.Windows.Media.Imaging.BitmapCacheOption.None);
+                        if (decoder.Frames.Count > 0)
+                        {
+                            pixelWidth = decoder.Frames[0].PixelWidth;
+                            pixelHeight = decoder.Frames[0].PixelHeight;
+                        }
+                    }
+                }
+
+                if (pixelWidth > 0 && pixelHeight > 0)
+                {
+                    // Calcul des Mpx : (Largeur * Hauteur) / 1 000 000
+                    double mpx = (pixelWidth * pixelHeight) / 1000000.0;
+                    mpxStr = string.Format("{0:F0}Mpx", mpx); // F0 pour un arrondi à l'entier comme "120Mpx", ou F1 pour "120.4Mpx"
+                }
+            }
+            catch
+            {
+                mpxStr = "??Mpx";
+            }
+
+            // ─── 3. AFFICHAGE DE LA CHAÎNE COMBINÉE ───
+            txtMetaSize.Text = $"{tailleFichierStr} / {mpxStr}";
         }
         private void BtnToggleInfo_Click(object sender, RoutedEventArgs e)
         {
@@ -2520,7 +2581,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 sbOut.Begin(pnlInfoContainer);
             }
         }
-
         private void AffichagePanneauxInfosSansAnimations()
         {
             if (_isPanelVisible)
@@ -2540,7 +2600,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 btnToggleInfo.Visibility = Visibility.Visible;
             }
         }
-
         private void AppliquerVisibiliteGrids()
         {
             infoExifXmp.Visibility = Visibility.Visible;
