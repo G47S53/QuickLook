@@ -628,7 +628,17 @@
         Height="40" 
         Cursor="Hand" 
         Click="BtnToggleInfo_Click"
+        MouseEnter="BarrePanelRating_MouseEnter"
+        MouseLeave="BarrePanelRating_MouseLeave"       
         ToolTip="Afficher/Masquer les informations (i)">
+            <Button.Resources>
+                    <Storyboard x:Key="FadeOutbtnToggleInfo">
+                        <DoubleAnimation Storyboard.TargetName="btnToggleInfo" Storyboard.TargetProperty="Opacity" To="0.15" Duration="0:0:0.4" />
+                    </Storyboard>
+                    <Storyboard x:Key="FadeInbtnToggleInfo">
+                        <DoubleAnimation Storyboard.TargetName="btnToggleInfo" Storyboard.TargetProperty="Opacity" To="1.0" Duration="0:0:0.3" />
+                    </Storyboard>
+            </Button.Resources>
             <Button.Style>
                 <Style TargetType="Button">
                     <Setter Property="Background" Value="#73000000"/>

@@ -1603,6 +1603,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
                     (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
                     (panelRating.Resources["FadeInRating"] as Storyboard)?.Begin(panelRating);
+                    (btnToggleInfo.Resources["FadeInbtnToggleInfo"] as Storyboard)?.Begin(btnToggleInfo);
                     _isBarreMasquee = false;
                 }
                 return;
@@ -1621,9 +1622,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
                     (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
+                    (btnToggleInfo.Resources["FadeOutbtnToggleInfo"] as Storyboard)?.Begin(btnToggleInfo);
                     if (_autoCloseActive || _autoRotState != AutoRotationState.Off) 
                     {
-                        (panelRating.Resources["FadeOutRating"] as Storyboard)?.Begin(panelRating); 
+                        (panelRating.Resources["FadeOutRating"] as Storyboard)?.Begin(panelRating);
                     }
                     else
                     {
@@ -1641,6 +1643,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     (barreBtn.Resources["FadeInBarreBtn"] as Storyboard)?.Begin(barreBtn);
                     (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
                     (panelRating.Resources["FadeInRating"] as Storyboard)?.Begin(panelRating);
+                    (btnToggleInfo.Resources["FadeInbtnToggleInfo"] as Storyboard)?.Begin(btnToggleInfo);
                     _isBarreMasquee = false;
                 }
                 _context.BlocageShowCaption = false;
