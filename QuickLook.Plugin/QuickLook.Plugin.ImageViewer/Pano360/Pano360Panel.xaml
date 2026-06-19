@@ -631,21 +631,11 @@
                     BorderThickness="1"/>
 
             <StackPanel Margin="16,14,20,14">
-                <TextBlock x:Name="txtMetaFileName" 
-                   Text="Nom_du_fichier.jpg" 
-                   Foreground="White"
-                   FontSize="15" 
-                   FontWeight="SemiBold" 
-                   TextTrimming="CharacterEllipsis"
-                   Margin="0,0,0,4"/>
-
-                <TextBlock x:Name="txtMetaDate" 
-                   Text="jeudi 18 juin 2026" 
-                   Foreground="#B3FFFFFF" 
-                   FontSize="12" 
-                   Margin="0,0,0,12"/>
-
-                <Border BorderBrush="#15FFFFFF" BorderThickness="0,1,0,0" Margin="0,0,0,10"/>
+                <TextBlock x:Name="txtMetaFileName" Text="Nom_du_fichier.jpg" Foreground="White" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
+                <TextBlock x:Name="txtMetaDate" Text="Date" Foreground="#B3FFFFFF" FontSize="16" Margin="0,0,0,0"/>
+                <TextBlock x:Name="txtMetaTime" Text="Time" Foreground="#B3FFFFFF" FontSize="16" Margin="0,0,0,6"/>
+                
+                <Border BorderBrush="#15FFFFFF" BorderThickness="0,2,0,0" Margin="0,0,0,6"/>
 
                 <Grid IsHitTestVisible="False">
                     <Grid.ColumnDefinitions>
@@ -658,14 +648,14 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="📷 Appareil" Foreground="#80FFFFFF" FontSize="11" Margin="0,2,10,2"/>
-                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="txtMetaCamera" Text="--" Foreground="White" FontSize="12" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="📷 Appareil" Foreground="#80FFFFFF" FontSize="12" Margin="0,2,10,2"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="txtMetaCamera" Text="--" Foreground="White" FontSize="14" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="⚡ Sensibilité" Foreground="#80FFFFFF" FontSize="11" Margin="0,2,10,2"/>
-                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="txtMetaIso" Text="ISO --" Foreground="White" FontSize="12" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="⚡ Sensibilité" Foreground="#80FFFFFF" FontSize="12" Margin="0,2,10,2"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="txtMetaIso" Text="--" Foreground="White" FontSize="14" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
 
-                    <TextBlock Grid.Row="2" Grid.Column="0" Text="⏱️ Exposition" Foreground="#80FFFFFF" FontSize="11" Margin="0,2,10,2"/>
-                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="txtMetaShutter" Text="-- s" Foreground="White" FontSize="12" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="⏱️ Exposition" Foreground="#80FFFFFF" FontSize="12" Margin="0,2,10,2"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="txtMetaShutter" Text="-- s" Foreground="White" FontSize="14" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
                 </Grid>
             </StackPanel>
         </Grid>

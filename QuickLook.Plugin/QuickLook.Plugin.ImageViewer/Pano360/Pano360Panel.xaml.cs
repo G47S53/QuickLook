@@ -306,7 +306,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             Focus();
 
             // Debug pour les données Exif/Xmp
-            // PanoMetadataService.DiagnostiquerMetadonnees(_currentPanoPath);
+            PanoMetadataService.DiagnostiquerMetadonnees(_currentPanoPath);
 
             // lire les données Exif/Xmp
             LoadAndDisplayMetadata(_currentPanoPath);
@@ -2295,6 +2295,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Étape 3 : Mise à jour des couleurs
             SetColorPanelRating(_currentMetadata.Label);
 
+            // Étape 4 : Mise à jour du panneau d'informations
+            UpdateDataPanelInfo();
+
             // Debug
             //System.Diagnostics.Debug.WriteLine($"Rating : {_currentMetadata.Rating}");
             //System.Diagnostics.Debug.WriteLine($"Label : {_currentMetadata.Label}");
@@ -2434,6 +2437,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // Panneau d'information
         // ─────────────────────────────────────────────────────────────────────
+        private void UpdateDataPanelInfo()
+        {
+            txtMetaFileName.Text = System.IO.Path.GetFileName(_currentPanoPath);
+            //txtMetaDate.Text = _currentMetadata.Date;
+            txtMetaDate.Text = "Dimanche 25 décembre 2025";
+            txtMetaTime.Text = _currentMetadata.Time;
+            txtMetaCamera.Text = _currentMetadata.Model;
+            txtMetaIso.Text = string.Format("{0:F0} ISO", _currentMetadata.Iso);
+            txtMetaShutter.Text = string.Format(_currentMetadata.ShutterSpeed);
+        }
         private void BtnToggleInfo_Click(object sender, RoutedEventArgs e)
         {
             infoExifXmp.Visibility = Visibility.Visible;

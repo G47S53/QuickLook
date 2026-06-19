@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Windows.Media.Imaging;
 
 namespace QuickLook.Plugin.ImageViewer.Pano360
 {
+    // Déclaration de la classe à utiliser ultérieurement dans Pano360Panel.xaml.cs
     public class PanoMetadata
     {
         // Données XMP
@@ -13,6 +15,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // Données EXIF
         public ushort? Iso { get; set; }
         public string ShutterSpeed { get; set; }
+        public string DateTimeOriginal { get; set; }
+        public string Date { get; set; }
+        public string Time { get; set; }
+        public string Model { get; set; }
         // Données GPS (décimal signé, ex: "49.598494" / "3.015321")
         public string GpsLatitude { get; set; }
         public string GpsLongitude { get; set; }
@@ -24,68 +30,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
     public static class PanoMetadataService
     {
-        // ─────────────────────────────────────────────────────────────────────
-        // DÉBOGAGE DES MÉTADONNÉES
-        // ─────────────────────────────────────────────────────────────────────
-        //
-        // Utiliser : PanoMetadataService.DiagnostiquerMetadonnees(filePath);
-        public static void DiagnostiquerMetadonnees(string filePath)
-        {
-            try
-            {
-                if (!File.Exists(filePath)) return;
-                using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
-                {
-                    var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-                    if (decoder.Frames.Count > 0 && decoder.Frames[0].Metadata is BitmapMetadata bitmapMetadata)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"--- DÉBUT EXPLORATION MÉTADONNÉES DE : {Path.GetFileName(filePath)} ---");
-                        ParcourirQueries(bitmapMetadata, "");
-
-                        // Forcer l'exploration du bloc GPS (non listé par l'énumérateur standard WPF)
-                        var gpsBlock = bitmapMetadata.GetQuery("/app1/ifd/gps") as BitmapMetadata;
-                        if (gpsBlock != null)
-                        {
-                            System.Diagnostics.Debug.WriteLine("--- BLOC GPS EXIF FORCÉ ---");
-                            ParcourirQueries(gpsBlock, "/app1/ifd/gps");
-                        }
-                        else
-                        {
-                            System.Diagnostics.Debug.WriteLine("--- PAS DE BLOC GPS EXIF TROUVÉ ---");
-                        }
-
-                        System.Diagnostics.Debug.WriteLine("--- FIN EXPLORATION ---");
-                    }
-                }
-            }
-            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("Erreur diag : " + ex.Message); }
-        }
-
-        private static void ParcourirQueries(BitmapMetadata metadata, string cheminParent)
-        {
-            foreach (string relativeQuery in metadata)
-            {
-                try
-                {
-                    object valeur = metadata.GetQuery(relativeQuery);
-                    string cheminComplet = cheminParent + relativeQuery;
-
-                    if (valeur is BitmapMetadata sousMetadata)
-                    {
-                        ParcourirQueries(sousMetadata, cheminComplet);
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine($"{cheminComplet} = {valeur} ({valeur?.GetType().Name})");
-                    }
-                }
-                catch
-                {
-                    // On ignore proprement les tags que WPF ne sait pas décoder
-                }
-            }
-        }
-
         // ─────────────────────────────────────────────────────────────────────
         // LECTURE DES MÉTADONNÉES
         // ─────────────────────────────────────────────────────────────────────
@@ -115,18 +59,40 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                         // Couleur (Label)
                         if (bitmapMetadata.ContainsQuery("/xmp/xmp:Label"))
-                            data.Label = bitmapMetadata.GetQuery("/xmp/xmp:Label") as string;
+                        {
+                            data.Label = bitmapMetadata.GetQuery("/xmp/xmp:Label") as string; 
+                        }
 
                         // ──── 2. Lecture des données EXIF ────────────────────────────────────
 
                         // ISO
                         if (bitmapMetadata.ContainsQuery("/app1/ifd/exif/{ushort=34855}"))
-                            data.Iso = bitmapMetadata.GetQuery("/app1/ifd/exif/{ushort=34855}") as ushort?;
+                        {
+                            data.Iso = bitmapMetadata.GetQuery("/app1/ifd/exif/{ushort=34855}") as ushort?; 
+                        }
 
                         // Vitesse d'obturation (ExposureTime)
                         if (bitmapMetadata.ContainsQuery("/app1/ifd/exif/{ushort=33434}"))
-                            data.ShutterSpeed = bitmapMetadata.GetQuery("/app1/ifd/exif/{ushort=33434}")?.ToString();
+                        {
+                            var shutterSpeedRaw = bitmapMetadata.GetQuery("/app1/ifd/exif/{ushort=33434}");
+                            data.ShutterSpeed = FormatExposureTime(shutterSpeedRaw);
+                        }
 
+                        // DateTimeOriginal
+                        if (bitmapMetadata.ContainsQuery("/app1/{ushort=0}/{ushort=34665}/{ushort=36867}")) 
+                        {
+                            data.DateTimeOriginal = bitmapMetadata.GetQuery("/app1/{ushort=0}/{ushort=34665}/{ushort=36867}")?.ToString();
+                            data.Date = DateFormatage(data.DateTimeOriginal);
+                            data.Time = HeureFormatage(data.DateTimeOriginal);
+                        }
+
+                        // Model (type de caméra)
+                        if (bitmapMetadata.ContainsQuery("/app1/{ushort=0}/{ushort=272}"))
+                        {
+                            data.Model = bitmapMetadata.GetQuery("/app1/{ushort=0}/{ushort=272}")?.ToString();
+                            if (data.Model == "OQ001") data.Model = "Osmo 360";
+                        }
+ 
                         // ──── 3. Lecture des données GPS ─────────────────────────────────────
                         //
                         // Stratégie : EXIF GPS en source principale (standard universel),
@@ -151,7 +117,59 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             return data;
         }
+        // ─────────────────────────────────────────────────────────────────────
+        // ÉCRITURE DES MÉTADONNÉES
+        // ─────────────────────────────────────────────────────────────────────
+        public static void WriteMetadata(string filePath, PanoMetadata data)
+        {
+            try
+            {
+                if (!File.Exists(filePath)) return;
 
+                string tempPath = filePath + ".tmp";
+
+                using (var fromStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    var decoder = BitmapDecoder.Create(fromStream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                    if (decoder.Frames.Count > 0)
+                    {
+                        var frame = decoder.Frames[0];
+                        var metadataClone = frame.Metadata is BitmapMetadata bm ? bm.Clone() : new BitmapMetadata("jpg");
+
+                        // Rating
+                        if (data.Rating.HasValue)
+                            metadataClone.SetQuery("/xmp/xmp:Rating", data.Rating.Value.ToString());
+                        else if (metadataClone.ContainsQuery("/xmp/xmp:Rating"))
+                            metadataClone.RemoveQuery("/xmp/xmp:Rating");
+
+                        // Label
+                        if (data.Label != null)
+                            metadataClone.SetQuery("/xmp/xmp:Label", data.Label);
+
+                        // Reconstruction du fichier
+                        var encoder = new JpegBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(frame, frame.Thumbnail, metadataClone, frame.ColorContexts));
+
+                        using (var toStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
+                        {
+                            encoder.Save(toStream);
+                        }
+                    }
+                }
+
+                // Remplacement sécurisé
+                File.Delete(filePath);
+                File.Move(tempPath, filePath);
+                System.Diagnostics.Debug.WriteLine($"[Metadata] Sauvegarde réussie pour {Path.GetFileName(filePath)} !");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur d'écriture sur {Path.GetFileName(filePath)} : {ex.Message}");
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        //                            GPS
+        // ─────────────────────────────────────────────────────────────────────
         // ─────────────────────────────────────────────────────────────────────
         // LECTURE GPS — Source 1 : EXIF standard (tous appareils photo/drone)
         // ─────────────────────────────────────────────────────────────────────
@@ -199,7 +217,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 return false;
             }
         }
-
         // ─────────────────────────────────────────────────────────────────────
         // LECTURE GPS — Source 2 : XMP DJI (fallback DJI Osmo/Mini/Air/Mavic)
         // ─────────────────────────────────────────────────────────────────────
@@ -249,17 +266,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Diagnostics.Debug.WriteLine($"[Metadata] Échec lecture GPS XMP DJI : {ex.Message}");
             }
         }
-
         // ─────────────────────────────────────────────────────────────────────
         // HELPERS GPS
         // ─────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Convertit un tableau DMS EXIF (3 rationnels UInt64) en degrés décimaux signés.
-        /// Chaque UInt64 encode : numérateur dans les 32 bits hauts, dénominateur dans les 32 bits bas.
-        /// </summary>
         private static string ConvertirGpsDms(object rawValue, string reference)
         {
+            // Convertit un tableau DMS EXIF (3 rationnels UInt64) en degrés décimaux signés.
+            // Chaque UInt64 encode : numérateur dans les 32 bits hauts, dénominateur dans les 32 bits bas.
             if (rawValue is ulong[] dms && dms.Length == 3)
             {
                 double deg = DecodeRationnel(dms[0]);
@@ -275,65 +288,136 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
             return null;
         }
-
-        /// <summary>
-        /// Décode un rationnel EXIF encodé en UInt64 (numérateur << 32 | dénominateur).
-        /// </summary>
         private static double DecodeRationnel(ulong rationnel)
         {
+            // Décode un rationnel EXIF encodé en UInt64 (numérateur << 32 | dénominateur).
             uint numerateur = (uint)(rationnel & 0xFFFFFFFF);  // bits bas  — ordre WPF (inverse spec EXIF)
             uint denominateur = (uint)(rationnel >> 32);                  // bits hauts
             return denominateur == 0 ? 0.0 : (double)numerateur / denominateur;
         }
+        // ─────────────────────────────────────────────────────────────────────
+        //                         ExposureTime
+        // ─────────────────────────────────────────────────────────────────────
+        private static string FormatExposureTime(object value)
+        {
+            if (value is ulong rational)
+            {
+                uint numerator = (uint)(rational & 0xFFFFFFFF);
+                uint denominator = (uint)(rational >> 32);
 
+                if (denominator == 0)
+                    return "--";
+
+                double exposure = (double)numerator / denominator;
+
+                //if (exposure < 1.0)
+                //    return $"1/{Math.Round(1.0 / exposure)}";
+
+                // Permet de prendre en compte les valeurs exotiques du type 1/6142 pour devenir 1/6000
+                if (exposure < 1.0)
+                {
+                    double reciprocal = 1.0 / exposure;
+
+                    if (reciprocal >= 1000)
+                    {
+                        reciprocal = Math.Round(reciprocal / 1000.0) * 1000;
+                    }
+                    else if (reciprocal >= 100)
+                    {
+                        reciprocal = Math.Round(reciprocal / 100.0) * 100;
+                    }
+                    else if (reciprocal >= 10)
+                    {
+                        reciprocal = Math.Round(reciprocal / 10.0) * 10;
+                    }
+                    else
+                    {
+                        reciprocal = Math.Round(reciprocal);
+                    }
+
+                    return $"1/{reciprocal:0}";
+                }
+
+                return $"{exposure:0.##} s";
+            }
+
+            return "--";
+        }
         // ─────────────────────────────────────────────────────────────────────
-        // ÉCRITURE DES MÉTADONNÉES
+        //                         Date et Heure
         // ─────────────────────────────────────────────────────────────────────
-        public static void WriteMetadata(string filePath, PanoMetadata data)
+        private static string DateFormatage(string dateTimeRaw)
+        {
+            DateTime date = DateTime.ParseExact(dateTimeRaw, "yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture);
+            //string dateLisible = date.ToString("dddd d MMMM yyyy", CultureInfo.GetCultureInfo("fr-FR"));
+            var culture = CultureInfo.GetCultureInfo("fr-FR");
+            string dateLisible = char.ToUpper(date.ToString("dddd", culture)[0]) + date.ToString("dddd d MMMM yyyy", culture).Substring(1);
+            return dateLisible;
+        }
+        private static string HeureFormatage(string dateTimeRaw)
+        {
+            DateTime date = DateTime.ParseExact(dateTimeRaw, "yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture);
+            string heure = date.ToString("HH:mm:ss");
+            return heure;
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        //                    DÉBOGAGE DES MÉTADONNÉES
+        // ─────────────────────────────────────────────────────────────────────
+        //
+        // Utiliser : PanoMetadataService.DiagnostiquerMetadonnees(filePath);
+        public static void DiagnostiquerMetadonnees(string filePath)
         {
             try
             {
                 if (!File.Exists(filePath)) return;
-
-                string tempPath = filePath + ".tmp";
-
-                using (var fromStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
-                    var decoder = BitmapDecoder.Create(fromStream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-                    if (decoder.Frames.Count > 0)
+                    var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                    if (decoder.Frames.Count > 0 && decoder.Frames[0].Metadata is BitmapMetadata bitmapMetadata)
                     {
-                        var frame = decoder.Frames[0];
-                        var metadataClone = frame.Metadata is BitmapMetadata bm ? bm.Clone() : new BitmapMetadata("jpg");
+                        System.Diagnostics.Debug.WriteLine($"--- DÉBUT EXPLORATION MÉTADONNÉES DE : {Path.GetFileName(filePath)} ---");
+                        ParcourirQueries(bitmapMetadata, "");
 
-                        // Rating
-                        if (data.Rating.HasValue)
-                            metadataClone.SetQuery("/xmp/xmp:Rating", data.Rating.Value.ToString());
-                        else if (metadataClone.ContainsQuery("/xmp/xmp:Rating"))
-                            metadataClone.RemoveQuery("/xmp/xmp:Rating");
-
-                        // Label
-                        if (data.Label != null)
-                            metadataClone.SetQuery("/xmp/xmp:Label", data.Label);
-
-                        // Reconstruction du fichier
-                        var encoder = new JpegBitmapEncoder();
-                        encoder.Frames.Add(BitmapFrame.Create(frame, frame.Thumbnail, metadataClone, frame.ColorContexts));
-
-                        using (var toStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
+                        // Forcer l'exploration du bloc GPS (non listé par l'énumérateur standard WPF)
+                        var gpsBlock = bitmapMetadata.GetQuery("/app1/ifd/gps") as BitmapMetadata;
+                        if (gpsBlock != null)
                         {
-                            encoder.Save(toStream);
+                            System.Diagnostics.Debug.WriteLine("--- BLOC GPS EXIF FORCÉ ---");
+                            ParcourirQueries(gpsBlock, "/app1/ifd/gps");
                         }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("--- PAS DE BLOC GPS EXIF TROUVÉ ---");
+                        }
+
+                        System.Diagnostics.Debug.WriteLine("--- FIN EXPLORATION ---");
                     }
                 }
-
-                // Remplacement sécurisé
-                File.Delete(filePath);
-                File.Move(tempPath, filePath);
-                System.Diagnostics.Debug.WriteLine($"[Metadata] Sauvegarde réussie pour {Path.GetFileName(filePath)} !");
             }
-            catch (Exception ex)
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine("Erreur diag : " + ex.Message); }
+        }
+        private static void ParcourirQueries(BitmapMetadata metadata, string cheminParent)
+        {
+            foreach (string relativeQuery in metadata)
             {
-                System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur d'écriture sur {Path.GetFileName(filePath)} : {ex.Message}");
+                try
+                {
+                    object valeur = metadata.GetQuery(relativeQuery);
+                    string cheminComplet = cheminParent + relativeQuery;
+
+                    if (valeur is BitmapMetadata sousMetadata)
+                    {
+                        ParcourirQueries(sousMetadata, cheminComplet);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"{cheminComplet} = {valeur} ({valeur?.GetType().Name})");
+                    }
+                }
+                catch
+                {
+                    // On ignore proprement les tags que WPF ne sait pas décoder
+                }
             }
         }
     }
