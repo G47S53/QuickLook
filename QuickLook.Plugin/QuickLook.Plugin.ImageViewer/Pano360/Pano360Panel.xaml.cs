@@ -2431,7 +2431,20 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
             }
         }
+        // ─────────────────────────────────────────────────────────────────────
+        // Panneau d'information
+        // ─────────────────────────────────────────────────────────────────────
+        private void BtnToggleInfo_Click(object sender, RoutedEventArgs e)
+        {
+            infoExifXmp.Visibility = Visibility.Visible;
+            btnToggleInfo.Visibility = Visibility.Collapsed;
 
+        }
+        private void InfoExifXmp_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            infoExifXmp.Visibility = Visibility.Collapsed;
+            btnToggleInfo.Visibility = Visibility.Visible;
+        }
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────

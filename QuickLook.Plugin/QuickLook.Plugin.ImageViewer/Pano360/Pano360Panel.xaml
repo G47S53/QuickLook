@@ -569,5 +569,106 @@
                 <Button x:Name="PointColorRight" Content="⚫" FontSize="6" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Color_Click" Cursor="Hand" Margin="2,0"/>
             </StackPanel>
         </Border>
+        <!-- ── Bouton Information Exif/Xmp  ─────────────── -->
+        <Button x:Name="btnToggleInfo" 
+        HorizontalAlignment="Left" 
+        VerticalAlignment="Bottom" 
+        Margin="30,0,0,20" 
+        Width="40" 
+        Height="40" 
+        Cursor="Hand" 
+        Click="BtnToggleInfo_Click"
+        ToolTip="Afficher/Masquer les informations (i)">
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Setter Property="Background" Value="#73000000"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bd" 
+                                Background="{TemplateBinding Background}" 
+                                CornerRadius="20" 
+                                BorderBrush="#22FFFFFF" 
+                                BorderThickness="1">
+                                    <TextBlock Text="i" 
+                                       FontFamily="Segoe UI" 
+                                       FontWeight="Bold" 
+                                       FontSize="16" 
+                                       HorizontalAlignment="Center" 
+                                       VerticalAlignment="Center" 
+                                       Margin="0,0,0,2"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#AA000000"/>
+                                        <Setter TargetName="bd" Property="BorderBrush" Value="#44FFFFFF"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#00000000"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Button.Style>
+        </Button>
+        <!-- ── Information Exif/Xmp  ────────────────────── -->
+        <Grid x:Name="infoExifXmp"
+          Visibility="Collapsed"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Bottom"
+          Margin="30,0,0,20"
+          Width="260"
+          Cursor="Hand"
+          IsHitTestVisible="True"
+          MouseLeftButtonDown="InfoExifXmp_MouseLeftButtonDown">
+
+            <Border Background="#AA2E2E2E"
+                    CornerRadius="8"
+                    BorderBrush="#30FFFFFF"
+                    BorderThickness="1"/>
+
+            <StackPanel Margin="16,14,20,14">
+                <TextBlock x:Name="txtMetaFileName" 
+                   Text="Nom_du_fichier.jpg" 
+                   Foreground="White"
+                   FontSize="15" 
+                   FontWeight="SemiBold" 
+                   TextTrimming="CharacterEllipsis"
+                   Margin="0,0,0,4"/>
+
+                <TextBlock x:Name="txtMetaDate" 
+                   Text="jeudi 18 juin 2026" 
+                   Foreground="#B3FFFFFF" 
+                   FontSize="12" 
+                   Margin="0,0,0,12"/>
+
+                <Border BorderBrush="#15FFFFFF" BorderThickness="0,1,0,0" Margin="0,0,0,10"/>
+
+                <Grid IsHitTestVisible="False">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="📷 Appareil" Foreground="#80FFFFFF" FontSize="11" Margin="0,2,10,2"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="txtMetaCamera" Text="--" Foreground="White" FontSize="12" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="⚡ Sensibilité" Foreground="#80FFFFFF" FontSize="11" Margin="0,2,10,2"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="txtMetaIso" Text="ISO --" Foreground="White" FontSize="12" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="⏱️ Exposition" Foreground="#80FFFFFF" FontSize="11" Margin="0,2,10,2"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="txtMetaShutter" Text="-- s" Foreground="White" FontSize="12" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </Grid>
+
     </Grid>
 </UserControl>
