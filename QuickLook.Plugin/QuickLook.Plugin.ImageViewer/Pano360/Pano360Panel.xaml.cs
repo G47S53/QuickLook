@@ -2440,8 +2440,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private void UpdateDataPanelInfo()
         {
             txtMetaFileName.Text = System.IO.Path.GetFileName(_currentPanoPath);
-            //txtMetaDate.Text = _currentMetadata.Date;
-            txtMetaDate.Text = "Dimanche 25 décembre 2025";
+            txtMetaDate.Text = _currentMetadata.Date;
+            //txtMetaDate.Text = _currentMetadata.Titre;
+            //txtMetaDate.Text = "Dimanche 25 décembre 2025";  // Test pour la longueur de la string
             txtMetaTime.Text = _currentMetadata.Time;
             txtMetaCamera.Text = _currentMetadata.Model;
             txtMetaIso.Text = string.Format("{0:F0} ISO", _currentMetadata.Iso);

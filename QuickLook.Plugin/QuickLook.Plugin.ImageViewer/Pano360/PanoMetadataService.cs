@@ -12,6 +12,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // Données XMP
         public short? Rating { get; set; }
         public string Label { get; set; }
+        public string Titre { get; set; }
         // Données EXIF
         public ushort? Iso { get; set; }
         public string ShutterSpeed { get; set; }
@@ -61,6 +62,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         if (bitmapMetadata.ContainsQuery("/xmp/xmp:Label"))
                         {
                             data.Label = bitmapMetadata.GetQuery("/xmp/xmp:Label") as string; 
+                        }
+
+                        // Titre
+                        if (bitmapMetadata.ContainsQuery("/xmp/dc:title/x-default"))
+                        {
+                            data.Titre = bitmapMetadata.GetQuery("/xmp/dc:title/x-default") as string;
                         }
 
                         // ──── 2. Lecture des données EXIF ────────────────────────────────────
