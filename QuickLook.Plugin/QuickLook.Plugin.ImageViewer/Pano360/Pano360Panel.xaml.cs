@@ -2036,7 +2036,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _isMetaChanging = false;                         // initialise l'état de l'indicateur de sauvegarde
 
                 // Permet d'afficher le panneau d'information et de retirer une partie si les informations sont manquantes
-                AffichagePanneauxInfos();
+                AffichagePanneauxInfosSansAnimations();
 
                 // Démarrage
                 if (_StartOneTurnNext)
@@ -2491,12 +2491,53 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void AffichagePanneauxInfos()
         {
+            var sbIn = (Storyboard)FindResource("FadeInZoomIn");
+            var sbOut = (Storyboard)FindResource("FadeOutZoomOut");
+
             if (_isPanelVisible)
             {
                 btnToggleInfo.Visibility = Visibility.Collapsed;
 
                 infoExifXmp.Visibility = Visibility.Visible;
-                if ((_currentMetadata.Titre != null) || txtXmpKeywords.Text != "Aucun mot clé") 
+                if ((_currentMetadata.Titre != null) || txtXmpKeywords.Text != "Aucun mot clé")
+                {
+                    if (_currentMetadata.Titre == null) txtXmpTitle.Text = "Pas de titre";
+                    infoTitleKeywords.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    infoTitleKeywords.Visibility = Visibility.Collapsed;
+                }
+
+                pnlInfoContainer.Visibility = Visibility.Visible;
+                sbIn.Begin(pnlInfoContainer);
+            }
+            else
+            {
+                EventHandler onCompleted = null;
+                onCompleted = (s, e) =>
+                {
+                    sbOut.Completed -= onCompleted;
+
+                    infoExifXmp.Visibility = Visibility.Collapsed;
+                    infoTitleKeywords.Visibility = Visibility.Collapsed;
+                    pnlInfoContainer.Visibility = Visibility.Collapsed;
+
+                    btnToggleInfo.Visibility = Visibility.Visible;
+                };
+
+                sbOut.Completed += onCompleted;
+                sbOut.Begin(pnlInfoContainer);
+            }
+        }
+        private void AffichagePanneauxInfosSansAnimations()
+        {
+            if (_isPanelVisible)
+            {
+                btnToggleInfo.Visibility = Visibility.Collapsed;
+
+                infoExifXmp.Visibility = Visibility.Visible;
+                if ((_currentMetadata.Titre != null) || txtXmpKeywords.Text != "Aucun mot clé")
                 {
                     if (_currentMetadata.Titre == null) txtXmpTitle.Text = "Pas de titre";
                     infoTitleKeywords.Visibility = Visibility.Visible;

@@ -10,6 +10,7 @@
     Focusable="True">
 
     <UserControl.Resources>
+        
         <Storyboard x:Key="AnimatePrevArrow">
             <ColorAnimation Storyboard.TargetName="btnPrevPano" 
                         Storyboard.TargetProperty="(Button.Foreground).(SolidColorBrush.Color)"
@@ -29,6 +30,55 @@
                 </ColorAnimation.EasingFunction>
             </ColorAnimation>
         </Storyboard>
+
+        <Storyboard x:Key="FadeInZoomIn">
+            <DoubleAnimation Storyboard.TargetName="pnlInfoContainer"
+                          Storyboard.TargetProperty="Opacity"
+                          From="0" To="1" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="pnlInfoScale"
+                          Storyboard.TargetProperty="ScaleX"
+                          From="0.9" To="1" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="pnlInfoScale"
+                          Storyboard.TargetProperty="ScaleY"
+                          From="0.9" To="1" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+
+        <Storyboard x:Key="FadeOutZoomOut">
+            <DoubleAnimation Storyboard.TargetName="pnlInfoContainer"
+                          Storyboard.TargetProperty="Opacity"
+                          From="1" To="0" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseIn"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="pnlInfoScale"
+                          Storyboard.TargetProperty="ScaleX"
+                          From="1" To="0.9" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseIn"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="pnlInfoScale"
+                          Storyboard.TargetProperty="ScaleY"
+                          From="1" To="0.9" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseIn"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+
     </UserControl.Resources>
 
     <Grid>
@@ -614,14 +664,17 @@
                 </Style>
             </Button.Style>
         </Button>
-
-
-        <!-- ── Panneau information  ─────────────────────── -->
         <!-- ── Information Titre et mots clés  ──────────── -->
-        <StackPanel HorizontalAlignment="Left" 
+        <StackPanel x:Name="pnlInfoContainer"
+            HorizontalAlignment="Left" 
             VerticalAlignment="Bottom" 
             Margin="30,0,0,20" 
-            Width="260">
+            Width="260"
+            Opacity="0"
+            RenderTransformOrigin="0,1">
+            <StackPanel.RenderTransform>
+                <ScaleTransform x:Name="pnlInfoScale" ScaleX="0.9" ScaleY="0.9"/>
+            </StackPanel.RenderTransform>
 
             <Grid x:Name="infoTitleKeywords"
                   Visibility="Collapsed"
