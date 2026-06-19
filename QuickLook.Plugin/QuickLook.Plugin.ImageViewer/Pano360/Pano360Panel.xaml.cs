@@ -2497,17 +2497,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             if (_isPanelVisible)
             {
                 btnToggleInfo.Visibility = Visibility.Collapsed;
-
-                infoExifXmp.Visibility = Visibility.Visible;
-                if ((_currentMetadata.Titre != null) || txtXmpKeywords.Text != "Aucun mot clé")
-                {
-                    if (_currentMetadata.Titre == null) txtXmpTitle.Text = "Pas de titre";
-                    infoTitleKeywords.Visibility = Visibility.Visible;
-                }
-                else
-                {
-                    infoTitleKeywords.Visibility = Visibility.Collapsed;
-                }
+                AppliquerVisibiliteGrids();
 
                 pnlInfoContainer.Visibility = Visibility.Visible;
                 sbIn.Begin(pnlInfoContainer);
@@ -2530,29 +2520,38 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 sbOut.Begin(pnlInfoContainer);
             }
         }
+
         private void AffichagePanneauxInfosSansAnimations()
         {
             if (_isPanelVisible)
             {
                 btnToggleInfo.Visibility = Visibility.Collapsed;
-
-                infoExifXmp.Visibility = Visibility.Visible;
-                if ((_currentMetadata.Titre != null) || txtXmpKeywords.Text != "Aucun mot clé")
-                {
-                    if (_currentMetadata.Titre == null) txtXmpTitle.Text = "Pas de titre";
-                    infoTitleKeywords.Visibility = Visibility.Visible;
-                }
-                else
-                {
-                    infoTitleKeywords.Visibility = Visibility.Collapsed;
-                }
+                AppliquerVisibiliteGrids();
+                pnlInfoContainer.Visibility = Visibility.Visible;
+                pnlInfoContainer.Opacity = 1;
+                pnlInfoScale.ScaleX = 1;
+                pnlInfoScale.ScaleY = 1;
             }
             else
             {
                 infoExifXmp.Visibility = Visibility.Collapsed;
                 infoTitleKeywords.Visibility = Visibility.Collapsed;
-
+                pnlInfoContainer.Visibility = Visibility.Collapsed;
                 btnToggleInfo.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void AppliquerVisibiliteGrids()
+        {
+            infoExifXmp.Visibility = Visibility.Visible;
+            if ((_currentMetadata.Titre != null) || txtXmpKeywords.Text != "Aucun mot clé")
+            {
+                if (_currentMetadata.Titre == null) txtXmpTitle.Text = "Pas de titre";
+                infoTitleKeywords.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                infoTitleKeywords.Visibility = Visibility.Collapsed;
             }
         }
         // ─────────────────────────────────────────────────────────────────────
