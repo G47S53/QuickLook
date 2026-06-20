@@ -2731,6 +2731,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 await webViewMap.EnsureCoreWebView2Async(null);
 
+                // On désactive le menu contextuel natif de Chromium (Enregistrer sous, Imprimer, Inspecter, ...)
+                // pour le remplacer par notre propre ContextMenu WPF.
+                webViewMap.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+                webViewMap.CoreWebView2.WebMessageReceived += WebViewMap_WebMessageReceived;
+
                 string dossierLeaflet = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "leaflet");
 
                 if (dossierLeaflet == null)
@@ -2769,6 +2774,75 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // Cas typique : WebView2 Runtime non installé sur la machine, ou package NuGet manquant à l'exécution
                 System.Diagnostics.Debug.WriteLine($"Erreur d'initialisation WebView2 (carte GPS) : {ex.Message}");
             }
+        }
+        private void WebViewMap_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
+        // Reçoit les messages envoyés par Leaflet via window.chrome.webview.postMessage()
+        {
+            try
+            {
+                string json = e.WebMessageAsJson;
+                var message = JsonConvert.DeserializeObject<MessageCarteJs>(json);
+
+                if (message?.type == "contextmenu")
+                {
+                    AfficherMenuContextuelCarte(message.lat, message.lon, message.containerX, message.containerY);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Erreur lors de la réception d'un message de la carte : {ex.Message}");
+            }
+        }
+        private class MessageCarteJs
+        // Structure correspondant au JSON envoyé par window.chrome.webview.postMessage() côté JS.
+        {
+            public string type { get; set; }
+            public double lat { get; set; }
+            public double lon { get; set; }
+            public double containerX { get; set; }
+            public double containerY { get; set; }
+        }
+        private void AfficherMenuContextuelCarte(double lat, double lon, double containerX, double containerY)
+        {
+            var menu = new ContextMenu
+            {
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E62E2E2E")),
+                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#30FFFFFF")),
+                BorderThickness = new Thickness(1),
+                Foreground = Brushes.White
+            };
+
+            var itemDefinirPosition = new MenuItem
+            {
+                Header = "📍 Définir comme position GPS"
+            };
+            itemDefinirPosition.Click += (s, e) => DefinirPositionGpsPhoto(lat, lon);
+            menu.Items.Add(itemDefinirPosition);
+
+            // containerX/containerY sont déjà relatifs au conteneur de la carte Leaflet (#map),
+            // donc directement utilisables comme coordonnées relatives à webViewMap dans le repère WPF.
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.RelativePoint;
+            menu.PlacementTarget = webViewMap;
+            menu.HorizontalOffset = containerX;
+            menu.VerticalOffset = containerY;
+            menu.IsOpen = true;
+        }
+        private void DefinirPositionGpsPhoto(double lat, double lon)
+        // Met à jour les coordonnées GPS du panorama en cours et marque les métadonnées comme
+        // modifiées : la sauvegarde effective est différée et gérée par le mécanisme existant
+        // (_isMetaChanging + SauvegardeMeta()).
+        {
+            if (_currentMetadata == null) return;
+
+            _currentMetadata.GpsLatitude = lat.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+            _currentMetadata.GpsLongitude = lon.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+
+            _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
+
+            // On rafraîchit immédiatement l'affichage (marqueur + sortie de l'état "pas de GPS" si besoin)
+            AfficherPositionSurCarte(_currentMetadata.GpsLatitude, _currentMetadata.GpsLongitude);
+
+            System.Diagnostics.Debug.WriteLine($"Nouvelle position GPS demandée : {_currentMetadata.GpsLatitude}, {_currentMetadata.GpsLongitude}");
         }
         private void AfficherPositionSurCarte(string latStr, string lonStr)
         // Point d'entrée unique pour mettre à jour la carte : gère à la fois le cas "pas de GPS"
@@ -2898,6 +2972,20 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         function invalidateMapSize() {
             map.invalidateSize();
         }
+
+        // ── Clic droit personnalisé ──
+        // Le menu natif de Chromium est désactivé côté C# (AreDefaultContextMenusEnabled = false).
+        // On capte ici le clic droit, on convertit la position cliquée en coordonnées GPS via Leaflet,
+        // et on transmet le tout au C# qui affichera son propre ContextMenu WPF.
+        map.on('contextmenu', function (e) {
+            window.chrome.webview.postMessage({
+                type: 'contextmenu',
+                lat: e.latlng.lat,
+                lon: e.latlng.lng,
+                containerX: e.containerPoint.x,
+                containerY: e.containerPoint.y
+            });
+        });
     </script>
 </body>
 </html>";
