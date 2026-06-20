@@ -23,7 +23,6 @@
                 </ColorAnimation.EasingFunction>
             </ColorAnimation>
         </Storyboard>
-
         <Storyboard x:Key="AnimateNextArrow">
             <ColorAnimation Storyboard.TargetName="btnNextPano" 
                         Storyboard.TargetProperty="(Button.Foreground).(SolidColorBrush.Color)"
@@ -66,25 +65,6 @@
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
             <DoubleAnimation Storyboard.TargetName="pnlInfoScale" Storyboard.TargetProperty="ScaleY" From="1" To="0.9" Duration="0:0:0.4">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseIn"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-        </Storyboard>
-
-        <!-- ── Storyboards du panneau Carte GPS (même logique que le panneau Info) ── -->
-        <!-- ────────────────────────────── Fade In ────────────────────────────────── -->
-        <Storyboard x:Key="FadeInZoomInMap">
-            <DoubleAnimation Storyboard.TargetName="pnlMapContainer" Storyboard.TargetProperty="Opacity" From="0" To="1" Duration="0:0:2.4">
-                <DoubleAnimation.EasingFunction>
-                    <CubicEase EasingMode="EaseOut"/>
-                </DoubleAnimation.EasingFunction>
-            </DoubleAnimation>
-        </Storyboard>
-        <!-- ── Storyboards du panneau Carte GPS (même logique que le panneau Info) ── -->
-        <!-- ────────────────────────────── Fade Out ───────────────────────────────── -->
-        <Storyboard x:Key="FadeOutZoomOutMap">
-            <DoubleAnimation Storyboard.TargetName="pnlMapContainer" Storyboard.TargetProperty="Opacity" From="1" To="0" Duration="0:0:2.4">
                 <DoubleAnimation.EasingFunction>
                     <CubicEase EasingMode="EaseIn"/>
                 </DoubleAnimation.EasingFunction>

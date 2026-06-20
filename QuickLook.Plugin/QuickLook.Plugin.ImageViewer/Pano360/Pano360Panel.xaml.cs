@@ -2642,47 +2642,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void AffichagePanneauMap()
         {
-            var sbIn = (Storyboard)FindResource("FadeInZoomInMap");
-            var sbOut = (Storyboard)FindResource("FadeOutZoomOutMap");
-
             if (_isMapPanelVisible)
             {
-                //btnToggleMap.Visibility = Visibility.Collapsed;
                 btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF00AAFF"));
-
                 pnlMapContainer.Visibility = Visibility.Visible;
 
-                // Le ScaleTransform de l'animation ne déclenche pas forcément le ResizeObserver JS
-                // (il change le rendu visuel, pas la taille de layout) : on force un recalcul explicite
-                // de la taille Leaflet une fois l'animation terminée, par sécurité.
-                EventHandler onFadeInCompleted = null;
-                onFadeInCompleted = (s, e) =>
-                {
-                    sbIn.Completed -= onFadeInCompleted;
-                    _ = InvaliderTailleCarteAsync();
-                };
-                sbIn.Completed += onFadeInCompleted;
-                sbIn.Begin(pnlMapContainer);
-
-                // Initialisation paresseuse : on ne charge le WebView2/Leaflet qu'à la première ouverture du panneau
                 _ = AssurerCarteInitialiseeAsync();
-
                 AfficherPositionSurCarte(_currentMetadata?.GpsLatitude, _currentMetadata?.GpsLongitude);
             }
             else
             {
-                EventHandler onCompleted = null;
-                onCompleted = (s, e) =>
-                {
-                    sbOut.Completed -= onCompleted;
-
-                    pnlMapContainer.Visibility = Visibility.Collapsed;
-                    btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#73000000"));
-                    //btnToggleMap.Visibility = Visibility.Visible;
-                };
-
-                sbOut.Completed += onCompleted;
-                sbOut.Begin(pnlMapContainer);
+                btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#73000000"));
+                pnlMapContainer.Visibility = Visibility.Collapsed;
             }
         }
         private async Task AssurerCarteInitialiseeAsync()
@@ -2693,14 +2664,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 await webViewMap.EnsureCoreWebView2Async(null);
 
-                // Note : le fond transparent est déjà fixé en XAML via DefaultBackgroundColor="Transparent"
-                // sur le contrôle <wv2:WebView2>. Cette propriété appartient au wrapper WPF, pas à CoreWebView2.
-
-                // ── Mapping du dossier "leaflet" (à côté de Pano360Panel.xaml, copié dans le dossier
-                //    de sortie du build) vers une origine HTTPS virtuelle stable. C'est l'approche
-                //    recommandée par Microsoft pour servir des ressources locales (JS/CSS/images) à une
-                //    WebView2 sans les soucis de CORS qu'aurait file:// ou NavigateToString.
-                string dossierLeaflet = ResoudreDossierLeaflet();
+                string dossierLeaflet = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "leaflet");
 
                 if (dossierLeaflet == null)
                 {
@@ -2710,10 +2674,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     return;
                 }
 
-                webViewMap.CoreWebView2.SetVirtualHostNameToFolderMapping(
-                    "pano360-app.local",
-                    dossierLeaflet,
-                    CoreWebView2HostResourceAccessKind.Allow);
+                webViewMap.CoreWebView2.SetVirtualHostNameToFolderMapping("pano360-app.local", dossierLeaflet, CoreWebView2HostResourceAccessKind.Allow);
 
                 EcrireHtmlCarteLeafletSiNecessaire(dossierLeaflet);
 
@@ -2739,32 +2700,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // Cas typique : WebView2 Runtime non installé sur la machine, ou package NuGet manquant à l'exécution
                 System.Diagnostics.Debug.WriteLine($"Erreur d'initialisation WebView2 (carte GPS) : {ex.Message}");
             }
-        }
-        private static string ResoudreDossierLeaflet()
-        // Cherche le dossier "leaflet" (contenant leaflet.js/leaflet.css/images) à plusieurs
-        // emplacements plausibles, pour rester robuste qu'il soit copié à la racine de sortie
-        // ou dans un sous-dossier "Pano360" (selon la configuration du .csproj).
-        // Retourne null si aucun n'est trouvé.
-        {
-            string dossierAssembly = System.IO.Path.GetDirectoryName(
-                System.Reflection.Assembly.GetExecutingAssembly().Location) ?? AppDomain.CurrentDomain.BaseDirectory;
-
-            string[] candidats =
-            {
-                System.IO.Path.Combine(dossierAssembly, "Pano360", "leaflet"),
-                System.IO.Path.Combine(dossierAssembly, "leaflet"),
-            };
-
-            foreach (var candidat in candidats)
-            {
-                if (System.IO.Directory.Exists(candidat) &&
-                    System.IO.File.Exists(System.IO.Path.Combine(candidat, "leaflet.js")))
-                {
-                    return candidat;
-                }
-            }
-
-            return null;
         }
         private void AfficherPositionSurCarte(string latStr, string lonStr)
         // Point d'entrée unique pour mettre à jour la carte : gère à la fois le cas "pas de GPS"
