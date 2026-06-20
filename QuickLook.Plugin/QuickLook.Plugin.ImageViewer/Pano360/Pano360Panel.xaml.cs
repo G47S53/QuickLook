@@ -76,6 +76,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double? _pendingMapLat;                                   // Coordonnées en attente si on demande l'affichage avant que le WebView2 soit prêt
         private double? _pendingMapLon;
 
+        private const double LargeurMinMap = 220;
+        private const double HauteurMinMap = 160;
+
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
         // ─────────────────────────────────────────────────────────────────────
@@ -296,6 +299,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             Unloaded += (s, e) => Dispose();
             MouseRightButtonUp += (s, e) => ToggleFullscreen();
+            this.SizeChanged += Pano360Panel_SizeChanged;
         }
         // ─────────────────────────────────────────────────────────────────────
         // Scène 3D
@@ -2659,28 +2663,46 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
         }
         private void ThumbResizeMap_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
-        // Redimensionne pnlMapContainer depuis son coin haut-gauche (le panneau reste ancré bas-droite).
-        // Un drag vers la gauche/le haut (delta négatif) doit agrandir le panneau, donc on inverse le signe.
         {
             double nouvelleLargeur = pnlMapContainer.Width - e.HorizontalChange;
             double nouvelleHauteur = pnlMapContainer.Height - e.VerticalChange;
 
-            // ── Limite haute : ne pas remonter au-delà du haut de la fenêtre ──
-            double margeBasFixe = 70;   // doit correspondre au Margin bas de pnlMapContainer (0,0,30,70)
-            double margeHautMin = 40;   // petite respiration en haut de la fenêtre
-            double hauteurMax = this.ActualHeight - margeBasFixe - margeHautMin;
+            double hauteurMax = CalculerHauteurMaxFenetre();
+            double largeurMax = CalculerLargeurMaxAvantRating(margeDroiteFixe: 30);
 
-            // ── Limite en largeur : ne pas chevaucher panelRating (centré, mesuré même s'il est masqué) ──
-            double margeDroiteFixe = 30; // doit correspondre au Margin droit de pnlMapContainer (0,0,30,70)
-            double largeurMax = CalculerLargeurMaxAvantRating(margeDroiteFixe);
-
-            const double largeurMin = 220;
-            const double hauteurMin = 160;
-
-            pnlMapContainer.Width = Math.Max(largeurMin, Math.Min(largeurMax, nouvelleLargeur));
-            pnlMapContainer.Height = Math.Max(hauteurMin, Math.Min(hauteurMax, nouvelleHauteur));
+            pnlMapContainer.Width = Math.Max(LargeurMinMap, Math.Min(largeurMax, nouvelleLargeur));
+            pnlMapContainer.Height = Math.Max(HauteurMinMap, Math.Min(hauteurMax, nouvelleHauteur));
 
             e.Handled = true;
+        }
+        private void Pano360Panel_SizeChanged(object sender, SizeChangedEventArgs e)
+        // Se déclenche notamment lors du basculement plein écran (clic droit) ou si la fenêtre QuickLook
+        // est redimensionnée. Si le panneau carte est ouvert et devient trop grand pour la nouvelle taille
+        // disponible, on le re-contraint pour que la poignée de redimensionnement reste toujours accessible.
+        {
+            if (!_isMapPanelVisible) return;
+
+            ContraindreTailleMap();
+        }
+        private void ContraindreTailleMap()
+        // Calcule les limites actuelles (haut de fenêtre / barre de notation) et ramène Width/Height
+        // de pnlMapContainer dans ces bornes si nécessaire. Appelée à la fois pendant le drag de
+        // redimensionnement et lors d'un changement de taille de la fenêtre (plein écran, etc.).
+        {
+            double hauteurMax = CalculerHauteurMaxFenetre();
+            double largeurMax = CalculerLargeurMaxAvantRating(margeDroiteFixe: 30);
+
+            if (pnlMapContainer.Width > largeurMax)
+                pnlMapContainer.Width = Math.Max(LargeurMinMap, largeurMax);
+
+            if (pnlMapContainer.Height > hauteurMax)
+                pnlMapContainer.Height = Math.Max(HauteurMinMap, hauteurMax);
+        }
+        private double CalculerHauteurMaxFenetre()
+        {
+            const double margeBasFixe = 70;   // doit correspondre au Margin bas de pnlMapContainer
+            const double margeHautMin = 40;
+            return this.ActualHeight - margeBasFixe - margeHautMin;
         }
         private double CalculerLargeurMaxAvantRating(double margeDroiteFixe)
         // panelRating est centré horizontalement et peut être masqué (Visibility.Collapsed), donc on ne
@@ -2692,12 +2714,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             double bordDroitRating = (this.ActualWidth / 2) + (largeurRating / 2);
 
-            // Petite marge de sécurité pour ne pas coller pile contre la barre de notation
             const double margeSecurite = 20;
 
-            double largeurMaxDisponible = this.ActualWidth - bordDroitRating - margeDroiteFixe - margeSecurite;
-
-            return largeurMaxDisponible;
+            return this.ActualWidth - bordDroitRating - margeDroiteFixe - margeSecurite;
         }
         private async Task AssurerCarteInitialiseeAsync()
         {
@@ -3034,6 +3053,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             if (window != null)
             {
                 window.PreviewKeyDown -= OnWindowKeyDown;
+                this.SizeChanged -= Pano360Panel_SizeChanged;
             }
 
             // 3. DÉCONNECTER LE MATÉRIEL
