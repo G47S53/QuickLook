@@ -11,7 +11,8 @@
     Focusable="True">
 
     <UserControl.Resources>
-
+        <!-- ──────────────── Storyboards des fléches prev/next ────────────────────── -->
+        <!-- ───────────────────── Passage noir/gris/blanc ─────────────────────────── -->
         <Storyboard x:Key="AnimatePrevArrow">
             <ColorAnimation Storyboard.TargetName="btnPrevPano" 
                         Storyboard.TargetProperty="(Button.Foreground).(SolidColorBrush.Color)"
@@ -31,7 +32,8 @@
                 </ColorAnimation.EasingFunction>
             </ColorAnimation>
         </Storyboard>
-
+        <!-- ─────────────────── Storyboards du panneau Info ───────────────────────── -->
+        <!-- ────────────────────────────── Fade In ────────────────────────────────── -->
         <Storyboard x:Key="FadeInZoomIn">
             <DoubleAnimation Storyboard.TargetName="pnlInfoContainer"
                           Storyboard.TargetProperty="Opacity"
@@ -55,7 +57,7 @@
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
         </Storyboard>
-
+        <!-- ────────────────────────────── Fade Out ───────────────────────────────── -->
         <Storyboard x:Key="FadeOutZoomOut">
             <DoubleAnimation Storyboard.TargetName="pnlInfoContainer"
                           Storyboard.TargetProperty="Opacity"
@@ -81,6 +83,7 @@
         </Storyboard>
 
         <!-- ── Storyboards du panneau Carte GPS (même logique que le panneau Info) ── -->
+        <!-- ────────────────────────────── Fade In ────────────────────────────────── -->
         <Storyboard x:Key="FadeInZoomInMap">
             <DoubleAnimation Storyboard.TargetName="pnlMapContainer"
                           Storyboard.TargetProperty="Opacity"
@@ -104,7 +107,7 @@
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
         </Storyboard>
-
+        <!-- ────────────────────────────── Fade Out ───────────────────────────────── -->
         <Storyboard x:Key="FadeOutZoomOutMap">
             <DoubleAnimation Storyboard.TargetName="pnlMapContainer"
                           Storyboard.TargetProperty="Opacity"
@@ -128,11 +131,9 @@
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
         </Storyboard>
-
     </UserControl.Resources>
 
     <Grid>
-
         <!-- ── Viewport 3D : la sphère panoramique ────────────────────────── -->
         <Viewport3D x:Name="viewport3D">
             <Viewport3D.Effect>
@@ -141,7 +142,8 @@
         </Viewport3D>
 
         <!-- ══════════════════════════════════════════════════════════════════
-             BARRE DE CONTRÔLE (en bas à gauche)
+                                   BARRE DE CONTRÔLE
+                                      (centrale)
              ── x:Name="barreBtn" permet au code-behind de piloter l'Opacity.
              ── L'Opacity initiale est 1 ; elle sera animée par UpdateBarreOpacity().
         ══════════════════════════════════════════════════════════════════════ -->
@@ -370,8 +372,9 @@
             </Grid>
         </Grid>
 
-        <!-- ── Préférences ──────────────────────────────── -->
-
+        <!-- ══════════════════════════════════════════════════════════════════
+                        Boite de dialogue des préférences
+        ══════════════════════════════════════════════════════════════════════ -->
         <Grid x:Name="gridPreferences" Visibility="Collapsed" Background="#33000000" Panel.ZIndex="1000" MouseDown="GridPreferences_MouseDown" PreviewMouseWheel="GridPreferences_PreviewMouseWheel">
 
             <Border Background="#FA1A1A1A" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1" Width="480" Height="640" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -393,18 +396,9 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="TabItem">
-                                            <Border x:Name="bd" 
-                                Background="{TemplateBinding Background}" 
-                                Padding="{TemplateBinding Padding}" 
-                                Margin="0,0,4,0" 
-                                CornerRadius="4,4,0,0"
-                                TextOptions.TextRenderingMode="ClearType">
-                                                <TextBlock Text="{TemplateBinding Header}" 
-                                       Foreground="{TemplateBinding Foreground}"
-                                       VerticalAlignment="Center"
-                                       HorizontalAlignment="Center"/>
+                                            <Border x:Name="bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" Margin="0,0,4,0" CornerRadius="4,4,0,0" TextOptions.TextRenderingMode="ClearType">
+                                                <TextBlock Text="{TemplateBinding Header}" Foreground="{TemplateBinding Foreground}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                             </Border>
-
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsSelected" Value="True">
                                                     <Setter TargetName="bd" Property="Background" Value="#22FFFFFF"/>
@@ -572,7 +566,9 @@
                 </Grid>
             </Border>
         </Grid>
-        <!-- ── Info texte PopUp  ────────────────────────── -->
+        <!-- ══════════════════════════════════════════════════════════════════
+                              Info texte (PopUp) centrale 
+        ══════════════════════════════════════════════════════════════════════ -->
         <Border x:Name="infoPopup" Padding="20,10,20,10" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#CC222222" CornerRadius="8" IsHitTestVisible="False" Opacity="0">
             <Border.Effect>
                 <DropShadowEffect BlurRadius="15" ShadowDepth="0" Opacity="0.7"/>
@@ -607,7 +603,9 @@
                 </Storyboard>
             </Border.Resources>
         </Border>
-        <!-- ── Barre Rating  ────────────────────────────── -->
+        <!-- ══════════════════════════════════════════════════════════════════
+                                   Barre Rating (5 étoiles)
+        ══════════════════════════════════════════════════════════════════════ -->        
         <Border x:Name="panelRating" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,75" Background="#80000000" CornerRadius="10" Padding="8,2" RenderTransformOrigin="0.5,0.5" MouseEnter="BarrePanelRating_MouseEnter" MouseLeave="BarrePanelRating_MouseLeave">
             <Border.RenderTransform>
                 <TransformGroup>
@@ -669,6 +667,9 @@
                 <Button x:Name="PointColorRight" Content="⚫" FontSize="6" Foreground="Gray" Background="Transparent" BorderThickness="0" Click="Color_Click" Cursor="Hand" Margin="2,0"/>
             </StackPanel>
         </Border>
+        <!-- ══════════════════════════════════════════════════════════════════
+                    Bouton et panneau d'information en bas à gauche
+        ══════════════════════════════════════════════════════════════════════ -->
         <!-- ── Bouton Information Exif/Xmp  ─────────────── -->
         <Button x:Name="btnToggleInfo" 
         HorizontalAlignment="Left" 
@@ -810,10 +811,8 @@
         </StackPanel>
 
         <!-- ══════════════════════════════════════════════════════════════════
-             PANNEAU CARTE GPS (à droite)
-             ── Même logique que btnToggleInfo / pnlInfoContainer, en miroir à droite.
+                             PANNEAU CARTE GPS
         ══════════════════════════════════════════════════════════════════════ -->
-
         <!-- ── Bouton bascule Carte (bas droite) ──────────── -->
         <Button x:Name="btnToggleMap"
         HorizontalAlignment="Right"
@@ -841,17 +840,8 @@
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="Button">
-                                <Border x:Name="bd"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="20"
-                                BorderBrush="#22FFFFFF"
-                                BorderThickness="1">
-                                    <TextBlock Text="🗺"
-                                       FontFamily="Segoe UI"
-                                       FontSize="16"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,0,1"/>
+                                <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="20" BorderBrush="#22FFFFFF" BorderThickness="1">
+                                    <TextBlock Text="🗺" FontFamily="Segoe UI" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1"/>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
@@ -907,6 +897,7 @@
                 </Grid>
             </Border>
         </Grid>
-
+        <!-- ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── -->
+        <!-- ────────────────────────────────────────────────────────────────────────── The end 😉 ────────────────────────────────────────────────────────────────────── -->
     </Grid>
 </UserControl>
