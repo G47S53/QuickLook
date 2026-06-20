@@ -2302,23 +2302,24 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Gère la lecture et l'affichage de la note
             _currentPanoPath = filePath;
 
-            // Étape 1 : Lecture via notre service
+            // ─────── Étape 1 : Lecture via notre service
             _currentMetadata = PanoMetadataService.ReadMetadata(filePath);
 
-            // Étape 2 : Mise à jour de l'affichage des étoiles
+            // ─────── Étape 2 : Mise à jour de l'affichage des étoiles
             UpdateRatingUI(_currentMetadata.Rating ?? 0);
 
-            // Étape 3 : Mise à jour des couleurs
+            // ─────── Étape 3 : Mise à jour des couleurs
             SetColorPanelRating(_currentMetadata.Label);
 
-            // Étape 4 : Mise à jour du panneau d'informations
+            // ─────── Étape 4 : Mise à jour du panneau d'informations
             UpdateDataPanelInfo();
 
-            // GPS
-            System.Diagnostics.Debug.WriteLine($"GpsLatitude : {_currentMetadata.GpsLatitude}");
-            System.Diagnostics.Debug.WriteLine($"GpsLongitude : {_currentMetadata.GpsLongitude}");
+            // ─────── Étape 5 : GPS
 
-            // Étape 5 : Si le panneau carte est déjà ouvert, on met à jour le marqueur pour le nouveau panorama
+            // Permet de précharger la carte
+            _ = AssurerCarteInitialiseeAsync();
+
+            // Si le panneau carte est déjà ouvert, on met à jour le marqueur pour le nouveau panorama
             if (_isMapPanelVisible)
                 AfficherPositionSurCarte(_currentMetadata.GpsLatitude, _currentMetadata.GpsLongitude);
         }
