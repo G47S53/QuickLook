@@ -762,6 +762,7 @@
         Width="40"
         Height="40"
         Cursor="Hand"
+        Visibility="Collapsed"
         Click="BtnToggleMap_Click"
         MouseEnter="BarrePanelRating_MouseEnter"
         MouseLeave="BarrePanelRating_MouseLeave"
@@ -803,30 +804,49 @@
 
         <!-- ── Panneau Carte GPS ──────────── -->
         <Grid x:Name="pnlMapContainer"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Bottom"
-            Margin="0,0,30,70"
-            Width="320"
-            Height="280"
-            Opacity="0"
-            Visibility="Collapsed"
-            RenderTransformOrigin="1,1">
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,30,70"
+                Width="320"
+                Height="280"
+                Opacity="0"
+                Visibility="Collapsed">
 
-            <Border Background="#702E2E2E" CornerRadius="8" BorderBrush="#30FFFFFF" BorderThickness="1" ClipToBounds="True">
-                <Grid>
-                    <!-- ── Carte Leaflet/OSM via WebView2 ──────────── -->
-                    <wv2:WebView2 x:Name="webViewMap" DefaultBackgroundColor="Transparent"/>
+                    <Border Background="#702E2E2E" CornerRadius="8" BorderBrush="#30FFFFFF" BorderThickness="1" ClipToBounds="True">
+                        <Grid>
+                            <!-- ── Carte Leaflet/OSM via WebView2 ──────────── -->
+                            <wv2:WebView2 x:Name="webViewMap" DefaultBackgroundColor="Transparent"/>
 
-                    <!-- ── État "Pas de coordonnées GPS" ──────────── -->
-                    <Border x:Name="bdNoGps" Background="#702E2E2E" Visibility="Collapsed">
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="📍" FontSize="28" HorizontalAlignment="Center" Margin="0,0,0,8"/>
-                            <TextBlock Text="Aucune coordonnée GPS" Foreground="#B3FFFFFF" FontSize="13" HorizontalAlignment="Center"/>
-                            <TextBlock Text="pour cette photo" Foreground="#80FFFFFF" FontSize="12" HorizontalAlignment="Center"/>
-                        </StackPanel>
+                            <!-- ── État "Pas de coordonnées GPS" ──────────── -->
+                            <Border x:Name="bdNoGps" Background="#702E2E2E" Visibility="Collapsed">
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="📍" FontSize="28" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Aucune coordonnée GPS" Foreground="#B3FFFFFF" FontSize="13" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="pour cette photo" Foreground="#80FFFFFF" FontSize="12" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </Border>
-                </Grid>
-            </Border>
+
+                    <!-- ── Poignée de redimensionnement (coin haut-gauche, puisque le panneau est ancré bas-droite) ──────────── -->
+                    <Thumb x:Name="thumbResizeMap"
+                           Width="16"
+                           Height="16"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Top"
+                           Margin="-4,-4,0,0"
+                           Cursor="SizeNWSE"
+                           DragDelta="ThumbResizeMap_DragDelta">
+                            <Thumb.Template>
+                                <ControlTemplate TargetType="Thumb">
+                                    <Grid Background="Transparent">
+                                        <Path Data="M 14,2 L 2,14 M 14,7 L 7,14 M 14,12 L 12,14"
+                                      Stroke="#80FFFFFF"
+                                      StrokeThickness="1.5"/>
+                                    </Grid>
+                                </ControlTemplate>
+                            </Thumb.Template>
+                    </Thumb>
         </Grid>
         <!-- ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── -->
         <!-- ────────────────────────────────────────────────────────────────────────── The end 😉 ────────────────────────────────────────────────────────────────────── -->

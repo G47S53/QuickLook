@@ -33,6 +33,7 @@ using System.Windows.Navigation;
 using TDxInput;
 using Microsoft.Web.WebView2.Core;
 using Media3D = System.Windows.Media.Media3D;
+using System.Windows.Controls.Primitives;
 
 namespace QuickLook.Plugin.ImageViewer.Pano360
 {
@@ -2657,6 +2658,47 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 pnlMapContainer.Visibility = Visibility.Collapsed;
             }
         }
+        private void ThumbResizeMap_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+        // Redimensionne pnlMapContainer depuis son coin haut-gauche (le panneau reste ancré bas-droite).
+        // Un drag vers la gauche/le haut (delta négatif) doit agrandir le panneau, donc on inverse le signe.
+        {
+            double nouvelleLargeur = pnlMapContainer.Width - e.HorizontalChange;
+            double nouvelleHauteur = pnlMapContainer.Height - e.VerticalChange;
+
+            // ── Limite haute : ne pas remonter au-delà du haut de la fenêtre ──
+            double margeBasFixe = 70;   // doit correspondre au Margin bas de pnlMapContainer (0,0,30,70)
+            double margeHautMin = 40;   // petite respiration en haut de la fenêtre
+            double hauteurMax = this.ActualHeight - margeBasFixe - margeHautMin;
+
+            // ── Limite en largeur : ne pas chevaucher panelRating (centré, mesuré même s'il est masqué) ──
+            double margeDroiteFixe = 30; // doit correspondre au Margin droit de pnlMapContainer (0,0,30,70)
+            double largeurMax = CalculerLargeurMaxAvantRating(margeDroiteFixe);
+
+            const double largeurMin = 220;
+            const double hauteurMin = 160;
+
+            pnlMapContainer.Width = Math.Max(largeurMin, Math.Min(largeurMax, nouvelleLargeur));
+            pnlMapContainer.Height = Math.Max(hauteurMin, Math.Min(hauteurMax, nouvelleHauteur));
+
+            e.Handled = true;
+        }
+        private double CalculerLargeurMaxAvantRating(double margeDroiteFixe)
+        // panelRating est centré horizontalement et peut être masqué (Visibility.Collapsed), donc on ne
+        // peut pas se fier à ActualWidth à cet instant : on le mesure explicitement même caché, une fois,
+        // pour connaître sa largeur réelle (texte + boutons + padding) indépendamment de sa visibilité actuelle.
+        {
+            panelRating.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double largeurRating = panelRating.DesiredSize.Width;
+
+            double bordDroitRating = (this.ActualWidth / 2) + (largeurRating / 2);
+
+            // Petite marge de sécurité pour ne pas coller pile contre la barre de notation
+            const double margeSecurite = 20;
+
+            double largeurMaxDisponible = this.ActualWidth - bordDroitRating - margeDroiteFixe - margeSecurite;
+
+            return largeurMaxDisponible;
+        }
         private async Task AssurerCarteInitialiseeAsync()
         {
             if (_isMapWebViewReady) return;
@@ -2686,6 +2728,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     webViewMap.CoreWebView2.NavigationCompleted -= OnNavCompleted;
                     _isMapWebViewReady = true;
+
+                    btnToggleMap.Visibility = Visibility.Visible;
 
                     if (_pendingMapLat.HasValue && _pendingMapLon.HasValue)
                     {
