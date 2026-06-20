@@ -4,13 +4,14 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
     mc:Ignorable="d"
     d:DesignHeight="450" d:DesignWidth="800"
     Background="Black"
     Focusable="True">
 
     <UserControl.Resources>
-        
+
         <Storyboard x:Key="AnimatePrevArrow">
             <ColorAnimation Storyboard.TargetName="btnPrevPano" 
                         Storyboard.TargetProperty="(Button.Foreground).(SolidColorBrush.Color)"
@@ -71,6 +72,55 @@
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
             <DoubleAnimation Storyboard.TargetName="pnlInfoScale"
+                          Storyboard.TargetProperty="ScaleY"
+                          From="1" To="0.9" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseIn"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+
+        <!-- ── Storyboards du panneau Carte GPS (même logique que le panneau Info) ── -->
+        <Storyboard x:Key="FadeInZoomInMap">
+            <DoubleAnimation Storyboard.TargetName="pnlMapContainer"
+                          Storyboard.TargetProperty="Opacity"
+                          From="0" To="1" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="pnlMapScale"
+                          Storyboard.TargetProperty="ScaleX"
+                          From="0.9" To="1" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="pnlMapScale"
+                          Storyboard.TargetProperty="ScaleY"
+                          From="0.9" To="1" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+
+        <Storyboard x:Key="FadeOutZoomOutMap">
+            <DoubleAnimation Storyboard.TargetName="pnlMapContainer"
+                          Storyboard.TargetProperty="Opacity"
+                          From="1" To="0" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseIn"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="pnlMapScale"
+                          Storyboard.TargetProperty="ScaleX"
+                          From="1" To="0.9" Duration="0:0:0.4">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseIn"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="pnlMapScale"
                           Storyboard.TargetProperty="ScaleY"
                           From="1" To="0.9" Duration="0:0:0.4">
                 <DoubleAnimation.EasingFunction>
@@ -435,14 +485,14 @@
                                     <StackPanel Orientation="Vertical" Margin="0,12,0,0">
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                             <RadioButton x:Name="radStartAutoClose" Content="1 tour + fermeture" GroupName="StartMode" Click="RadioBtnMode_Click"/>
-                                            
+
                                         </StackPanel>
 
                                         <StackPanel Orientation="Horizontal" Margin="0,20,0,6">
                                             <RadioButton x:Name="radStartAutoSuivant" GroupName="StartMode" Click="RadioBtnMode_Click" VerticalContentAlignment="Center">
                                                 <TextBlock Text="1 tour + panorama suivant" TextWrapping="Wrap" MaxWidth="340"/>
                                             </RadioButton>
-                                             <TextBlock x:Name="TextAutoClose" Visibility="Hidden" Text="⚙ Durée :" Foreground="#AAFFFFFF" Margin="0,0,0,0" VerticalAlignment="Center" FontSize="11" FontStyle="Italic"/>
+                                            <TextBlock x:Name="TextAutoClose" Visibility="Hidden" Text="⚙ Durée :" Foreground="#AAFFFFFF" Margin="0,0,0,0" VerticalAlignment="Center" FontSize="11" FontStyle="Italic"/>
                                         </StackPanel>
                                         <Grid Margin="150,0,0,0">
                                             <Grid.ColumnDefinitions>
@@ -632,12 +682,12 @@
         MouseLeave="BarrePanelRating_MouseLeave"       
         ToolTip="Afficher/Masquer les informations (i)">
             <Button.Resources>
-                    <Storyboard x:Key="FadeOutbtnToggleInfo">
-                        <DoubleAnimation Storyboard.TargetName="btnToggleInfo" Storyboard.TargetProperty="Opacity" To="0.15" Duration="0:0:0.4" />
-                    </Storyboard>
-                    <Storyboard x:Key="FadeInbtnToggleInfo">
-                        <DoubleAnimation Storyboard.TargetName="btnToggleInfo" Storyboard.TargetProperty="Opacity" To="1.0" Duration="0:0:0.3" />
-                    </Storyboard>
+                <Storyboard x:Key="FadeOutbtnToggleInfo">
+                    <DoubleAnimation Storyboard.TargetName="btnToggleInfo" Storyboard.TargetProperty="Opacity" To="0.15" Duration="0:0:0.4" />
+                </Storyboard>
+                <Storyboard x:Key="FadeInbtnToggleInfo">
+                    <DoubleAnimation Storyboard.TargetName="btnToggleInfo" Storyboard.TargetProperty="Opacity" To="1.0" Duration="0:0:0.3" />
+                </Storyboard>
             </Button.Resources>
             <Button.Style>
                 <Style TargetType="Button">
@@ -692,7 +742,7 @@
                   IsHitTestVisible="True"
                   Margin="0,0,0,10"
                   MouseLeftButtonDown="InfoTitleKeywords_MouseLeftButtonDown">
-                        <Border Background="#702E2E2E"
+                <Border Background="#702E2E2E"
                         CornerRadius="8"
                         BorderBrush="#30FFFFFF"
                         BorderThickness="1"/>
@@ -709,7 +759,7 @@
                   Cursor="Hand"
                   IsHitTestVisible="True"
                   MouseLeftButtonDown="InfoExifXmp_MouseLeftButtonDown">
-                        <Border Background="#702E2E2E"
+                <Border Background="#702E2E2E"
                         CornerRadius="8"
                         BorderBrush="#30FFFFFF"
                         BorderThickness="1"/>
@@ -730,7 +780,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-                        
+
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="💾 Taille" Foreground="#80FFFFFF" FontSize="12" Margin="0,2,10,2"/>
                         <TextBlock Grid.Row="0" Grid.Column="1" x:Name="txtMetaSize" Text="--" Foreground="White" FontSize="14" FontWeight="Medium" TextAlignment="Right" VerticalAlignment="Center"/>
                     </Grid>
@@ -758,6 +808,105 @@
                 </StackPanel>
             </Grid>
         </StackPanel>
+
+        <!-- ══════════════════════════════════════════════════════════════════
+             PANNEAU CARTE GPS (à droite)
+             ── Même logique que btnToggleInfo / pnlInfoContainer, en miroir à droite.
+        ══════════════════════════════════════════════════════════════════════ -->
+
+        <!-- ── Bouton bascule Carte (bas droite) ──────────── -->
+        <Button x:Name="btnToggleMap"
+        HorizontalAlignment="Right"
+        VerticalAlignment="Bottom"
+        Margin="0,0,30,20"
+        Width="40"
+        Height="40"
+        Cursor="Hand"
+        Click="BtnToggleMap_Click"
+        MouseEnter="BarrePanelRating_MouseEnter"
+        MouseLeave="BarrePanelRating_MouseLeave"
+        ToolTip="Afficher/Masquer la carte GPS">
+            <Button.Resources>
+                <Storyboard x:Key="FadeOutbtnToggleMap">
+                    <DoubleAnimation Storyboard.TargetName="btnToggleMap" Storyboard.TargetProperty="Opacity" To="0.15" Duration="0:0:0.4" />
+                </Storyboard>
+                <Storyboard x:Key="FadeInbtnToggleMap">
+                    <DoubleAnimation Storyboard.TargetName="btnToggleMap" Storyboard.TargetProperty="Opacity" To="1.0" Duration="0:0:0.3" />
+                </Storyboard>
+            </Button.Resources>
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Setter Property="Background" Value="#73000000"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="20"
+                                BorderBrush="#22FFFFFF"
+                                BorderThickness="1">
+                                    <TextBlock Text="🗺"
+                                       FontFamily="Segoe UI"
+                                       FontSize="16"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,0,1"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#AA000000"/>
+                                        <Setter TargetName="bd" Property="BorderBrush" Value="#44FFFFFF"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#00000000"/>
+                                        <!-- ──Pour le bleu: Value="#FF00AAFF" ──────────── -->
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Button.Style>
+        </Button>
+
+        <!-- ── Panneau Carte GPS ──────────── -->
+        <Grid x:Name="pnlMapContainer"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Bottom"
+            Margin="0,0,30,70"
+            Width="320"
+            Height="280"
+            Opacity="0"
+            Visibility="Collapsed"
+            RenderTransformOrigin="1,1">
+            <Grid.RenderTransform>
+                <ScaleTransform x:Name="pnlMapScale" ScaleX="0.9" ScaleY="0.9"/>
+            </Grid.RenderTransform>
+
+            <Border Background="#702E2E2E"
+                    CornerRadius="8"
+                    BorderBrush="#30FFFFFF"
+                    BorderThickness="1"
+                    ClipToBounds="True">
+                <Grid>
+                    <!-- ── Carte Leaflet/OSM via WebView2 ──────────── -->
+                    <wv2:WebView2 x:Name="webViewMap"
+                                  DefaultBackgroundColor="Transparent"/>
+
+                    <!-- ── État "Pas de coordonnées GPS" ──────────── -->
+                    <Border x:Name="bdNoGps"
+                            Background="#702E2E2E"
+                            Visibility="Collapsed">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock Text="📍" FontSize="28" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                            <TextBlock Text="Aucune coordonnée GPS" Foreground="#B3FFFFFF" FontSize="13" HorizontalAlignment="Center"/>
+                            <TextBlock Text="pour cette photo" Foreground="#80FFFFFF" FontSize="12" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
 
     </Grid>
 </UserControl>

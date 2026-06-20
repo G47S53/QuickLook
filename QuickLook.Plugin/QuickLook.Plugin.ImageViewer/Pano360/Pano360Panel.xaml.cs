@@ -31,6 +31,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using System.Windows.Navigation;
 using TDxInput;
+using Microsoft.Web.WebView2.Core;
 using Media3D = System.Windows.Media.Media3D;
 
 namespace QuickLook.Plugin.ImageViewer.Pano360
@@ -65,6 +66,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private PanoMetadata _currentMetadata;
         private bool _isMetaChanging = false;                              // Indique si les données Exif/Xmp ont changé et si il faut les sauvegarder
         private bool _isPanelVisible = false;                              // Indique si le panneau d'information est considéré comme visible (important pour enlever le panneau avec le titre si on change de panorama)
+
+        // ─────────────────────────────────────────────────────────────────────
+        // > Panneau Carte GPS (WebView2 + Leaflet/OSM)
+        // ─────────────────────────────────────────────────────────────────────
+        private bool _isMapPanelVisible = false;                          // Indique si le panneau carte est considéré comme visible
+        private bool _isMapWebViewReady = false;                          // True une fois le CoreWebView2 initialisé et la carte Leaflet chargée
+        private double? _pendingMapLat;                                   // Coordonnées en attente si on demande l'affichage avant que le WebView2 soit prêt
+        private double? _pendingMapLon;
 
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
@@ -527,7 +536,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _isSpaceMouseHighForce = (Math.Abs(spaceMouseSpeedX) > 500 || Math.Abs(spaceMouseSpeedY) > 500 || Math.Abs(spaceMouseSpeedZ) > 500);
 
             if (!_isMouseDown)
-            { 
+            {
                 // Partie rotation du panorama
                 if (spaceMouseSpeedX != 0 || spaceMouseSpeedY != 0 || spaceMouseSpeedZ != 0)
                 {
@@ -720,8 +729,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         targetSpeed = 360.0 / AutoRotateNormalSeconds;
                     else if (_autoRotState == AutoRotationState.Rapide)
                         targetSpeed = 360.0 / AutoRotateFastSeconds;
-                    else                    
-                        targetSpeed = 0;    
+                    else
+                        targetSpeed = 0;
                 }
 
                 // Gestion de l'accélération / décélération vers targetSpeed 
@@ -775,7 +784,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 if (_context != null && !_context.BlocageShowCaption)
                 {
-                    _context.BlocageShowCaption = true; 
+                    _context.BlocageShowCaption = true;
                 }
 
                 MarquerMouvement();
@@ -915,7 +924,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             Mouse.OverrideCursor = Cursors.None;
 
-            if (_context != null) _context.BlocageShowCaption = true; 
+            if (_context != null) _context.BlocageShowCaption = true;
 
             if (e.MiddleButton == MouseButtonState.Pressed && !_OptionOpen)
             {
@@ -972,7 +981,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
                 return;
             }
-            
+
             // Pas adaptatif : quadratique, ~1° aux extrêmes, ~5° au centre
             double t = (_targetFov - FovMin) / (FovMax - FovMin);
             double step = 1.0 + 4.0 * (1.0 - Math.Abs(2.0 * t - 1.0));
@@ -1083,7 +1092,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (_isMouseDown) return;
 
-                if (_oneTurnActive)
+            if (_oneTurnActive)
             {
                 txtInfoPopup.Text = "⌨️ Clavier désactivé dans ce mode";
                 if (_oneTurnDuration > 6)
@@ -1095,7 +1104,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
                 }
                 return;
-            } 
+            }
 
             Dispatcher.Invoke(() =>
             {
@@ -1112,7 +1121,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // |                                                 |
                 // |        Fit : 31 & 32                            |
                 // ───────────────────────────────────────────────────
-                
+
                 if (_autoRotState == AutoRotationState.Off)
                 {
                     // Si aucune cible n'est définie, partir de l'angle actuel.
@@ -1198,7 +1207,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         {
                             // FOV
                             _camera.FieldOfView = _OptionFov;
-                            
+
                             // Fullscreen
                             if (_chkFullscreenSavedValue) ToggleFullscreen();
 
@@ -1288,7 +1297,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 txtAutoClose.Opacity = 1.0;
                                 txtAutoClose.Text = _StartOneTurnNext ? "1 tour + 📷 ▶️" : "1 tour + ✖️";
                                 btnAutoClose.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
-                                panelAutoCloseProgress.Visibility = Visibility.Visible;        
+                                panelAutoCloseProgress.Visibility = Visibility.Visible;
 
                                 // Mise à jour de l'info popup sur la durée de l'autorotation
                                 _autoCloseStartAngle = _horizontalRotation.Angle;
@@ -1459,7 +1468,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Indique que la boite de dialogue d'option est ouverte (utile pour désactiver la spacemouse)
             _OptionOpen = true;
-            
+
             // 🎯 ON ALLUME LE FLOU DERRIÈRE : Un rayon de 15 rend le panorama magnifiquement flou
             viewBlur.Radius = 15;
 
@@ -1623,7 +1632,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
                     (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
                     (btnToggleInfo.Resources["FadeOutbtnToggleInfo"] as Storyboard)?.Begin(btnToggleInfo);
-                    if (_autoCloseActive || _autoRotState != AutoRotationState.Off) 
+                    if (_autoCloseActive || _autoRotState != AutoRotationState.Off)
                     {
                         (panelRating.Resources["FadeOutRating"] as Storyboard)?.Begin(panelRating);
                     }
@@ -1631,7 +1640,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     {
                         (panelRating.Resources["FadeOutFullRating"] as Storyboard)?.Begin(panelRating);
                     }
-                    
+
                     _isBarreMasquee = true;
                 }
             }
@@ -1734,7 +1743,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 return;
             }
             if (_autoRotState != AutoRotationState.Off)
-            { 
+            {
                 txtInfoPopup.Text = "Bouton désactivé dans ce mode";
                 if (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)
                 {
@@ -1819,7 +1828,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
             MajEtatAutoCloseAutoNext();
         }
-        private void AfficheEtatAutoRotation() 
+        private void AfficheEtatAutoRotation()
         {
             switch (_autoRotState)
             {
@@ -1862,10 +1871,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 // État 1 → État 2 : AutoNext (1 tour + panorama suivant)
                 // On GARDE _autoCloseActive = true : c'est lui qui pilote le moteur de suivi
-                _autoCloseActive = true;          
+                _autoCloseActive = true;
                 _oneTurnNextActive = true;
-                _autoNextFromButton = true;        
-                _autoNextSavedRotState = _autoRotState;    
+                _autoNextFromButton = true;
+                _autoNextSavedRotState = _autoRotState;
                 // On repart de l'angle actuel pour repartir d'un tour complet
                 _autoCloseStartAngle = _horizontalRotation.Angle;
                 _autoCloseTargetAngle = _autoCloseStartAngle;
@@ -1878,7 +1887,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // État 2 → Off
                 _autoCloseActive = false;
                 _oneTurnNextActive = false;
-                _autoNextFromButton = false;       
+                _autoNextFromButton = false;
                 _autoCloseTargetAngle = -1;
                 _autoCloseStartAngle = -1;
                 _hasLeftStartZone = false;
@@ -1931,7 +1940,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     panelAutoCloseProgress.Visibility = Visibility.Collapsed;
                 }
             }
-        }        
+        }
         // ─────────────────────────────────────────────────────────────────────
         // NAVIGATION entre panoramas du dossier courant
         // ─────────────────────────────────────────────────────────────────────
@@ -2308,6 +2317,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // GPS
             System.Diagnostics.Debug.WriteLine($"GpsLatitude : {_currentMetadata.GpsLatitude}");
             System.Diagnostics.Debug.WriteLine($"GpsLongitude : {_currentMetadata.GpsLongitude}");
+
+            // Étape 5 : Si le panneau carte est déjà ouvert, on met à jour le marqueur pour le nouveau panorama
+            if (_isMapPanelVisible)
+                AfficherPositionSurCarte(_currentMetadata.GpsLatitude, _currentMetadata.GpsLongitude);
         }
         private void SetColorPanelRating(string couleur)
         {
@@ -2407,8 +2420,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     break;
             }
             // Indique qu'il est nécessaire de sauvegarder
-            _isMetaChanging = true;      
-            
+            _isMetaChanging = true;
+
             // Mise à jour des couleurs de l'interface
             SetColorPanelRating(_currentMetadata.Label);
 
@@ -2617,6 +2630,283 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
         }
         // ─────────────────────────────────────────────────────────────────────
+        // Panneau Carte GPS (WebView2 + Leaflet/OSM)
+        // ─────────────────────────────────────────────────────────────────────
+        private void BtnToggleMap_Click(object sender, RoutedEventArgs e)
+        {
+            _isMapPanelVisible = !_isMapPanelVisible;   // bascule on/off
+
+            AffichagePanneauMap();
+
+            e.Handled = true;
+        }
+        private void AffichagePanneauMap()
+        {
+            var sbIn = (Storyboard)FindResource("FadeInZoomInMap");
+            var sbOut = (Storyboard)FindResource("FadeOutZoomOutMap");
+
+            if (_isMapPanelVisible)
+            {
+                //btnToggleMap.Visibility = Visibility.Collapsed;
+                btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF00AAFF"));
+
+                pnlMapContainer.Visibility = Visibility.Visible;
+
+                // Le ScaleTransform de l'animation ne déclenche pas forcément le ResizeObserver JS
+                // (il change le rendu visuel, pas la taille de layout) : on force un recalcul explicite
+                // de la taille Leaflet une fois l'animation terminée, par sécurité.
+                EventHandler onFadeInCompleted = null;
+                onFadeInCompleted = (s, e) =>
+                {
+                    sbIn.Completed -= onFadeInCompleted;
+                    _ = InvaliderTailleCarteAsync();
+                };
+                sbIn.Completed += onFadeInCompleted;
+                sbIn.Begin(pnlMapContainer);
+
+                // Initialisation paresseuse : on ne charge le WebView2/Leaflet qu'à la première ouverture du panneau
+                _ = AssurerCarteInitialiseeAsync();
+
+                AfficherPositionSurCarte(_currentMetadata?.GpsLatitude, _currentMetadata?.GpsLongitude);
+            }
+            else
+            {
+                EventHandler onCompleted = null;
+                onCompleted = (s, e) =>
+                {
+                    sbOut.Completed -= onCompleted;
+
+                    pnlMapContainer.Visibility = Visibility.Collapsed;
+                    btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#73000000"));
+                    //btnToggleMap.Visibility = Visibility.Visible;
+                };
+
+                sbOut.Completed += onCompleted;
+                sbOut.Begin(pnlMapContainer);
+            }
+        }
+        private async Task AssurerCarteInitialiseeAsync()
+        {
+            if (_isMapWebViewReady) return;
+
+            try
+            {
+                await webViewMap.EnsureCoreWebView2Async(null);
+
+                // Note : le fond transparent est déjà fixé en XAML via DefaultBackgroundColor="Transparent"
+                // sur le contrôle <wv2:WebView2>. Cette propriété appartient au wrapper WPF, pas à CoreWebView2.
+
+                // ── Mapping du dossier "leaflet" (à côté de Pano360Panel.xaml, copié dans le dossier
+                //    de sortie du build) vers une origine HTTPS virtuelle stable. C'est l'approche
+                //    recommandée par Microsoft pour servir des ressources locales (JS/CSS/images) à une
+                //    WebView2 sans les soucis de CORS qu'aurait file:// ou NavigateToString.
+                string dossierLeaflet = ResoudreDossierLeaflet();
+
+                if (dossierLeaflet == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("[Carte GPS] Dossier Leaflet introuvable. " +
+                        "Vérifiez que le dossier 'leaflet' (leaflet.js/leaflet.css/images) est bien copié " +
+                        "dans le répertoire de sortie du build (Copy to Output Directory).");
+                    return;
+                }
+
+                webViewMap.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                    "pano360-app.local",
+                    dossierLeaflet,
+                    CoreWebView2HostResourceAccessKind.Allow);
+
+                EcrireHtmlCarteLeafletSiNecessaire(dossierLeaflet);
+
+                webViewMap.CoreWebView2.Navigate("https://pano360-app.local/carte.html");
+
+                // On attend la fin du chargement de la page avant de pouvoir appeler du JS (ex: déplacer le marqueur)
+                void OnNavCompleted(object s, CoreWebView2NavigationCompletedEventArgs e)
+                {
+                    webViewMap.CoreWebView2.NavigationCompleted -= OnNavCompleted;
+                    _isMapWebViewReady = true;
+
+                    if (_pendingMapLat.HasValue && _pendingMapLon.HasValue)
+                    {
+                        _ = DeplacerMarqueurAsync(_pendingMapLat.Value, _pendingMapLon.Value);
+                        _pendingMapLat = null;
+                        _pendingMapLon = null;
+                    }
+                }
+                webViewMap.CoreWebView2.NavigationCompleted += OnNavCompleted;
+            }
+            catch (Exception ex)
+            {
+                // Cas typique : WebView2 Runtime non installé sur la machine, ou package NuGet manquant à l'exécution
+                System.Diagnostics.Debug.WriteLine($"Erreur d'initialisation WebView2 (carte GPS) : {ex.Message}");
+            }
+        }
+        private static string ResoudreDossierLeaflet()
+        // Cherche le dossier "leaflet" (contenant leaflet.js/leaflet.css/images) à plusieurs
+        // emplacements plausibles, pour rester robuste qu'il soit copié à la racine de sortie
+        // ou dans un sous-dossier "Pano360" (selon la configuration du .csproj).
+        // Retourne null si aucun n'est trouvé.
+        {
+            string dossierAssembly = System.IO.Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().Location) ?? AppDomain.CurrentDomain.BaseDirectory;
+
+            string[] candidats =
+            {
+                System.IO.Path.Combine(dossierAssembly, "Pano360", "leaflet"),
+                System.IO.Path.Combine(dossierAssembly, "leaflet"),
+            };
+
+            foreach (var candidat in candidats)
+            {
+                if (System.IO.Directory.Exists(candidat) &&
+                    System.IO.File.Exists(System.IO.Path.Combine(candidat, "leaflet.js")))
+                {
+                    return candidat;
+                }
+            }
+
+            return null;
+        }
+        private void AfficherPositionSurCarte(string latStr, string lonStr)
+        // Point d'entrée unique pour mettre à jour la carte : gère à la fois le cas "pas de GPS"
+        // et la mise à jour du marqueur (immédiate si la WebView est prête, sinon mise en attente).
+        //
+        // Prend directement les string telles que stockées dans PanoMetadata.GpsLatitude/GpsLongitude
+        // (format "F6" invariant culture, ex: "49.598494"), le parsing est fait ici une seule fois.
+        {
+            bool latOk = TryParseGps(latStr, out double lat);
+            bool lonOk = TryParseGps(lonStr, out double lon);
+            bool aDesCoordonnees = latOk && lonOk;
+
+            webViewMap.Visibility = aDesCoordonnees ? Visibility.Visible : Visibility.Collapsed;
+            bdNoGps.Visibility = aDesCoordonnees ? Visibility.Collapsed : Visibility.Visible;
+
+            if (!aDesCoordonnees) return;
+
+            if (_isMapWebViewReady)
+                _ = DeplacerMarqueurAsync(lat, lon);
+            else
+            {
+                // La WebView2/Leaflet n'a pas encore fini de s'initialiser : on mémorise la position
+                // pour l'appliquer dès que NavigationCompleted se déclenche.
+                _pendingMapLat = lat;
+                _pendingMapLon = lon;
+            }
+        }
+        private static bool TryParseGps(string value, out double result)
+        // PanoMetadataService formate toujours GpsLatitude/GpsLongitude en "F6" invariant culture,
+        // mais on reste tolérant (NumberStyles.Float) au cas où la source évolue.
+        {
+            return double.TryParse(value, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out result);
+        }
+        private async Task InvaliderTailleCarteAsync()
+        // Force Leaflet à recalculer la taille de la carte (voir invalidateMapSize() dans le JS).
+        // Nécessaire car le ScaleTransform de l'animation d'apparition ne déclenche pas toujours
+        // le ResizeObserver côté JS (changement de rendu, pas de taille de layout).
+        {
+            if (!_isMapWebViewReady) return; // Si la WebView n'est pas encore prête, le filet de sécurité JS (window.load) prend le relais
+
+            try
+            {
+                await webViewMap.CoreWebView2.ExecuteScriptAsync("invalidateMapSize();");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Erreur lors de l'invalidation de la taille de la carte : {ex.Message}");
+            }
+        }
+        private async Task DeplacerMarqueurAsync(double lat, double lon)
+        {
+            try
+            {
+                string latStr = lat.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                string lonStr = lon.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                // setPosition() est défini dans le HTML/JS ci-dessous (ConstruireHtmlCarteLeaflet) :
+                // il déplace le marqueur et recentre la carte sans tout recharger.
+                await webViewMap.CoreWebView2.ExecuteScriptAsync($"setPosition({latStr}, {lonStr});");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Erreur lors de la mise à jour du marqueur GPS : {ex.Message}");
+            }
+        }
+        private static void EcrireHtmlCarteLeafletSiNecessaire(string dossierLeaflet)
+        // Génère (ou régénère si modifié) le fichier carte.html à côté de leaflet.js/leaflet.css,
+        // pour qu'il soit servi par la même origine virtuelle "pano360-app.local" et puisse
+        // référencer Leaflet en chemin relatif (pas de CDN, tout est local).
+        //
+        // setPosition(lat, lon) est exposée globalement pour être appelée depuis le C# via ExecuteScriptAsync.
+        // Seules les tuiles OSM restent chargées via Internet (carte en ligne, comme convenu).
+        {
+            const string html = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <link rel='stylesheet' href='leaflet.css' />
+    <style>
+        html, body, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #2E2E2E; }
+        .leaflet-control-attribution { font-size: 9px; }
+    </style>
+</head>
+<body>
+    <div id='map'></div>
+    <script src='leaflet.js'></script>
+    <script>
+        var map = L.map('map', { zoomControl: true, attributionControl: true }).setView([0, 0], 2);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        var marker = null;
+
+        function setPosition(lat, lon) {
+            var latLng = [lat, lon];
+            if (marker === null) {
+                marker = L.marker(latLng).addTo(map);
+            } else {
+                marker.setLatLng(latLng);
+            }
+            map.setView(latLng, 15);
+        }
+
+        // ── Correctif taille ──
+        // La WebView2 est hébergée dans un panneau WPF qui apparaît via une animation
+        // (opacité + scale). Leaflet calcule sa taille interne au moment de L.map() ci-dessus,
+        // qui peut ne pas correspondre à la taille finale du conteneur (panneau encore à 0
+        // ou en cours d'agrandissement). invalidateSize() force Leaflet à recalculer ses
+        // dimensions ; le ResizeObserver le déclenche automatiquement à chaque changement
+        // réel de taille du div #map (ouverture du panneau, futur redimensionnement manuel, etc.).
+        var mapDiv = document.getElementById('map');
+        var resizeObserver = new ResizeObserver(function () {
+            map.invalidateSize();
+        });
+        resizeObserver.observe(mapDiv);
+
+        // Filet de sécurité supplémentaire : un appel différé juste après le chargement,
+        // au cas où la première mesure de taille par WebView2/Chromium ait été prise à 0x0.
+        window.addEventListener('load', function () {
+            setTimeout(function () { map.invalidateSize(); }, 200);
+        });
+
+        function invalidateMapSize() {
+            map.invalidateSize();
+        }
+    </script>
+</body>
+</html>";
+
+            string cheminCarteHtml = System.IO.Path.Combine(dossierLeaflet, "carte.html");
+
+            // On régénère seulement si absent ou différent, pour ne pas réécrire le fichier à chaque ouverture du panneau
+            if (!System.IO.File.Exists(cheminCarteHtml) || System.IO.File.ReadAllText(cheminCarteHtml) != html)
+            {
+                System.IO.File.WriteAllText(cheminCarteHtml, html);
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
         // ────────────────────────── Math ─────────────────────────────────────
@@ -2776,6 +3066,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // 5. Enfin, on vide la scène 3D
             viewport3D.Children.Clear();
+
+            // 6. Libération du WebView2 (carte GPS)
+            webViewMap?.Dispose();
         }
     }
 }
