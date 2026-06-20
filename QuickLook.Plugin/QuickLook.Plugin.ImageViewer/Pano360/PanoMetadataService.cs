@@ -165,6 +165,48 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         if (data.Label != null)
                             metadataClone.SetQuery("/xmp/xmp:Label", data.Label);
 
+                        // GPS (EXIF standard uniquement — jamais XMP DJI, qui reste un format de lecture/fallback)
+                        if (data.GpsLatitude != null && data.GpsLongitude != null &&
+                            double.TryParse(data.GpsLatitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double latDecimal) &&
+                            double.TryParse(data.GpsLongitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double lonDecimal))
+                        {
+                            try
+                            {
+                                // WPF a besoin que le sous-bloc IFD GPS existe avant qu'on puisse y écrire des tags enfants.
+                                // S'il n'existe pas encore (cas typique d'un JPEG DJI qui n'a que du XMP, jamais d'EXIF GPS),
+                                // on le crée explicitement avec un BitmapMetadata vide avant d'y poser les valeurs.
+                                if (!metadataClone.ContainsQuery("/app1/ifd/gps"))
+                                {
+                                    metadataClone.SetQuery("/app1/ifd/gps", new BitmapMetadata("gps"));
+                                }
+
+                                var (latDms, latRef) = ConvertirGpsDecimalVersDms(latDecimal, estLatitude: true);
+                                var (lonDms, lonRef) = ConvertirGpsDecimalVersDms(lonDecimal, estLatitude: false);
+
+                                metadataClone.SetQuery("/app1/ifd/gps/{ushort=1}", latRef);
+                                metadataClone.SetQuery("/app1/ifd/gps/{ushort=2}", latDms);
+                                metadataClone.SetQuery("/app1/ifd/gps/{ushort=3}", lonRef);
+                                metadataClone.SetQuery("/app1/ifd/gps/{ushort=4}", lonDms);
+
+                                // Altitude (optionnelle)
+                                if (data.GpsAltitude != null &&
+                                    double.TryParse(data.GpsAltitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double altDecimal))
+                                {
+                                    byte altRef = altDecimal < 0 ? (byte)1 : (byte)0;
+                                    ulong altRationnel = EncodeRationnel(Math.Abs(altDecimal), 10); // 1 décimale de précision
+
+                                    metadataClone.SetQuery("/app1/ifd/gps/{ushort=5}", altRef);
+                                    metadataClone.SetQuery("/app1/ifd/gps/{ushort=6}", altRationnel);
+                                }
+
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] GPS écrit dans EXIF : {data.GpsLatitude}, {data.GpsLongitude}, alt={data.GpsAltitude}m");
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] Échec écriture GPS EXIF : {ex.Message}");
+                            }
+                        }
+
                         // ToDo: A ajouter ?
                         // !! Mots clé (bag XMP dc:subject)
                         // >Normalement OK ?
@@ -334,6 +376,39 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             uint numerateur = (uint)(rationnel & 0xFFFFFFFF);  // bits bas  — ordre WPF (inverse spec EXIF)
             uint denominateur = (uint)(rationnel >> 32);                  // bits hauts
             return denominateur == 0 ? 0.0 : (double)numerateur / denominateur;
+        }
+        private static ulong EncodeRationnel(double valeur, uint denominateur)
+        // Inverse de DecodeRationnel : encode une valeur décimale en rationnel EXIF/WPF
+        // (numérateur dans les bits bas, dénominateur dans les bits hauts — ordre WPF, voir DecodeRationnel).
+        {
+            uint numerateur = (uint)Math.Round(valeur * denominateur);
+            return ((ulong)denominateur << 32) | numerateur;
+        }
+        private static (ulong[] dms, string reference) ConvertirGpsDecimalVersDms(double decimalDeg, bool estLatitude)
+        // Inverse de ConvertirGpsDms : convertit un degré décimal signé en triplet DMS
+        // (degrés, minutes, secondes), chacun encodé en rationnel ulong, plus la référence N/S ou E/W.
+        {
+            string reference = estLatitude
+                ? (decimalDeg >= 0 ? "N" : "S")
+                : (decimalDeg >= 0 ? "E" : "W");
+
+            double valeurAbsolue = Math.Abs(decimalDeg);
+
+            int deg = (int)valeurAbsolue;
+            double minutesRestantes = (valeurAbsolue - deg) * 60.0;
+            int min = (int)minutesRestantes;
+            double sec = (minutesRestantes - min) * 60.0;
+
+            // Dénominateur 1 pour degrés/minutes (valeurs entières), 1000 pour les secondes
+            // (3 décimales de précision sur les secondes, largement suffisant pour du GPS photo).
+            ulong[] dms =
+            {
+        EncodeRationnel(deg, 1),
+        EncodeRationnel(min, 1),
+        EncodeRationnel(sec, 1000)
+    };
+
+            return (dms, reference);
         }
         // ─────────────────────────────────────────────────────────────────────
         //                         ExposureTime
