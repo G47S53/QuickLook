@@ -1682,6 +1682,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     ShowRatingPanelZoomEtOpacity();
                 }
 
+                // Le rating qui apparaît peut désormais chevaucher un panneau carte déjà agrandi
+                // (ex: redimensionné en plein écran, puis sortie du plein écran sans re-déclenchement)
+                if (_isMapPanelVisible)
+                    ContraindreTailleMap();
+
                 // On active le ClipToBounds pour masquer proprement les boutons pendant qu'ils se font écraser
                 grpBarreGauche.ClipToBounds = true;
                 //grpBarreDroite.KeepInLayout = false; // Astuce facultative, gérée par le flux
