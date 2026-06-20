@@ -200,6 +200,23 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 }
 
                                 System.Diagnostics.Debug.WriteLine($"[Metadata] GPS écrit dans EXIF : {data.GpsLatitude}, {data.GpsLongitude}, alt={data.GpsAltitude}m");
+                                
+                                // Cohérence avec les logiciels qui privilégient (ou ne lisent que) le XMP DJI en lecture
+                                // (ex: ACDSee) : si ces champs existent déjà sur ce fichier, on les met à jour aussi,
+                                // pour éviter qu'un logiciel tiers affiche encore l'ancienne position GPS périmée.
+                                if (metadataClone.ContainsQuery(DjiNamespace + ":GpsLatitude"))
+                                {
+                                    metadataClone.SetQuery(DjiNamespace + ":GpsLatitude", latDecimal.ToString(CultureInfo.InvariantCulture));
+                                    metadataClone.SetQuery(DjiNamespace + ":GpsLongitude", lonDecimal.ToString(CultureInfo.InvariantCulture));
+
+                                    if (data.GpsAltitude != null && metadataClone.ContainsQuery(DjiNamespace + ":AbsoluteAltitude") &&
+                                        double.TryParse(data.GpsAltitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double altPourDji))
+                                    {
+                                        metadataClone.SetQuery(DjiNamespace + ":AbsoluteAltitude", altPourDji.ToString(CultureInfo.InvariantCulture));
+                                    }
+
+                                    System.Diagnostics.Debug.WriteLine("[Metadata] GPS également mis à jour dans XMP DJI (cohérence multi-logiciels)");
+                                }
                             }
                             catch (Exception ex)
                             {
@@ -310,11 +327,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             try
             {
                 // Le namespace DJI dans le XMP utilise cette URI comme clé de requête WPF
-                const string djiNs = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";
+                // const string djiNs = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";
 
-                var latStr = bitmapMetadata.GetQuery(djiNs + ":GpsLatitude") as string;
-                var lonStr = bitmapMetadata.GetQuery(djiNs + ":GpsLongitude") as string;
-                var altStr = bitmapMetadata.GetQuery(djiNs + ":AbsoluteAltitude") as string;
+                var latStr = bitmapMetadata.GetQuery(DjiNamespace + ":GpsLatitude") as string;
+                var lonStr = bitmapMetadata.GetQuery(DjiNamespace + ":GpsLongitude") as string;
+                var altStr = bitmapMetadata.GetQuery(DjiNamespace + ":AbsoluteAltitude") as string;
 
                 // Latitude
                 if (latStr != null && double.TryParse(latStr,
@@ -410,6 +427,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             return (dms, reference);
         }
+        // Le namespace DJI dans le XMP utilise cette URI comme clé de requête WPF.
+        // Partagée entre lecture (TentativeLectureGpsXmpDji) et écriture (mise à jour de cohérence).
+        private const string DjiNamespace = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";
         // ─────────────────────────────────────────────────────────────────────
         //                         ExposureTime
         // ─────────────────────────────────────────────────────────────────────
