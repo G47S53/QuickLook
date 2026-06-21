@@ -92,6 +92,24 @@ function hideFovTriangle() {
 
 map.on('zoom move', redessinerFovTriangle);
 
+// Pendant l'animation de zoom, la position pixel du triangle calculée par
+// latLngToContainerPoint() ne suit pas exactement la transition visuelle de la carte,
+// ce qui crée un effet de saut visible à la fin du zoom. On masque donc le triangle
+// (simple opacité, pas de removeLayer — léger, aucun rechargement) pendant la transition,
+// et on le réaffiche une fois la carte stabilisée, repositionné correctement.
+map.on('zoomstart', function () {
+    if (fovTriangle !== null) {
+        fovTriangle.setStyle({ opacity: 0, fillOpacity: 0 });
+    }
+});
+
+map.on('zoomend', function () {
+    if (fovTriangle !== null) {
+        redessinerFovTriangle();
+        fovTriangle.setStyle({ opacity: 1, fillOpacity: 0.35 });
+    }
+});
+
 // ── Correctif taille ──
 // La WebView2 est hébergée dans un panneau WPF redimensionnable : invalidateSize() force
 // Leaflet à recalculer ses dimensions ; le ResizeObserver le déclenche automatiquement à
