@@ -199,6 +199,12 @@
         <None Update="leaflet\images\marker-shadow.png">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Update="leaflet\leaflet-geosearch.css">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="leaflet\leaflet-geosearch.js">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Update="leaflet\leaflet-src.esm.js">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>

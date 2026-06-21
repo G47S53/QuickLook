@@ -2734,6 +2734,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // On désactive le menu contextuel natif de Chromium (Enregistrer sous, Imprimer, Inspecter, ...)
                 // pour le remplacer par notre propre ContextMenu WPF.
                 webViewMap.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+                webViewMap.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 webViewMap.CoreWebView2.WebMessageReceived += WebViewMap_WebMessageReceived;
 
                 string dossierLeaflet = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "leaflet");
@@ -2918,77 +2919,95 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // Seules les tuiles OSM restent chargées via Internet (carte en ligne, comme convenu).
         {
             const string html = @"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset='utf-8' />
-    <link rel='stylesheet' href='leaflet.css' />
-    <style>
-        html, body, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #2E2E2E; }
-        .leaflet-control-attribution { font-size: 9px; }
-    </style>
-</head>
-<body>
-    <div id='map'></div>
-    <script src='leaflet.js'></script>
-    <script>
-        var map = L.map('map', { zoomControl: true, attributionControl: true }).setView([0, 0], 2);
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset='utf-8' />
+                <link rel='stylesheet' href='leaflet.css' />
+                <link rel='stylesheet' href='leaflet.css' />
+                <link rel='stylesheet' href='leaflet-geosearch.css' />
+                <style>
+                    html, body, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #2E2E2E; }
+                    .leaflet-control-attribution { font-size: 9px; }
+                </style>
+            </head>
+            <body>
+                <div id='map'></div>
+                <script src='leaflet.js'></script>
+                <script src='leaflet-geosearch.js'></script>
+                <script>
+                    var map = L.map('map', { zoomControl: true, attributionControl: true }).setView([0, 0], 2);
+                    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '&copy; OpenStreetMap'
+                    }).addTo(map);
 
-        var marker = null;
+                    // ── Barre de recherche (geocoding via OpenStreetMap/Nominatim, gratuit, sans clé API) ──
+                    // style: 'button' affiche une icône loupe qui révèle la barre de recherche au clic.
+                    // showMarker/showPopup à false : la recherche ne fait que centrer la carte, elle ne crée
+                    // jamais de marqueur ni ne modifie le GPS de la photo (ça reste le rôle du clic droit).
+                    var geoSearchProvider = new window.GeoSearch.OpenStreetMapProvider();
+                    var geoSearchControl = new window.GeoSearch.GeoSearchControl({
+                        provider: geoSearchProvider,
+                        style: 'button',
+                        showMarker: false,
+                        showPopup: false,
+                        autoClose: true,
+                        searchLabel: 'Rechercher un lieu...'
+                    });
+                    map.addControl(geoSearchControl);
 
-        function setPosition(lat, lon) {
-            var latLng = [lat, lon];
-            if (marker === null) {
-                marker = L.marker(latLng).addTo(map);
-            } else {
-                marker.setLatLng(latLng);
-            }
-            map.setView(latLng, 15);
-        }
+                    var marker = null;
 
-        // ── Correctif taille ──
-        // La WebView2 est hébergée dans un panneau WPF qui apparaît via une animation
-        // (opacité + scale). Leaflet calcule sa taille interne au moment de L.map() ci-dessus,
-        // qui peut ne pas correspondre à la taille finale du conteneur (panneau encore à 0
-        // ou en cours d'agrandissement). invalidateSize() force Leaflet à recalculer ses
-        // dimensions ; le ResizeObserver le déclenche automatiquement à chaque changement
-        // réel de taille du div #map (ouverture du panneau, futur redimensionnement manuel, etc.).
-        var mapDiv = document.getElementById('map');
-        var resizeObserver = new ResizeObserver(function () {
-            map.invalidateSize();
-        });
-        resizeObserver.observe(mapDiv);
+                    function setPosition(lat, lon) {
+                        var latLng = [lat, lon];
+                        if (marker === null) {
+                            marker = L.marker(latLng).addTo(map);
+                        } else {
+                            marker.setLatLng(latLng);
+                        }
+                        map.setView(latLng, 15);
+                    }
 
-        // Filet de sécurité supplémentaire : un appel différé juste après le chargement,
-        // au cas où la première mesure de taille par WebView2/Chromium ait été prise à 0x0.
-        window.addEventListener('load', function () {
-            setTimeout(function () { map.invalidateSize(); }, 200);
-        });
+                    // ── Correctif taille ──
+                    // La WebView2 est hébergée dans un panneau WPF qui apparaît via une animation
+                    // (opacité + scale). Leaflet calcule sa taille interne au moment de L.map() ci-dessus,
+                    // qui peut ne pas correspondre à la taille finale du conteneur (panneau encore à 0
+                    // ou en cours d'agrandissement). invalidateSize() force Leaflet à recalculer ses
+                    // dimensions ; le ResizeObserver le déclenche automatiquement à chaque changement
+                    // réel de taille du div #map (ouverture du panneau, futur redimensionnement manuel, etc.).
+                    var mapDiv = document.getElementById('map');
+                    var resizeObserver = new ResizeObserver(function () {
+                        map.invalidateSize();
+                    });
+                    resizeObserver.observe(mapDiv);
 
-        function invalidateMapSize() {
-            map.invalidateSize();
-        }
+                    // Filet de sécurité supplémentaire : un appel différé juste après le chargement,
+                    // au cas où la première mesure de taille par WebView2/Chromium ait été prise à 0x0.
+                    window.addEventListener('load', function () {
+                        setTimeout(function () { map.invalidateSize(); }, 200);
+                    });
 
-        // ── Clic droit personnalisé ──
-        // Le menu natif de Chromium est désactivé côté C# (AreDefaultContextMenusEnabled = false).
-        // On capte ici le clic droit, on convertit la position cliquée en coordonnées GPS via Leaflet,
-        // et on transmet le tout au C# qui affichera son propre ContextMenu WPF.
-        map.on('contextmenu', function (e) {
-            window.chrome.webview.postMessage({
-                type: 'contextmenu',
-                lat: e.latlng.lat,
-                lon: e.latlng.lng,
-                containerX: e.containerPoint.x,
-                containerY: e.containerPoint.y
-            });
-        });
-    </script>
-</body>
-</html>";
+                    function invalidateMapSize() {
+                        map.invalidateSize();
+                    }
+
+                    // ── Clic droit personnalisé ──
+                    // Le menu natif de Chromium est désactivé côté C# (AreDefaultContextMenusEnabled = false).
+                    // On capte ici le clic droit, on convertit la position cliquée en coordonnées GPS via Leaflet,
+                    // et on transmet le tout au C# qui affichera son propre ContextMenu WPF.
+                    map.on('contextmenu', function (e) {
+                        window.chrome.webview.postMessage({
+                            type: 'contextmenu',
+                            lat: e.latlng.lat,
+                            lon: e.latlng.lng,
+                            containerX: e.containerPoint.x,
+                            containerY: e.containerPoint.y
+                        });
+                    });
+                </script>
+            </body>
+            </html>";
 
             string cheminCarteHtml = System.IO.Path.Combine(dossierLeaflet, "carte.html");
 
