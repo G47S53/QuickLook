@@ -157,6 +157,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double _lastMouseX;                      // Dernière position X connue de la souris (mise à jour à chaque MouseMove)
         private double _lastMouseY;                      // Dernière position Y connue de la souris (mise à jour à chaque MouseMove)
         private TimeSpan _lastRenderTime;                // Horodatage du dernier frame rendu (pour calculer le delta temps entre deux frames)
+        private TimeSpan _lastFovUpdateTime;             // Horodatage de la dernière mise à jour du triangle FOV sur la carte (throttle indépendant de _lastRenderTime)
         private bool _isMouseInertia = false;            // True quand la vitesse courante est due à un "lancer" de souris (applique le frein aérodynamique quadratique)
         private bool _isPopupShown = false;              // Verrou : empêche le popup "Fermeture automatique" de se déclencher plusieurs fois sur le même tour (AutoClose classique)
         private bool _isPopupShownPour1Tour = false;     // Verrou : empêche le popup de fin de tour de s'afficher plusieurs fois (mode OneTurn + fermeture)
@@ -468,6 +469,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             double elapsed = (args.RenderingTime - _lastRenderTime).TotalSeconds;
 
             _lastRenderTime = args.RenderingTime;
+
+            // ── Mise à jour du triangle FOV sur la carte GPS (throttle ~10x/s, suffisant visuellement,
+            // et ExecuteScriptAsync vers la WebView2 est trop coûteux pour être appelé à 60 FPS) ──
+            if ((args.RenderingTime - _lastFovUpdateTime).TotalSeconds > 0.1)
+            {
+                _lastFovUpdateTime = args.RenderingTime;
+                _ = MettreAJourFovSurCarte();
+            }
 
             // ──── LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
             // pour forcer un rythme de 60 FPS maximum (1 frame toutes les ~16ms) ---
@@ -2331,7 +2340,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Si le panneau carte est déjà ouvert, on met à jour le marqueur pour le nouveau panorama
             if (_isMapPanelVisible)
+            {
                 AfficherPositionSurCarte(_currentMetadata.GpsLatitude, _currentMetadata.GpsLongitude);
+                _ = MettreAJourFovSurCarte();
+            }
         }
         private void SetColorPanelRating(string couleur)
         {
@@ -2660,6 +2672,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 _ = AssurerCarteInitialiseeAsync();
                 AfficherPositionSurCarte(_currentMetadata?.GpsLatitude, _currentMetadata?.GpsLongitude);
+                _ = MettreAJourFovSurCarte();
             }
             else
             {
@@ -2748,8 +2761,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 }
 
                 webViewMap.CoreWebView2.SetVirtualHostNameToFolderMapping("pano360-app.local", dossierLeaflet, CoreWebView2HostResourceAccessKind.Allow);
-
-                EcrireHtmlCarteLeafletSiNecessaire(dossierLeaflet);
 
                 webViewMap.CoreWebView2.Navigate("https://pano360-app.local/carte.html");
 
@@ -2910,111 +2921,43 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Diagnostics.Debug.WriteLine($"Erreur lors de la mise à jour du marqueur GPS : {ex.Message}");
             }
         }
-        private static void EcrireHtmlCarteLeafletSiNecessaire(string dossierLeaflet)
-        // Génère (ou régénère si modifié) le fichier carte.html à côté de leaflet.js/leaflet.css,
-        // pour qu'il soit servi par la même origine virtuelle "pano360-app.local" et puisse
-        // référencer Leaflet en chemin relatif (pas de CDN, tout est local).
-        //
-        // setPosition(lat, lon) est exposée globalement pour être appelée depuis le C# via ExecuteScriptAsync.
-        // Seules les tuiles OSM restent chargées via Internet (carte en ligne, comme convenu).
+        private async Task MettreAJourFovSurCarte()
+        // Calcule la direction absolue du centre du champ de vision (cap compass + rotation
+        // actuelle de la vue dans le panorama) et met à jour le triangle FOV sur la carte Leaflet.
+        // Ne fait rien si la WebView n'est pas prête, si le panneau est fermé, ou s'il n'y a pas de GPS.
         {
-            const string html = @"
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset='utf-8' />
-                <link rel='stylesheet' href='leaflet.css' />
-                <link rel='stylesheet' href='leaflet.css' />
-                <link rel='stylesheet' href='leaflet-geosearch.css' />
-                <style>
-                    html, body, #map { margin: 0; padding: 0; height: 100%; width: 100%; background: #2E2E2E; }
-                    .leaflet-control-attribution { font-size: 9px; }
-                </style>
-            </head>
-            <body>
-                <div id='map'></div>
-                <script src='leaflet.js'></script>
-                <script src='leaflet-geosearch.js'></script>
-                <script>
-                    var map = L.map('map', { zoomControl: true, attributionControl: true }).setView([0, 0], 2);
-                    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        maxZoom: 19,
-                        attribution: '&copy; OpenStreetMap'
-                    }).addTo(map);
+            if (!_isMapWebViewReady) return;
+            if (!_isMapPanelVisible) return;
+            if (_currentMetadata == null) return;
+            if (!TryParseGps(_currentMetadata.GpsLatitude, out double lat)) return;
+            if (!TryParseGps(_currentMetadata.GpsLongitude, out double lon)) return;
 
-                    // ── Barre de recherche (geocoding via OpenStreetMap/Nominatim, gratuit, sans clé API) ──
-                    // style: 'button' affiche une icône loupe qui révèle la barre de recherche au clic.
-                    // showMarker/showPopup à false : la recherche ne fait que centrer la carte, elle ne crée
-                    // jamais de marqueur ni ne modifie le GPS de la photo (ça reste le rôle du clic droit).
-                    var geoSearchProvider = new window.GeoSearch.OpenStreetMapProvider();
-                    var geoSearchControl = new window.GeoSearch.GeoSearchControl({
-                        provider: geoSearchProvider,
-                        style: 'button',
-                        showMarker: false,
-                        showPopup: false,
-                        autoClose: true,
-                        searchLabel: 'Rechercher un lieu...'
-                    });
-                    map.addControl(geoSearchControl);
+            // Cap de référence au moment de la capture (0=Nord si absent, voir choix produit).
+            double headingReference = _currentMetadata.PoseHeadingDegrees ?? 0.0;
 
-                    var marker = null;
+            // Rotation actuelle de la vue dans le panorama (lacet), à combiner avec le cap de référence.
+            double angleVueActuelle = double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle;
 
-                    function setPosition(lat, lon) {
-                        var latLng = [lat, lon];
-                        if (marker === null) {
-                            marker = L.marker(latLng).addTo(map);
-                        } else {
-                            marker.setLatLng(latLng);
-                        }
-                        map.setView(latLng, 15);
-                    }
+            double directionAbsolue = (headingReference + angleVueActuelle) % 360.0;
+            if (directionAbsolue < 0) directionAbsolue += 360.0;
 
-                    // ── Correctif taille ──
-                    // La WebView2 est hébergée dans un panneau WPF qui apparaît via une animation
-                    // (opacité + scale). Leaflet calcule sa taille interne au moment de L.map() ci-dessus,
-                    // qui peut ne pas correspondre à la taille finale du conteneur (panneau encore à 0
-                    // ou en cours d'agrandissement). invalidateSize() force Leaflet à recalculer ses
-                    // dimensions ; le ResizeObserver le déclenche automatiquement à chaque changement
-                    // réel de taille du div #map (ouverture du panneau, futur redimensionnement manuel, etc.).
-                    var mapDiv = document.getElementById('map');
-                    var resizeObserver = new ResizeObserver(function () {
-                        map.invalidateSize();
-                    });
-                    resizeObserver.observe(mapDiv);
+            // FOV réel de la caméra 3D : reflète le zoom/dézoom actuel de la visionneuse.
+            double fovDeg = _camera.FieldOfView;
 
-                    // Filet de sécurité supplémentaire : un appel différé juste après le chargement,
-                    // au cas où la première mesure de taille par WebView2/Chromium ait été prise à 0x0.
-                    window.addEventListener('load', function () {
-                        setTimeout(function () { map.invalidateSize(); }, 200);
-                    });
+            const double rayonPixels = 100;  //Modifie la taille du triangle pour visualiser la FOV sur la carte
 
-                    function invalidateMapSize() {
-                        map.invalidateSize();
-                    }
+            string script = $"setFovTriangle({lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}, " +
+                $"{lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}, " +
+                $"{directionAbsolue.ToString(System.Globalization.CultureInfo.InvariantCulture)}, " +
+                $"{fovDeg.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {rayonPixels});";
 
-                    // ── Clic droit personnalisé ──
-                    // Le menu natif de Chromium est désactivé côté C# (AreDefaultContextMenusEnabled = false).
-                    // On capte ici le clic droit, on convertit la position cliquée en coordonnées GPS via Leaflet,
-                    // et on transmet le tout au C# qui affichera son propre ContextMenu WPF.
-                    map.on('contextmenu', function (e) {
-                        window.chrome.webview.postMessage({
-                            type: 'contextmenu',
-                            lat: e.latlng.lat,
-                            lon: e.latlng.lng,
-                            containerX: e.containerPoint.x,
-                            containerY: e.containerPoint.y
-                        });
-                    });
-                </script>
-            </body>
-            </html>";
-
-            string cheminCarteHtml = System.IO.Path.Combine(dossierLeaflet, "carte.html");
-
-            // On régénère seulement si absent ou différent, pour ne pas réécrire le fichier à chaque ouverture du panneau
-            if (!System.IO.File.Exists(cheminCarteHtml) || System.IO.File.ReadAllText(cheminCarteHtml) != html)
+            try
             {
-                System.IO.File.WriteAllText(cheminCarteHtml, html);
+                await webViewMap.CoreWebView2.ExecuteScriptAsync(script);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Erreur lors de la mise à jour du triangle FOV : {ex.Message}");
             }
         }
         // ─────────────────────────────────────────────────────────────────────

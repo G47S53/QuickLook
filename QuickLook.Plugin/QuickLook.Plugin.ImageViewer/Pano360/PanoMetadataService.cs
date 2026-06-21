@@ -25,6 +25,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         public string GpsLatitude { get; set; }
         public string GpsLongitude { get; set; }
         public string GpsAltitude { get; set; }
+        // Orientation du panorama (XMP GPano, standard Google Photo Sphere) : cap compass
+        // en degrés, 0=Nord, sens horaire, pour le centre de l'image. null si absent du fichier.
+        public double? PoseHeadingDegrees { get; set; }
 
         // Dictionnaire évolutif pour stocker d'autres propriétés à la volée
         public Dictionary<string, object> CustomTags { get; set; } = new Dictionary<string, object>();
@@ -126,6 +129,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         {
                             TentativeLectureGpsXmpDji(bitmapMetadata, data);
                         }
+
+                        // ──── 4. Lecture de l'orientation du panorama (XMP GPano, standard Google Photo Sphere) ────
+                        TentativeLecturePoseHeadingDegrees(bitmapMetadata, data);
                     }
                 }
             }
@@ -363,6 +369,30 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[Metadata] Échec lecture GPS XMP DJI : {ex.Message}");
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // LECTURE ORIENTATION — XMP GPano:PoseHeadingDegrees (standard Google Photo Sphere)
+        // ─────────────────────────────────────────────────────────────────────
+        // Cap compass du centre de l'image, en degrés, 0=Nord, sens horaire. C'est le standard
+        // utilisé par les logiciels de panorama (Hugin, PTGui, Pano2Vr...) pour orienter une
+        // sphère sur une carte. Différent du GPS DJI : c'est un champ XMP générique, pas propriétaire.
+        private static void TentativeLecturePoseHeadingDegrees(BitmapMetadata bitmapMetadata, PanoMetadata data)
+        {
+            try
+            {
+                const string gpanoNs = "/xmp/http\\/:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
+                var raw = bitmapMetadata.GetQuery(gpanoNs + ":PoseHeadingDegrees");
+
+                if (raw != null && double.TryParse(
+                        raw.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double heading))
+                {
+                    data.PoseHeadingDegrees = heading;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur de lecture PoseHeadingDegrees : {ex.Message}");
             }
         }
         // ─────────────────────────────────────────────────────────────────────

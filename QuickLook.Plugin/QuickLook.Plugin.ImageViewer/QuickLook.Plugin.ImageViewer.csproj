@@ -184,6 +184,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Update="leaflet\carte.html">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="leaflet\carte.js">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Update="leaflet\images\layers-2x.png">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
