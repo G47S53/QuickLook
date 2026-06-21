@@ -230,6 +230,36 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             }
                         }
 
+                        // Orientation du panorama (XMP GPano:PoseHeadingDegrees, standard Google Photo Sphere).
+                        // C'est ce champ que les logiciels de visite virtuelle comme Pano2Vr lisent pour orienter
+                        // le panorama sur leur propre outil carte.
+                        if (data.PoseHeadingDegrees.HasValue)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[Metadata] PoseHeadingDegrees est : {data.PoseHeadingDegrees.Value.ToString(CultureInfo.InvariantCulture)}");
+                            try
+                            {
+                                const string gpanoNs = "/xmp/http\\:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
+
+                                // Comme pour le bloc GPS EXIF, WPF a besoin que le bloc XMP racine existe avant
+                                // qu'on puisse y écrire un namespace personnalisé (GPano). S'il n'existe pas encore
+                                // (fichier qui n'a jamais eu de XMP du tout), on le crée explicitement.
+                                if (!metadataClone.ContainsQuery("/xmp"))
+                                {
+                                    metadataClone.SetQuery("/xmp", new BitmapMetadata("xmp"));
+                                }
+
+                                metadataClone.SetQuery(gpanoNs + ":PoseHeadingDegrees",
+                                    data.PoseHeadingDegrees.Value.ToString(CultureInfo.InvariantCulture));
+
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] PoseHeadingDegrees écrit : {data.PoseHeadingDegrees.Value}");
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] Échec écriture PoseHeadingDegrees : {ex.Message}");
+                            }
+                        }
+
+                        // 
                         // ToDo: A ajouter ?
                         // !! Mots clé (bag XMP dc:subject)
                         // >Normalement OK ?
@@ -244,7 +274,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         //        metadataClone.RemoveQuery($"/xmp/dc:subject/{{ulong={indexExistant}}}");
                         //        indexExistant++;
                         //    }
-
                         //    for (int i = 0; i < motsCles.Count; i++)
                         //    {
                         //        metadataClone.SetQuery($"/xmp/dc:subject/{{ulong={i}}}", motsCles[i]);
@@ -381,7 +410,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             try
             {
-                const string gpanoNs = "/xmp/http\\/:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
+                //const string gpanoNs = "/xmp/http\\/:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
+
+                const string gpanoNs = "/xmp/http\\:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
+
                 var raw = bitmapMetadata.GetQuery(gpanoNs + ":PoseHeadingDegrees");
 
                 if (raw != null && double.TryParse(

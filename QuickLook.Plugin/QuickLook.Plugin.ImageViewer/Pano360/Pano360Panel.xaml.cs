@@ -82,6 +82,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _isHeadingKeyDown = false;                            // True tant que la touche "n" est maintenue enfoncée
         private bool _isEditingHeading = false;                            // True pendant le clic-glisser actif (n + clic gauche simultanés)
         private double _headingAuDebutEdition;                             // Valeur du heading au moment du clic (pour calculer le delta cumulé proprement)
+        
+        private const double OffsetHeadingSphereVersGPano = -90.0;         // Décalage entre la convention interne de la sphère (au chargement, la caméra à Angle=0°
+                                                                           // regarde vers U≈0.75 de la texture équirectangulaire) et la convention GPano (PoseHeadingDegrees
+                                                                           // se réfère au centre de l'image, U=0.5). Déterminé empiriquement par comparaison avec Pano2Vr.
 
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
@@ -296,7 +300,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (window != null)
                 {
                     window.PreviewKeyDown += OnWindowKeyDown;
-                    window.PreviewKeyUp -= OnWindowKeyUp;
+                    window.PreviewKeyUp += OnWindowKeyUp;
                 }
 
                 // Démarrage du chronomètre de préchargement une fois que tout est prêt
@@ -1024,8 +1028,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _startMouseX = posHeading.X;
                 _lastMouseX = posHeading.X;
 
+                Mouse.OverrideCursor = Cursors.SizeWE;   // Double flèche horizontale, cohérente avec un ajustement gauche/droite
                 Mouse.Capture(this);
-                return; // On ne déclenche pas la logique de rotation normale du panorama
+                return;
             }
 
             if (_autoRotState != AutoRotationState.Off)
@@ -3031,7 +3036,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Rotation actuelle de la vue dans le panorama (lacet), à combiner avec le cap de référence.
             double angleVueActuelle = double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle;
 
-            double directionAbsolue = (headingReference + angleVueActuelle) % 360.0;
+            double directionAbsolue = (headingReference + angleVueActuelle + OffsetHeadingSphereVersGPano) % 360.0;
             if (directionAbsolue < 0) directionAbsolue += 360.0;
 
             // FOV réel de la caméra 3D : reflète le zoom/dézoom actuel de la visionneuse.
