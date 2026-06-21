@@ -2840,10 +2840,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             menu.IsOpen = true;
         }
         private void DefinirPositionGpsPhoto(double lat, double lon)
-        // Met à jour les coordonnées GPS du panorama en cours et marque les métadonnées comme
-        // modifiées : la sauvegarde effective est différée et gérée par le mécanisme existant
-        // (_isMetaChanging + SauvegardeMeta()).
         {
+            // Met à jour les coordonnées GPS du panorama en cours et marque les métadonnées comme
+            // modifiées : la sauvegarde effective est différée et gérée par le mécanisme existant
+            // (_isMetaChanging + SauvegardeMeta()).
             if (_currentMetadata == null) return;
 
             _currentMetadata.GpsLatitude = lat.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
@@ -2857,12 +2857,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             System.Diagnostics.Debug.WriteLine($"Nouvelle position GPS demandée : {_currentMetadata.GpsLatitude}, {_currentMetadata.GpsLongitude}");
         }
         private void AfficherPositionSurCarte(string latStr, string lonStr)
-        // Point d'entrée unique pour mettre à jour la carte : gère à la fois le cas "pas de GPS"
-        // et la mise à jour du marqueur (immédiate si la WebView est prête, sinon mise en attente).
-        //
-        // Prend directement les string telles que stockées dans PanoMetadata.GpsLatitude/GpsLongitude
-        // (format "F6" invariant culture, ex: "49.598494"), le parsing est fait ici une seule fois.
         {
+            // Point d'entrée unique pour mettre à jour la carte : gère à la fois le cas "pas de GPS"
+            // et la mise à jour du marqueur (immédiate si la WebView est prête, sinon mise en attente).
+            //
+            // Prend directement les string telles que stockées dans PanoMetadata.GpsLatitude/GpsLongitude
+            // (format "F6" invariant culture, ex: "49.598494"), le parsing est fait ici une seule fois.
             bool latOk = TryParseGps(latStr, out double lat);
             bool lonOk = TryParseGps(lonStr, out double lon);
             bool aDesCoordonnees = latOk && lonOk;
@@ -2883,17 +2883,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
         }
         private static bool TryParseGps(string value, out double result)
-        // PanoMetadataService formate toujours GpsLatitude/GpsLongitude en "F6" invariant culture,
-        // mais on reste tolérant (NumberStyles.Float) au cas où la source évolue.
         {
+            // PanoMetadataService formate toujours GpsLatitude/GpsLongitude en "F6" invariant culture,
+            // mais on reste tolérant (NumberStyles.Float) au cas où la source évolue.
             return double.TryParse(value, System.Globalization.NumberStyles.Float,
                 System.Globalization.CultureInfo.InvariantCulture, out result);
         }
         private async Task InvaliderTailleCarteAsync()
-        // Force Leaflet à recalculer la taille de la carte (voir invalidateMapSize() dans le JS).
-        // Nécessaire car le ScaleTransform de l'animation d'apparition ne déclenche pas toujours
-        // le ResizeObserver côté JS (changement de rendu, pas de taille de layout).
         {
+            // Force Leaflet à recalculer la taille de la carte (voir invalidateMapSize() dans le JS).
+            // Nécessaire car le ScaleTransform de l'animation d'apparition ne déclenche pas toujours
+            // le ResizeObserver côté JS (changement de rendu, pas de taille de layout).
             if (!_isMapWebViewReady) return; // Si la WebView n'est pas encore prête, le filet de sécurité JS (window.load) prend le relais
 
             try

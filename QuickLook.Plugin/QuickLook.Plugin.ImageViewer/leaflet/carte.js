@@ -50,24 +50,25 @@ function redessinerFovTriangle() {
 
     var pointeOrigine = map.latLngToContainerPoint([fovEtat.lat, fovEtat.lon]);
 
-    var rad1 = (fovEtat.directionDeg - fovEtat.fovDeg / 2) * Math.PI / 180;
-    var rad2 = (fovEtat.directionDeg + fovEtat.fovDeg / 2) * Math.PI / 180;
+    var angleDebut = fovEtat.directionDeg - fovEtat.fovDeg / 2;
+    var angleFin = fovEtat.directionDeg + fovEtat.fovDeg / 2;
 
-    // En pixels écran, 0° (Nord) doit pointer vers le haut (Y décroissant), sens horaire.
-    var sommet1Px = L.point(
-        pointeOrigine.x + fovEtat.rayonPixels * Math.sin(rad1),
-        pointeOrigine.y - fovEtat.rayonPixels * Math.cos(rad1)
-    );
-    var sommet2Px = L.point(
-        pointeOrigine.x + fovEtat.rayonPixels * Math.sin(rad2),
-        pointeOrigine.y - fovEtat.rayonPixels * Math.cos(rad2)
-    );
+    // Approximation de l'arc par des segments : plus nbSegments est grand, plus l'arc est lisse.
+    // 24 segments suffit largement pour un secteur de taille modeste (rayonPixels ~100).
+    var nbSegments = 24;
+    var points = [[fovEtat.lat, fovEtat.lon]];
 
-    var points = [
-        [fovEtat.lat, fovEtat.lon],
-        map.containerPointToLatLng(sommet1Px),
-        map.containerPointToLatLng(sommet2Px)
-    ];
+    for (var i = 0; i <= nbSegments; i++) {
+        var angleDeg = angleDebut + (angleFin - angleDebut) * (i / nbSegments);
+        var angleRad = angleDeg * Math.PI / 180;
+
+        var pointPx = L.point(
+            pointeOrigine.x + fovEtat.rayonPixels * Math.sin(angleRad),
+            pointeOrigine.y - fovEtat.rayonPixels * Math.cos(angleRad)
+        );
+
+        points.push(map.containerPointToLatLng(pointPx));
+    }
 
     if (fovTriangle === null) {
         fovTriangle = L.polygon(points, {
@@ -75,7 +76,8 @@ function redessinerFovTriangle() {
             weight: 1,
             fillColor: '#FF3B3B',
             fillOpacity: 0.35,
-            interactive: false
+            interactive: false,
+            className: 'fov-triangle'
         }).addTo(map);
     } else {
         fovTriangle.setLatLngs(points);
