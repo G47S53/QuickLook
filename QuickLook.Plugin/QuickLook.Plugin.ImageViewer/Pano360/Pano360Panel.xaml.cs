@@ -71,13 +71,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // > Panneau Carte GPS (WebView2 + Leaflet/OSM)
         // ─────────────────────────────────────────────────────────────────────
-        private bool _isMapPanelVisible = false;                          // Indique si le panneau carte est considéré comme visible
-        private bool _isMapWebViewReady = false;                          // True une fois le CoreWebView2 initialisé et la carte Leaflet chargée
-        private double? _pendingMapLat;                                   // Coordonnées en attente si on demande l'affichage avant que le WebView2 soit prêt
+        private bool _isMapPanelVisible = false;                           // Indique si le panneau carte est considéré comme visible
+        private bool _isMapWebViewReady = false;                           // True une fois le CoreWebView2 initialisé et la carte Leaflet chargée
+        private double? _pendingMapLat;                                    // Coordonnées en attente si on demande l'affichage avant que le WebView2 soit prêt
         private double? _pendingMapLon;
 
         private const double LargeurMinMap = 220;
         private const double HauteurMinMap = 160;
+
+        private bool _isHeadingKeyDown = false;                            // True tant que la touche "n" est maintenue enfoncée
+        private bool _isEditingHeading = false;                            // True pendant le clic-glisser actif (n + clic gauche simultanés)
+        private double _headingAuDebutEdition;                             // Valeur du heading au moment du clic (pour calculer le delta cumulé proprement)
 
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
@@ -290,7 +294,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 var window = Window.GetWindow(this);
                 if (window != null)
+                {
                     window.PreviewKeyDown += OnWindowKeyDown;
+                    window.PreviewKeyUp -= OnWindowKeyUp;
+                }
 
                 // Démarrage du chronomètre de préchargement une fois que tout est prêt
                 _idleTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
@@ -484,6 +491,32 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Protection contre les délais aberrants (ex. : fenêtre minimisée)
             if (elapsed > 0.1) return;
+
+            // ────────────────────────────────────────────────────────────────────────────────────
+            // ── 0. Édition de l'orientation (heading) du triangle FOV : "n" + clic-glisser ──────
+            // Le panorama reste figé (on sort avant la logique de rotation normale), seul le ─────
+            // triangle sur la carte GPS tourne, proportionnellement au déplacement horizontal ────
+            // cumulé de la souris depuis le clic initial.
+            if (_isEditingHeading)
+            {
+                const double sensibiliteHeading = 0.3; // degrés par pixel de déplacement horizontal, à ajuster au test
+
+                double deltaXHeading = _lastMouseX - _startMouseX;
+                double nouveauHeading = _headingAuDebutEdition + deltaXHeading * sensibiliteHeading;
+
+                nouveauHeading %= 360.0;
+                if (nouveauHeading < 0) nouveauHeading += 360.0;
+
+                if (_currentMetadata != null)
+                {
+                    _currentMetadata.PoseHeadingDegrees = nouveauHeading;
+                    _isMetaChanging = true;
+                }
+
+                _ = MettreAJourFovSurCarte();
+
+                return; // On n'exécute pas le reste de OnRendering (navigation souris classique, etc.)
+            }
 
             // ──────────────────────────────────────────────────────────────────────
             // ── 1. NAVIGATION SOURIS (Capture de la vitesse pour l'inertie) ───────
@@ -903,7 +936,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Navigation clavier entre panoramas
             var window = Window.GetWindow(this);
             if (window != null)
+            {
                 window.PreviewKeyDown += OnWindowKeyDown;
+                window.PreviewKeyUp += OnWindowKeyUp;
+            }
+
         }
         // ─────────────────────────────────────────────────────────────────────
         // Gestion du clavier
@@ -919,6 +956,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (_autoRotState == AutoRotationState.Lent || _autoRotState == AutoRotationState.Normal || _autoRotState == AutoRotationState.Rapide) return;
 
+            // Édition de l'orientation (heading) du triangle FOV sur la carte : "n" maintenue + clic-glisser.
+            // N'a de sens que si le panneau carte est ouvert (sinon rien à éditer visuellement) et qu'il y a du GPS.
+            if (e.Key == Key.N && _isMapPanelVisible && !_isHeadingKeyDown)
+            {
+                _isHeadingKeyDown = true;
+                e.Handled = true;
+
+                txtInfoPopup.Text = "Modification du nord";
+                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+            }
+
             //Fléches gauche et droites
             if (e.Key == Key.Right)
             {
@@ -929,6 +977,22 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 e.Handled = true;
                 _ = ShowMessageAndNavigateAsync(-1);
+            }
+        }
+        private void OnWindowKeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.N)
+            {
+                _isHeadingKeyDown = false;
+
+                // Si l'utilisateur relâche "n" en plein milieu d'un clic-glisser actif, on sort
+                // proprement du mode édition plutôt que de rester bloqué en attente d'un MouseUp
+                // qui pourrait ne jamais arriver dans cette configuration précise.
+                if (_isEditingHeading)
+                {
+                    _isEditingHeading = false;
+                    Mouse.Capture(null);
+                }
             }
         }
         // ─────────────────────────────────────────────────────────────────────
@@ -948,6 +1012,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
 
             if (e.LeftButton != MouseButtonState.Pressed) return;
+
+            // Édition de l'orientation (heading) : "n" maintenue + clic gauche → on bascule dans
+            // ce mode dédié au lieu de la rotation normale du panorama.
+            if (_isHeadingKeyDown)
+            {
+                _isEditingHeading = true;
+                _headingAuDebutEdition = _currentMetadata?.PoseHeadingDegrees ?? 0.0;
+
+                var posHeading = e.GetPosition(this);
+                _startMouseX = posHeading.X;
+                _lastMouseX = posHeading.X;
+
+                Mouse.Capture(this);
+                return; // On ne déclenche pas la logique de rotation normale du panorama
+            }
 
             if (_autoRotState != AutoRotationState.Off)
             {
@@ -972,11 +1051,25 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             //permet de réafficher la barre haute lorqu'on relache le clic de la souris
             if (_context != null) _context.BlocageShowCaption = false;
 
+            if (_isEditingHeading)
+            {
+                _isEditingHeading = false;
+                Mouse.Capture(null);
+                return;
+            }
+
             _isMouseDown = false;
             Mouse.Capture(null);
         }
         private void OnMouseMove(object sender, MouseEventArgs e)
         {
+            if (_isEditingHeading)
+            {
+                var posHeading = e.GetPosition(this);
+                _lastMouseX = posHeading.X;
+                return;
+            }
+
             if (!_isMouseDown) return;
 
             var pos = e.GetPosition(this);
@@ -3108,6 +3201,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             if (window != null)
             {
                 window.PreviewKeyDown -= OnWindowKeyDown;
+                window.PreviewKeyUp -= OnWindowKeyUp;
                 this.SizeChanged -= Pano360Panel_SizeChanged;
             }
 
