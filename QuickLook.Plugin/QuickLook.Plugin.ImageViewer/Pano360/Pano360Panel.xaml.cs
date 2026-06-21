@@ -472,7 +472,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // ── Mise à jour du triangle FOV sur la carte GPS (throttle ~10x/s, suffisant visuellement,
             // et ExecuteScriptAsync vers la WebView2 est trop coûteux pour être appelé à 60 FPS) ──
-            if ((args.RenderingTime - _lastFovUpdateTime).TotalSeconds > 0.1)
+            if ((args.RenderingTime - _lastFovUpdateTime).TotalSeconds > 0.05)
             {
                 _lastFovUpdateTime = args.RenderingTime;
                 _ = MettreAJourFovSurCarte();
