@@ -25,6 +25,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         public string GpsLatitude { get; set; }
         public string GpsLongitude { get; set; }
         public string GpsAltitude { get; set; }
+        // Orientation du panorama (XMP GPano, standard Google Photo Sphere) : cap compass
+        // en degrés, 0=Nord, sens horaire, pour le centre de l'image. null si absent du fichier.
+        public double? PoseHeadingDegrees { get; set; }
 
         // Dictionnaire évolutif pour stocker d'autres propriétés à la volée
         public Dictionary<string, object> CustomTags { get; set; } = new Dictionary<string, object>();
@@ -126,6 +129,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         {
                             TentativeLectureGpsXmpDji(bitmapMetadata, data);
                         }
+
+                        // ──── 4. Lecture de l'orientation du panorama (XMP GPano, standard Google Photo Sphere) ────
+                        TentativeLecturePoseHeadingDegrees(bitmapMetadata, data);
                     }
                 }
             }
@@ -165,6 +171,95 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         if (data.Label != null)
                             metadataClone.SetQuery("/xmp/xmp:Label", data.Label);
 
+                        // GPS (EXIF standard uniquement — jamais XMP DJI, qui reste un format de lecture/fallback)
+                        if (data.GpsLatitude != null && data.GpsLongitude != null &&
+                            double.TryParse(data.GpsLatitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double latDecimal) &&
+                            double.TryParse(data.GpsLongitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double lonDecimal))
+                        {
+                            try
+                            {
+                                // WPF a besoin que le sous-bloc IFD GPS existe avant qu'on puisse y écrire des tags enfants.
+                                // S'il n'existe pas encore (cas typique d'un JPEG DJI qui n'a que du XMP, jamais d'EXIF GPS),
+                                // on le crée explicitement avec un BitmapMetadata vide avant d'y poser les valeurs.
+                                if (!metadataClone.ContainsQuery("/app1/ifd/gps"))
+                                {
+                                    metadataClone.SetQuery("/app1/ifd/gps", new BitmapMetadata("gps"));
+                                }
+
+                                var (latDms, latRef) = ConvertirGpsDecimalVersDms(latDecimal, estLatitude: true);
+                                var (lonDms, lonRef) = ConvertirGpsDecimalVersDms(lonDecimal, estLatitude: false);
+
+                                metadataClone.SetQuery("/app1/ifd/gps/{ushort=1}", latRef);
+                                metadataClone.SetQuery("/app1/ifd/gps/{ushort=2}", latDms);
+                                metadataClone.SetQuery("/app1/ifd/gps/{ushort=3}", lonRef);
+                                metadataClone.SetQuery("/app1/ifd/gps/{ushort=4}", lonDms);
+
+                                // Altitude (optionnelle)
+                                if (data.GpsAltitude != null &&
+                                    double.TryParse(data.GpsAltitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double altDecimal))
+                                {
+                                    byte altRef = altDecimal < 0 ? (byte)1 : (byte)0;
+                                    ulong altRationnel = EncodeRationnel(Math.Abs(altDecimal), 10); // 1 décimale de précision
+
+                                    metadataClone.SetQuery("/app1/ifd/gps/{ushort=5}", altRef);
+                                    metadataClone.SetQuery("/app1/ifd/gps/{ushort=6}", altRationnel);
+                                }
+
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] GPS écrit dans EXIF : {data.GpsLatitude}, {data.GpsLongitude}, alt={data.GpsAltitude}m");
+                                
+                                // Cohérence avec les logiciels qui privilégient (ou ne lisent que) le XMP DJI en lecture
+                                // (ex: ACDSee) : si ces champs existent déjà sur ce fichier, on les met à jour aussi,
+                                // pour éviter qu'un logiciel tiers affiche encore l'ancienne position GPS périmée.
+                                if (metadataClone.ContainsQuery(DjiNamespace + ":GpsLatitude"))
+                                {
+                                    metadataClone.SetQuery(DjiNamespace + ":GpsLatitude", latDecimal.ToString(CultureInfo.InvariantCulture));
+                                    metadataClone.SetQuery(DjiNamespace + ":GpsLongitude", lonDecimal.ToString(CultureInfo.InvariantCulture));
+
+                                    if (data.GpsAltitude != null && metadataClone.ContainsQuery(DjiNamespace + ":AbsoluteAltitude") &&
+                                        double.TryParse(data.GpsAltitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double altPourDji))
+                                    {
+                                        metadataClone.SetQuery(DjiNamespace + ":AbsoluteAltitude", altPourDji.ToString(CultureInfo.InvariantCulture));
+                                    }
+
+                                    System.Diagnostics.Debug.WriteLine("[Metadata] GPS également mis à jour dans XMP DJI (cohérence multi-logiciels)");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] Échec écriture GPS EXIF : {ex.Message}");
+                            }
+                        }
+
+                        // Orientation du panorama (XMP GPano:PoseHeadingDegrees, standard Google Photo Sphere).
+                        // C'est ce champ que les logiciels de visite virtuelle comme Pano2Vr lisent pour orienter
+                        // le panorama sur leur propre outil carte.
+                        if (data.PoseHeadingDegrees.HasValue)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[Metadata] PoseHeadingDegrees est : {data.PoseHeadingDegrees.Value.ToString(CultureInfo.InvariantCulture)}");
+                            try
+                            {
+                                const string gpanoNs = "/xmp/http\\:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
+
+                                // Comme pour le bloc GPS EXIF, WPF a besoin que le bloc XMP racine existe avant
+                                // qu'on puisse y écrire un namespace personnalisé (GPano). S'il n'existe pas encore
+                                // (fichier qui n'a jamais eu de XMP du tout), on le crée explicitement.
+                                if (!metadataClone.ContainsQuery("/xmp"))
+                                {
+                                    metadataClone.SetQuery("/xmp", new BitmapMetadata("xmp"));
+                                }
+
+                                metadataClone.SetQuery(gpanoNs + ":PoseHeadingDegrees",
+                                    data.PoseHeadingDegrees.Value.ToString(CultureInfo.InvariantCulture));
+
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] PoseHeadingDegrees écrit : {data.PoseHeadingDegrees.Value}");
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] Échec écriture PoseHeadingDegrees : {ex.Message}");
+                            }
+                        }
+
+                        // 
                         // ToDo: A ajouter ?
                         // !! Mots clé (bag XMP dc:subject)
                         // >Normalement OK ?
@@ -179,7 +274,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         //        metadataClone.RemoveQuery($"/xmp/dc:subject/{{ulong={indexExistant}}}");
                         //        indexExistant++;
                         //    }
-
                         //    for (int i = 0; i < motsCles.Count; i++)
                         //    {
                         //        metadataClone.SetQuery($"/xmp/dc:subject/{{ulong={i}}}", motsCles[i]);
@@ -268,11 +362,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             try
             {
                 // Le namespace DJI dans le XMP utilise cette URI comme clé de requête WPF
-                const string djiNs = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";
+                // const string djiNs = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";
 
-                var latStr = bitmapMetadata.GetQuery(djiNs + ":GpsLatitude") as string;
-                var lonStr = bitmapMetadata.GetQuery(djiNs + ":GpsLongitude") as string;
-                var altStr = bitmapMetadata.GetQuery(djiNs + ":AbsoluteAltitude") as string;
+                var latStr = bitmapMetadata.GetQuery(DjiNamespace + ":GpsLatitude") as string;
+                var lonStr = bitmapMetadata.GetQuery(DjiNamespace + ":GpsLongitude") as string;
+                var altStr = bitmapMetadata.GetQuery(DjiNamespace + ":AbsoluteAltitude") as string;
 
                 // Latitude
                 if (latStr != null && double.TryParse(latStr,
@@ -307,6 +401,33 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
         }
         // ─────────────────────────────────────────────────────────────────────
+        // LECTURE ORIENTATION — XMP GPano:PoseHeadingDegrees (standard Google Photo Sphere)
+        // ─────────────────────────────────────────────────────────────────────
+        // Cap compass du centre de l'image, en degrés, 0=Nord, sens horaire. C'est le standard
+        // utilisé par les logiciels de panorama (Hugin, PTGui, Pano2Vr...) pour orienter une
+        // sphère sur une carte. Différent du GPS DJI : c'est un champ XMP générique, pas propriétaire.
+        private static void TentativeLecturePoseHeadingDegrees(BitmapMetadata bitmapMetadata, PanoMetadata data)
+        {
+            try
+            {
+                //const string gpanoNs = "/xmp/http\\/:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
+
+                const string gpanoNs = "/xmp/http\\:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
+
+                var raw = bitmapMetadata.GetQuery(gpanoNs + ":PoseHeadingDegrees");
+
+                if (raw != null && double.TryParse(
+                        raw.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double heading))
+                {
+                    data.PoseHeadingDegrees = heading;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur de lecture PoseHeadingDegrees : {ex.Message}");
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
         // HELPERS GPS
         // ─────────────────────────────────────────────────────────────────────
         private static string ConvertirGpsDms(object rawValue, string reference)
@@ -335,6 +456,42 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             uint denominateur = (uint)(rationnel >> 32);                  // bits hauts
             return denominateur == 0 ? 0.0 : (double)numerateur / denominateur;
         }
+        private static ulong EncodeRationnel(double valeur, uint denominateur)
+        // Inverse de DecodeRationnel : encode une valeur décimale en rationnel EXIF/WPF
+        // (numérateur dans les bits bas, dénominateur dans les bits hauts — ordre WPF, voir DecodeRationnel).
+        {
+            uint numerateur = (uint)Math.Round(valeur * denominateur);
+            return ((ulong)denominateur << 32) | numerateur;
+        }
+        private static (ulong[] dms, string reference) ConvertirGpsDecimalVersDms(double decimalDeg, bool estLatitude)
+        // Inverse de ConvertirGpsDms : convertit un degré décimal signé en triplet DMS
+        // (degrés, minutes, secondes), chacun encodé en rationnel ulong, plus la référence N/S ou E/W.
+        {
+            string reference = estLatitude
+                ? (decimalDeg >= 0 ? "N" : "S")
+                : (decimalDeg >= 0 ? "E" : "W");
+
+            double valeurAbsolue = Math.Abs(decimalDeg);
+
+            int deg = (int)valeurAbsolue;
+            double minutesRestantes = (valeurAbsolue - deg) * 60.0;
+            int min = (int)minutesRestantes;
+            double sec = (minutesRestantes - min) * 60.0;
+
+            // Dénominateur 1 pour degrés/minutes (valeurs entières), 1000 pour les secondes
+            // (3 décimales de précision sur les secondes, largement suffisant pour du GPS photo).
+            ulong[] dms =
+            {
+        EncodeRationnel(deg, 1),
+        EncodeRationnel(min, 1),
+        EncodeRationnel(sec, 1000)
+    };
+
+            return (dms, reference);
+        }
+        // Le namespace DJI dans le XMP utilise cette URI comme clé de requête WPF.
+        // Partagée entre lecture (TentativeLectureGpsXmpDji) et écriture (mise à jour de cohérence).
+        private const string DjiNamespace = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";
         // ─────────────────────────────────────────────────────────────────────
         //                         ExposureTime
         // ─────────────────────────────────────────────────────────────────────
