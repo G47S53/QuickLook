@@ -145,8 +145,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double MouseSensitivity = 1.0;     // Coefficient multiplicateur appliqué au déplacement souris → vitesse de rotation
         private const double MouseDeadZone = 5.0;        // Zone morte en pixels : déplacements inférieurs à cette valeur sont ignorés (évite les micro-tremblements)
 
-        private const double VerticalAngleMin = -90.0;   // Angle vertical minimum (regarde vers le bas, axe X) — en degrés
-        private const double VerticalAngleMax = 45.0;    // Angle vertical maximum (regarde vers le haut, axe X) — en degrés
+        private const double VerticalAngleMin = -80.0;   // Angle vertical minimum (regarde vers le bas, axe X) — en degrés
+        private const double VerticalAngleMax = 70.0;    // Angle vertical maximum (regarde vers le haut, axe X) — en degrés
 
         private const double SphereVPower = 1.0;         // Déformation UV verticale : 1.0 = aucune (standard équirectangulaire)
                                                          // < 1.0 → étirement vers les pôles (effet "little planet")
