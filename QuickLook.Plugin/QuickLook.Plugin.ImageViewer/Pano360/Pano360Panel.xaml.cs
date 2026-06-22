@@ -82,10 +82,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _sliderHeadingMisAJourProgrammatique = false;         // Évite que la mise à jour programmatique du slider (au chargement d'un panorama) ne
                                                                            // déclenche elle-même ValueChanged et n'écrive _isMetaChanging = true à tort, alors que
                                                                            // l'utilisateur n'a rien modifié.
-
-        private bool _isHeadingKeyDown = false;                            // True tant que la touche "n" est maintenue enfoncée
-        private bool _isEditingHeading = false;                            // True pendant le clic-glisser actif (n + clic gauche simultanés)
-        private double _headingAuDebutEdition;                             // Valeur du heading au moment du clic (pour calculer le delta cumulé proprement)
         
         private const double OffsetHeadingSphereVersGPano = -90.0;         // Décalage entre la convention interne de la sphère (au chargement, la caméra à Angle=0°
                                                                            // regarde vers U≈0.75 de la texture équirectangulaire) et la convention GPano (PoseHeadingDegrees
@@ -499,32 +495,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Protection contre les délais aberrants (ex. : fenêtre minimisée)
             if (elapsed > 0.1) return;
-
-            // ────────────────────────────────────────────────────────────────────────────────────
-            // ── 0. Édition de l'orientation (heading) du triangle FOV : "n" + clic-glisser ──────
-            // Le panorama reste figé (on sort avant la logique de rotation normale), seul le ─────
-            // triangle sur la carte GPS tourne, proportionnellement au déplacement horizontal ────
-            // cumulé de la souris depuis le clic initial.
-            if (_isEditingHeading)
-            {
-                const double sensibiliteHeading = 0.3; // degrés par pixel de déplacement horizontal, à ajuster au test
-
-                double deltaXHeading = _lastMouseX - _startMouseX;
-                double nouveauHeading = _headingAuDebutEdition + deltaXHeading * sensibiliteHeading;
-
-                nouveauHeading %= 360.0;
-                if (nouveauHeading < 0) nouveauHeading += 360.0;
-
-                if (_currentMetadata != null)
-                {
-                    _currentMetadata.PoseHeadingDegrees = nouveauHeading;
-                    _isMetaChanging = true;
-                }
-
-                _ = MettreAJourFovSurCarte();
-
-                return; // On n'exécute pas le reste de OnRendering (navigation souris classique, etc.)
-            }
 
             // ──────────────────────────────────────────────────────────────────────
             // ── 1. NAVIGATION SOURIS (Capture de la vitesse pour l'inertie) ───────
@@ -964,17 +934,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (_autoRotState == AutoRotationState.Lent || _autoRotState == AutoRotationState.Normal || _autoRotState == AutoRotationState.Rapide) return;
 
-            // Édition de l'orientation (heading) du triangle FOV sur la carte : "n" maintenue + clic-glisser.
-            // N'a de sens que si le panneau carte est ouvert (sinon rien à éditer visuellement) et qu'il y a du GPS.
-            if (e.Key == Key.N && _isMapPanelVisible && !_isHeadingKeyDown)
-            {
-                _isHeadingKeyDown = true;
-                e.Handled = true;
-
-                txtInfoPopup.Text = "Modification du nord";
-                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-            }
-
             //Fléches gauche et droites
             if (e.Key == Key.Right)
             {
@@ -989,19 +948,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void OnWindowKeyUp(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.N)
-            {
-                _isHeadingKeyDown = false;
 
-                // Si l'utilisateur relâche "n" en plein milieu d'un clic-glisser actif, on sort
-                // proprement du mode édition plutôt que de rester bloqué en attente d'un MouseUp
-                // qui pourrait ne jamais arriver dans cette configuration précise.
-                if (_isEditingHeading)
-                {
-                    _isEditingHeading = false;
-                    Mouse.Capture(null);
-                }
-            }
         }
         // ─────────────────────────────────────────────────────────────────────
         // Gestion de la souris
@@ -1020,22 +967,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
 
             if (e.LeftButton != MouseButtonState.Pressed) return;
-
-            // Édition de l'orientation (heading) : "n" maintenue + clic gauche → on bascule dans
-            // ce mode dédié au lieu de la rotation normale du panorama.
-            if (_isHeadingKeyDown)
-            {
-                _isEditingHeading = true;
-                _headingAuDebutEdition = _currentMetadata?.PoseHeadingDegrees ?? 0.0;
-
-                var posHeading = e.GetPosition(this);
-                _startMouseX = posHeading.X;
-                _lastMouseX = posHeading.X;
-
-                Mouse.OverrideCursor = Cursors.SizeWE;   // Double flèche horizontale, cohérente avec un ajustement gauche/droite
-                Mouse.Capture(this);
-                return;
-            }
 
             if (_autoRotState != AutoRotationState.Off)
             {
@@ -1060,25 +991,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             //permet de réafficher la barre haute lorqu'on relache le clic de la souris
             if (_context != null) _context.BlocageShowCaption = false;
 
-            if (_isEditingHeading)
-            {
-                _isEditingHeading = false;
-                Mouse.Capture(null);
-                return;
-            }
-
             _isMouseDown = false;
             Mouse.Capture(null);
         }
         private void OnMouseMove(object sender, MouseEventArgs e)
         {
-            if (_isEditingHeading)
-            {
-                var posHeading = e.GetPosition(this);
-                _lastMouseX = posHeading.X;
-                return;
-            }
-
             if (!_isMouseDown) return;
 
             var pos = e.GetPosition(this);
