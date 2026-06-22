@@ -416,8 +416,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 var raw = bitmapMetadata.GetQuery(gpanoNs + ":PoseHeadingDegrees");
 
-                if (raw != null && double.TryParse(
-                        raw.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double heading))
+                if (raw != null && double.TryParse(raw.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double heading)) 
                 {
                     data.PoseHeadingDegrees = heading;
                 }
@@ -426,6 +425,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur de lecture PoseHeadingDegrees : {ex.Message}");
             }
+            System.Diagnostics.Debug.WriteLine($"[Metadata] PoseHeadingDegrees : {data.PoseHeadingDegrees}");
         }
         // ─────────────────────────────────────────────────────────────────────
         // HELPERS GPS

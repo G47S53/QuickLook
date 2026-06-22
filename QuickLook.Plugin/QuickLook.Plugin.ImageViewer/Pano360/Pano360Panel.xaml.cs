@@ -16,6 +16,7 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 using FellowOakDicom.Imaging.Reconstruction;
+using Microsoft.Web.WebView2.Core;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -24,16 +25,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using System.Windows.Navigation;
 using TDxInput;
-using Microsoft.Web.WebView2.Core;
 using Media3D = System.Windows.Media.Media3D;
-using System.Windows.Controls.Primitives;
 
 namespace QuickLook.Plugin.ImageViewer.Pano360
 {
@@ -76,8 +77,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double? _pendingMapLat;                                    // Coordonnées en attente si on demande l'affichage avant que le WebView2 soit prêt
         private double? _pendingMapLon;
 
-        private const double LargeurMinMap = 220;
-        private const double HauteurMinMap = 160;
+        private const double LargeurMinMap = 370;
+        private const double HauteurMinMap = 280;
+
+        private double _dernierClicCarteLat;
+        private double _dernierClicCarteLon;
 
         private bool _sliderHeadingMisAJourProgrammatique = false;         // Évite que la mise à jour programmatique du slider (au chargement d'un panorama) ne
                                                                            // déclenche elle-même ValueChanged et n'écrive _isMetaChanging = true à tort, alors que
@@ -2099,8 +2103,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
             catch (Exception ex)
             {
-                //txtInfoPopup.Text = $"(LoadNewPanorama)Erreur chargement : {ex.Message}";
-                //(infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                System.Diagnostics.Debug.WriteLine("(LoadNewPanorama)Erreur chargement :" + ex.Message);
             }
             finally
             {
@@ -2309,7 +2312,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             AnimateArrow("AnimateNextArrow", nextCachedCount);
 
             // Log en temps réel pour tes tests
-            System.Diagnostics.Debug.WriteLine($"[Cache UI] Précédents: {prevCachedCount} | Suivants: {nextCachedCount}");
+            //System.Diagnostics.Debug.WriteLine($"[Cache UI] Précédents: {prevCachedCount} | Suivants: {nextCachedCount}");
         }
         private void AnimateArrow(string storyboardKey, int count)
         {
@@ -2362,7 +2365,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Met à jour le slider pour l'orientation du nord de la carte
             _sliderHeadingMisAJourProgrammatique = true;
-            sliderHeading.Value = _currentMetadata.PoseHeadingDegrees ?? 0.0;
+
+            if (_currentMetadata.PoseHeadingDegrees != null)
+            {
+                sliderHeading.Value = _currentMetadata.PoseHeadingDegrees.Value;
+            }
+            else
+            {
+                sliderHeading.Value = 0;
+            }
+
             _sliderHeadingMisAJourProgrammatique = false;
 
             // Si le panneau carte est déjà ouvert, on met à jour le marqueur pour le nouveau panorama
@@ -2499,17 +2511,33 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void UpdateDataPanelInfo()
         {
-            txtXmpTitle.Text = _currentMetadata.Titre;
+            // Le titre
+            txtXmpTitle.Text = _currentMetadata.Titre ?? "";
+            // Les mots clés
             AfficherMotsCles(_currentMetadata, txtXmpKeywords);
-
+            // Le nom de fichier
             txtMetaFileName.Text = System.IO.Path.GetFileName(_currentPanoPath);
-            txtMetaDate.Text = _currentMetadata.Date;
-            txtMetaTime.Text = _currentMetadata.Time;
-
-            txtMetaCamera.Text = _currentMetadata.Model;
+            // La date
+            txtMetaDate.Text = _currentMetadata.Date ?? "--/--/--";
+            // L'heure
+            txtMetaTime.Text = _currentMetadata.Time ?? "--:--:--";
+            // Camera
+            txtMetaCamera.Text = _currentMetadata.Model ?? "--";
+            // Taille du fichier
             PanelInfoSizeFile();
-            txtMetaIso.Text = string.Format("{0:F0} ISO", _currentMetadata.Iso);
-            txtMetaShutter.Text = string.Format(_currentMetadata.ShutterSpeed);
+            // Iso
+            if (_currentMetadata.Iso.HasValue)
+            {
+                txtMetaIso.Text = string.Format("{0:F0} ISO", _currentMetadata.Iso); 
+            }
+            else
+            {
+                txtMetaIso.Text = "-- ISO";
+            }
+            // Vitesse
+            txtMetaShutter.Text = _currentMetadata.ShutterSpeed ?? "-/-";
+
+            //txtMetaShutter.Text = string.Format(_currentMetadata.ShutterSpeed);
         }
         public static void AfficherMotsCles(PanoMetadata data, TextBlock textBlock)
         {
@@ -2857,31 +2885,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             public double containerX { get; set; }
             public double containerY { get; set; }
         }
-        private void AfficherMenuContextuelCarte(double lat, double lon, double containerX, double containerY)
-        {
-            var menu = new ContextMenu
-            {
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E62E2E2E")),
-                BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#30FFFFFF")),
-                BorderThickness = new Thickness(1),
-                Foreground = Brushes.White
-            };
-
-            var itemDefinirPosition = new MenuItem
-            {
-                Header = "📍 Définir comme position GPS"
-            };
-            itemDefinirPosition.Click += (s, e) => DefinirPositionGpsPhoto(lat, lon);
-            menu.Items.Add(itemDefinirPosition);
-
-            // containerX/containerY sont déjà relatifs au conteneur de la carte Leaflet (#map),
-            // donc directement utilisables comme coordonnées relatives à webViewMap dans le repère WPF.
-            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.RelativePoint;
-            menu.PlacementTarget = webViewMap;
-            menu.HorizontalOffset = containerX;
-            menu.VerticalOffset = containerY;
-            menu.IsOpen = true;
-        }
         private void DefinirPositionGpsPhoto(double lat, double lon)
         {
             // Met à jour les coordonnées GPS du panorama en cours et marque les métadonnées comme
@@ -3003,6 +3006,53 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Diagnostics.Debug.WriteLine($"Erreur lors de la mise à jour du triangle FOV : {ex.Message}");
             }
         }
+        private void AfficherMenuContextuelCarte(double lat, double lon, double containerX, double containerY)
+        // Mémorise les coordonnées du clic droit, puis ouvre le ContextMenu déclaré en XAML
+        // (ressource "MenuContextuelCarte"), positionné exactement à l'endroit du clic.
+        {
+            _dernierClicCarteLat = lat;
+            _dernierClicCarteLon = lon;
+
+            var menu = (ContextMenu)FindResource("MenuContextuelCarte");
+
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.RelativePoint;
+            menu.PlacementTarget = webViewMap;
+            menu.HorizontalOffset = containerX;
+            menu.VerticalOffset = containerY;
+            menu.IsOpen = true;
+        }
+        private void MenuDefinirPosition_Click(object sender, RoutedEventArgs e)
+        {
+            DefinirPositionGpsPhoto(_dernierClicCarteLat, _dernierClicCarteLon);
+        }
+        private void MenuRecentrerSurPin_Click(object sender, RoutedEventArgs e)
+        {
+            _ = RecentrerCarteSurMarqueurAsync();
+        }
+        private async Task RecentrerCarteSurMarqueurAsync()
+        {
+            if (!_isMapWebViewReady) return;
+
+            try
+            {
+                await webViewMap.CoreWebView2.ExecuteScriptAsync("recentrerSurMarqueur();");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Erreur lors du recentrage sur le marqueur : {ex.Message}");
+            }
+        }
+        private void MenuCentrerPanoramaPrecedent_Click(object sender, RoutedEventArgs e)
+        {
+            // TODO : centrer la carte sur les coordonnées GPS du panorama précédent dans la navigation
+        }
+        private void MenuToggleFov_Click(object sender, RoutedEventArgs e)
+        {
+            // TODO : appeler hideFovTriangle() ou réactiver MettreAJourFovSurCarte() selon menuToggleFov.IsChecked
+        }
+        private void MenuPositionFavorite1_Click(object sender, RoutedEventArgs e) { /* TODO */ }
+        private void MenuPositionFavorite2_Click(object sender, RoutedEventArgs e) { /* TODO */ }
+        private void MenuPositionFavorite3_Click(object sender, RoutedEventArgs e) { /* TODO */ }
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────

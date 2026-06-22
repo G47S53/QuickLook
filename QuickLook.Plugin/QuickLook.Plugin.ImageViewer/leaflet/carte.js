@@ -34,6 +34,12 @@ function setPosition(lat, lon) {
     map.setView(latLng, 15);
 }
 
+function recentrerSurMarqueur() {
+    if (marker !== null) {
+        map.setView(marker.getLatLng(), map.getZoom());
+    }
+}
+
 // ── Triangle FOV (champ de vision du panorama) ──
 // Taille fixe en pixels écran (indépendante du niveau de zoom de la carte), redessiné
 // à chaque zoom/déplacement pour garder cette taille visuelle constante.
