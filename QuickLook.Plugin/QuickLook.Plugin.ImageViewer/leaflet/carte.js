@@ -1,12 +1,35 @@
-var map = L.map('map', {
-    zoomControl: true,
-    attributionControl: true
-}).setView([0, 0], 2);
+// ── Définition des couches de base ──
 
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+// 1. Couche Plan (OpenStreetMap)
+var osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap'
-}).addTo(map);
+});
+
+// 2. Couche Satellite (Esri World Imagery)
+var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, // Esri supporte généralement jusqu'au zoom 18-19 selon les zones
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+});
+
+// ── Initialisation de la carte ──
+// On charge 'osmLayer' par défaut dans le tableau 'layers'
+var map = L.map('map', {
+    zoomControl: true,
+    attributionControl: true,
+    layers: [osmLayer] 
+}).setView([0, 0], 2);
+
+
+// ── Contrôle des couches (Switch Plan/Satellite) ──
+var baseMaps = {
+    "Plan": osmLayer,
+    "Satellite": satelliteLayer
+};
+
+// Ajoute le petit menu volant en haut à droite
+L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
 
 // ── Barre de recherche (geocoding via OpenStreetMap/Nominatim, gratuit, sans clé API) ──
 // style: 'button' affiche une icône loupe qui révèle la barre de recherche au clic.
@@ -45,7 +68,7 @@ function recentrerSurMarqueur() {
 // Taille fixe en pixels écran (indépendante du niveau de zoom de la carte), redessiné
 // à chaque zoom/déplacement pour garder cette taille visuelle constante.
 var fovTriangle = null;
-var fovEtat = null; // mémorise {lat, lon, directionDeg, fovDeg, rayonPixels}
+var fovEtat = null; 
 
 function setFovTriangle(lat, lon, directionDeg, fovDeg, rayonPixels) {
     fovEtat = { lat: lat, lon: lon, directionDeg: directionDeg, fovDeg: fovDeg, rayonPixels: rayonPixels };
@@ -56,10 +79,9 @@ function redessinerFovTriangle() {
     if (fovEtat === null) return;
 
     var pointeOrigine = map.latLngToContainerPoint([fovEtat.lat, fovEtat.lon]);
-
     var angleDebut = fovEtat.directionDeg - fovEtat.fovDeg / 2;
     var angleFin = fovEtat.directionDeg + fovEtat.fovDeg / 2;
-
+    
     // Approximation de l'arc par des segments : plus nbSegments est grand, plus l'arc est lisse.
     // 24 segments suffit largement pour un secteur de taille modeste (rayonPixels ~100).
     var nbSegments = 24;
@@ -126,7 +148,6 @@ map.on('zoomend', function () {
 map.on('mouseup', function () {
     setTimeout(function () {
         var activeEl = document.activeElement;
-        // Sécurité : Si l'utilisateur clique dans le champ de recherche, on ne vole pas le focus !
         if (activeEl && activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA') {
             window.chrome.webview.postMessage({ type: 'restore_focus' });
         }
