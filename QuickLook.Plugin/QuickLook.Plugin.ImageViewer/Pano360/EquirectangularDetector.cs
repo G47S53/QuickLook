@@ -46,6 +46,7 @@ public static class EquirectangularDetector
     /// </summary>
     /// <param name="meta">Le MetaProvider déjà instancié par Plugin.Prepare()</param>
     /// <returns>True si l'image semble être une panoramique équirectangulaire</returns>
+    
     public static bool IsEquirectangular(MetaProvider meta)
     {
         Size size = meta.GetSize();
