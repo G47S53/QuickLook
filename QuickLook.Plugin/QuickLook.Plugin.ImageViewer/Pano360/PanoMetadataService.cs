@@ -129,6 +129,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         {
                             TentativeLectureGpsXmpDji(bitmapMetadata, data);
                         }
+                        // Rempli les champs avec des 0 si il n'y a rien et pour éviter les bugs avec la carte
+                        data.GpsLatitude = data.GpsLatitude ?? "0";
+                        data.GpsLongitude = data.GpsLongitude ?? "0";
+                        data.GpsAltitude = data.GpsAltitude ?? "0";
+                        System.Diagnostics.Debug.WriteLine($"[Metadata] GPS final : {data.GpsLatitude}, {data.GpsLongitude}, alt={data.GpsAltitude}m");
 
                         // ──── 4. Lecture de l'orientation du panorama (XMP GPano, standard Google Photo Sphere) ────
                         TentativeLecturePoseHeadingDegrees(bitmapMetadata, data);

@@ -343,7 +343,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             Focus();
 
             // Debug pour les données Exif/Xmp
-            PanoMetadataService.DiagnostiquerMetadonnees(_currentPanoPath);
+            //PanoMetadataService.DiagnostiquerMetadonnees(_currentPanoPath);
 
             // lire les données Exif/Xmp
             LoadAndDisplayMetadata(_currentPanoPath);
