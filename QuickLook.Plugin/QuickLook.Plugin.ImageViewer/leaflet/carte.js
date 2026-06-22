@@ -2,6 +2,7 @@ var map = L.map('map', {
     zoomControl: true,
     attributionControl: true
 }).setView([0, 0], 2);
+
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap'
@@ -112,10 +113,24 @@ map.on('zoomstart', function () {
 });
 
 map.on('zoomend', function () {
+    // 🕹️ CORRECTIF SPACEMOUSE : Redonne le focus à QuickLook dès que le zoom se termine
+    window.chrome.webview.postMessage({ type: 'restore_focus' });
+
     if (fovTriangle !== null) {
         redessinerFovTriangle();
         fovTriangle.setStyle({ opacity: 1, fillOpacity: 0.35 });
     }
+});
+
+// 🕹️ CORRECTIF SPACEMOUSE : Redonne le focus à QuickLook dès qu'on relâche un clic ou un drag sur la carte
+map.on('mouseup', function () {
+    setTimeout(function () {
+        var activeEl = document.activeElement;
+        // Sécurité : Si l'utilisateur clique dans le champ de recherche, on ne vole pas le focus !
+        if (activeEl && activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA') {
+            window.chrome.webview.postMessage({ type: 'restore_focus' });
+        }
+    }, 50);
 });
 
 // ── Correctif taille ──

@@ -36,6 +36,9 @@ using System.Windows.Navigation;
 using TDxInput;
 using Media3D = System.Windows.Media.Media3D;
 
+using System.Runtime.InteropServices; // Pour le DllImport            (Problème de la spacemouse qui perd le focus avec webview2)
+using System.Windows.Interop;         // Pour le WindowInteropHelper  (Problème de la spacemouse qui perd le focus avec webview2)
+
 namespace QuickLook.Plugin.ImageViewer.Pano360
 {
     public partial class Pano360Panel : UserControl, IDisposable
@@ -202,6 +205,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private bool _isSpaceMouseZoom = false;          // Verrou mis à true si le zoom via la spacemouse est actif, dans ce cas cela désactive la roulette
         private bool _isSpaceMouseHighForce = false;     // Utilisé pour avertir que l'on utilise en même temps la souris et la spacemouse 
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetFocus(IntPtr hWnd);
 
         // ─────────────────────────────────────────────────────────────────────
         // > Raccourcis Clavier SpaceMouse — navigation vers angle cible
@@ -2858,22 +2864,58 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Diagnostics.Debug.WriteLine($"Erreur d'initialisation WebView2 (carte GPS) : {ex.Message}");
             }
         }
-        private void WebViewMap_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
-        // Reçoit les messages envoyés par Leaflet via window.chrome.webview.postMessage()
+        private void WebViewMap_WebMessageReceived(object sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs e)
         {
             try
             {
                 string json = e.WebMessageAsJson;
-                var message = JsonConvert.DeserializeObject<MessageCarteJs>(json);
+                if (string.IsNullOrWhiteSpace(json)) return;
 
-                if (message?.type == "contextmenu")
+                // 🛠️ CORRECTIF ROBUSTESSE : Si le JS a utilisé JSON.stringify(), le message arrive 
+                // sous forme de chaîne de texte JSON. On la désérialise une première fois pour avoir le JSON brut.
+                if (json.StartsWith("\""))
                 {
-                    AfficherMenuContextuelCarte(message.lat, message.lon, message.containerX, message.containerY);
+                    json = JsonConvert.DeserializeObject<string>(json);
+                }
+
+                // Désérialisation principale en dictionnaire
+                var msg = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
+                if (msg == null) return;
+
+                // On extrait l'action (gère à la fois la clé "action" ou la clé "type" de ton clic droit)
+                string commande = null;
+                if (msg.TryGetValue("action", out string act)) commande = act;
+                else if (msg.TryGetValue("type", out string t)) commande = t;
+
+                if (commande == "restore_focus")
+                {
+                    // Forcer l'exécution sur le thread UI de WPF
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        // 1. Focus logique WPF
+                        viewport3D.Focus();
+
+                        // 2. Arrachement du focus natif Windows (Win32) à la WebView2
+                        var window = Window.GetWindow(this);
+                        if (window != null)
+                        {
+                            var helper = new WindowInteropHelper(window);
+                            if (helper.Handle != IntPtr.Zero)
+                            {
+                                SetFocus(helper.Handle);
+                                System.Diagnostics.Debug.WriteLine("[Focus] Focus natif restauré avec succès sur QuickLook !");
+                            }
+                        }
+                    });
+                }
+                else if (commande == "contextmenu")
+                {
+                    // Ton code existant pour gérer le clic droit sur la carte (si applicable)
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Erreur lors de la réception d'un message de la carte : {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Erreur WebView Message: {ex.Message}");
             }
         }
         private class MessageCarteJs
