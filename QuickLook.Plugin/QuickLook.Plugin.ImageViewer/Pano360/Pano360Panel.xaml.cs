@@ -79,6 +79,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double LargeurMinMap = 220;
         private const double HauteurMinMap = 160;
 
+        private bool _sliderHeadingMisAJourProgrammatique = false;         // Évite que la mise à jour programmatique du slider (au chargement d'un panorama) ne
+                                                                           // déclenche elle-même ValueChanged et n'écrive _isMetaChanging = true à tort, alors que
+                                                                           // l'utilisateur n'a rien modifié.
+
         private bool _isHeadingKeyDown = false;                            // True tant que la touche "n" est maintenue enfoncée
         private bool _isEditingHeading = false;                            // True pendant le clic-glisser actif (n + clic gauche simultanés)
         private double _headingAuDebutEdition;                             // Valeur du heading au moment du clic (pour calculer le delta cumulé proprement)
@@ -2419,22 +2423,27 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Gère la lecture et l'affichage de la note
             _currentPanoPath = filePath;
 
-            // ─────── Étape 1 : Lecture via notre service
+            // ─────── Étape 1 : Lecture via notre service ──────────────────────────
             _currentMetadata = PanoMetadataService.ReadMetadata(filePath);
 
-            // ─────── Étape 2 : Mise à jour de l'affichage des étoiles
+            // ─────── Étape 2 : Mise à jour de l'affichage des étoiles ─────────────
             UpdateRatingUI(_currentMetadata.Rating ?? 0);
 
-            // ─────── Étape 3 : Mise à jour des couleurs
+            // ─────── Étape 3 : Mise à jour des couleurs ───────────────────────────
             SetColorPanelRating(_currentMetadata.Label);
 
-            // ─────── Étape 4 : Mise à jour du panneau d'informations
+            // ─────── Étape 4 : Mise à jour du panneau d'informations ──────────────
             UpdateDataPanelInfo();
 
-            // ─────── Étape 5 : GPS
+            // ─────── Étape 5 : GPS ────────────────────────────────────────────────
 
             // Permet de précharger la carte
             _ = AssurerCarteInitialiseeAsync();
+
+            // Met à jour le slider pour l'orientation du nord de la carte
+            _sliderHeadingMisAJourProgrammatique = true;
+            sliderHeading.Value = _currentMetadata.PoseHeadingDegrees ?? 0.0;
+            _sliderHeadingMisAJourProgrammatique = false;
 
             // Si le panneau carte est déjà ouvert, on met à jour le marqueur pour le nouveau panorama
             if (_isMapPanelVisible)
@@ -2767,6 +2776,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF00AAFF"));
                 pnlMapContainer.Visibility = Visibility.Visible;
+                pnlHeadingControl.Visibility = Visibility.Visible;
 
                 _ = AssurerCarteInitialiseeAsync();
                 AfficherPositionSurCarte(_currentMetadata?.GpsLatitude, _currentMetadata?.GpsLongitude);
@@ -2776,7 +2786,20 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#73000000"));
                 pnlMapContainer.Visibility = Visibility.Collapsed;
+                pnlHeadingControl.Visibility = Visibility.Collapsed;
             }
+        }
+        private void SliderHeading_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            txtHeadingValue.Text = $"{(int)e.NewValue}°";
+
+            if (_sliderHeadingMisAJourProgrammatique) return;
+            if (_currentMetadata == null) return;
+
+            _currentMetadata.PoseHeadingDegrees = e.NewValue;
+            _isMetaChanging = true;
+
+            _ = MettreAJourFovSurCarte();
         }
         private void ThumbResizeMap_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
         {
@@ -2817,7 +2840,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double CalculerHauteurMaxFenetre()
         {
             const double margeBasFixe = 70;   // doit correspondre au Margin bas de pnlMapContainer
-            const double margeHautMin = 40;
+            const double margeHautMin = 70;
             return this.ActualHeight - margeBasFixe - margeHautMin;
         }
         private double CalculerLargeurMaxAvantRating(double margeDroiteFixe)

@@ -806,8 +806,8 @@
         <Grid x:Name="pnlMapContainer"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Bottom"
-                Margin="0,0,30,70"
-                Width="320"
+                Margin="0,0,30,90"
+                Width="370"
                 Height="280"
                 Opacity="0"
                 Visibility="Collapsed">
@@ -848,6 +848,53 @@
                             </Thumb.Template>
                     </Thumb>
         </Grid>
+        <!-- ── Réglage manuel de l'orientation (PoseHeadingDegrees) ──────────── -->
+        <!-- Élément complètement indépendant de pnlMapContainer (pas dans son arbre visuel), car le
+         WebView2 qu'il contient est un HwndHost (vraie fenêtre Windows native) qui recouvre tout
+        contrôle WPF placé dans son voisinage, peu importe le z-order WPF déclaré. -->
+        <Border x:Name="pnlHeadingControl"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,80,20"
+                    Width="270"
+                    Background="#702E2E2E"
+                    CornerRadius="8"
+                    BorderBrush="#30FFFFFF"
+                    BorderThickness="1"
+                    Visibility="Collapsed">
+            <Grid Margin="10,8,10,8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="🧭 Décalage du nord :" TextAlignment="Center" Foreground="White" FontSize="12" Margin="-25,0,0,4"/>
+
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Slider x:Name="sliderHeading"
+                    Grid.Column="0"
+                    Minimum="0"
+                    Maximum="359"
+                    Value="0"
+                    VerticalAlignment="Center"
+                    ValueChanged="SliderHeading_ValueChanged"/>
+
+                    <TextBlock x:Name="txtHeadingValue"
+                       Grid.Column="1"
+                       Text="0°"
+                       Foreground="White"
+                       FontSize="12"
+                       VerticalAlignment="Center"
+                       Margin="8,0,0,0"
+                       Width="36"/>
+                </Grid>
+            </Grid>
+        </Border>
         <!-- ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── -->
         <!-- ────────────────────────────────────────────────────────────────────────── The end 😉 ────────────────────────────────────────────────────────────────────── -->
     </Grid>
