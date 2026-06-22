@@ -2099,8 +2099,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
             catch (Exception ex)
             {
-                txtInfoPopup.Text = $"Erreur chargement : {ex.Message}";
-                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                //txtInfoPopup.Text = $"(LoadNewPanorama)Erreur chargement : {ex.Message}";
+                //(infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
             }
             finally
             {
