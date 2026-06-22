@@ -1646,6 +1646,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
                     (panelRating.Resources["FadeInRating"] as Storyboard)?.Begin(panelRating);
                     (btnToggleInfo.Resources["FadeInbtnToggleInfo"] as Storyboard)?.Begin(btnToggleInfo);
+                    (btnToggleMap.Resources["FadeInbtnToggleMap"] as Storyboard)?.Begin(btnToggleMap);
                     _isBarreMasquee = false;
                 }
                 return;
@@ -1665,6 +1666,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     (barreBtn.Resources["FadeOutBarreBtn"] as Storyboard)?.Begin(barreBtn);
                     (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
                     (btnToggleInfo.Resources["FadeOutbtnToggleInfo"] as Storyboard)?.Begin(btnToggleInfo);
+                    (btnToggleMap.Resources["FadeOutbtnToggleMap"] as Storyboard)?.Begin(btnToggleMap);
                     if (_autoCloseActive || _autoRotState != AutoRotationState.Off)
                     {
                         (panelRating.Resources["FadeOutRating"] as Storyboard)?.Begin(panelRating);
@@ -1686,6 +1688,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     (panelAutoCloseProgress.Resources["FadeInProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
                     (panelRating.Resources["FadeInRating"] as Storyboard)?.Begin(panelRating);
                     (btnToggleInfo.Resources["FadeInbtnToggleInfo"] as Storyboard)?.Begin(btnToggleInfo);
+                    (btnToggleMap.Resources["FadeInbtnToggleMap"] as Storyboard)?.Begin(btnToggleMap);
                     _isBarreMasquee = false;
                 }
                 _context.BlocageShowCaption = false;
@@ -2691,7 +2694,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             if (_isMapPanelVisible)
             {
-                btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF00AAFF"));
+                btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8000AAFF"));
                 pnlMapContainer.Visibility = Visibility.Visible;
                 pnlHeadingControl.Visibility = Visibility.Visible;
 
@@ -2809,6 +2812,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     _isMapWebViewReady = true;
 
                     btnToggleMap.Visibility = Visibility.Visible;
+                    var sbIn = (Storyboard)btnToggleMap.Resources["FadeInbtnToggleMap"];
+                    sbIn.Begin();
 
                     if (_pendingMapLat.HasValue && _pendingMapLon.HasValue)
                     {

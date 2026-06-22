@@ -25,8 +25,7 @@
         </Storyboard>
         <Storyboard x:Key="AnimateNextArrow">
             <ColorAnimation Storyboard.TargetName="btnNextPano" 
-                        Storyboard.TargetProperty="(Button.Foreground).(SolidColorBrush.Color)"
-                        Duration="0:0:0.7">
+                        Storyboard.TargetProperty="(Button.Foreground).(SolidColorBrush.Color)" Duration="0:0:0.7">
                 <ColorAnimation.EasingFunction>
                     <CubicEase EasingMode="EaseOut"/>
                 </ColorAnimation.EasingFunction>
@@ -763,6 +762,7 @@
         Height="40"
         Cursor="Hand"
         Visibility="Collapsed"
+        Opacity="0"
         Click="BtnToggleMap_Click"
         MouseEnter="BarrePanelRating_MouseEnter"
         MouseLeave="BarrePanelRating_MouseLeave"
@@ -787,7 +787,7 @@
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="bd" Property="Background" Value="#AA000000"/>
+                                        
                                         <Setter TargetName="bd" Property="BorderBrush" Value="#44FFFFFF"/>
                                     </Trigger>
                                     <Trigger Property="IsPressed" Value="True">
