@@ -211,6 +211,9 @@
         <None Update="leaflet\leaflet-geosearch.js">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Update="leaflet\leaflet-rotate.js">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Update="leaflet\leaflet-src.esm.js">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>

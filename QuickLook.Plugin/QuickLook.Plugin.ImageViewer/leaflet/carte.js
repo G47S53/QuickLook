@@ -17,7 +17,13 @@ var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/se
 var map = L.map('map', {
     zoomControl: true,
     attributionControl: true,
-    layers: [osmLayer] 
+    rotate: true,           // ← active la rotation
+    bearing: 0,              // ← cap initial (0° = nord en haut)
+    rotateControl: {         // ← la boussole cliquable, en haut à gauche par défaut
+        position: 'topleft',
+        closeOnZeroBearing: false  // garde la boussole visible même à 0°
+    },
+    layers: [osmLayer]
 }).setView([0, 0], 2);
 
 
@@ -78,9 +84,17 @@ function setFovTriangle(lat, lon, directionDeg, fovDeg, rayonPixels) {
 function redessinerFovTriangle() {
     if (fovEtat === null) return;
 
+    //var pointeOrigine = map.latLngToContainerPoint([fovEtat.lat, fovEtat.lon]);
+    //var angleDebut = fovEtat.directionDeg - fovEtat.fovDeg / 2;
+    //var angleFin = fovEtat.directionDeg + fovEtat.fovDeg / 2;
+
     var pointeOrigine = map.latLngToContainerPoint([fovEtat.lat, fovEtat.lon]);
-    var angleDebut = fovEtat.directionDeg - fovEtat.fovDeg / 2;
-    var angleFin = fovEtat.directionDeg + fovEtat.fovDeg / 2;
+    
+    var bearing = map.getBearing ? map.getBearing() : 0;
+    
+    var directionEcran = fovEtat.directionDeg + bearing;
+    var angleDebut = directionEcran - fovEtat.fovDeg / 2;
+    var angleFin = directionEcran + fovEtat.fovDeg / 2;
     
     // Approximation de l'arc par des segments : plus nbSegments est grand, plus l'arc est lisse.
     // 24 segments suffit largement pour un secteur de taille modeste (rayonPixels ~100).
@@ -121,7 +135,8 @@ function hideFovTriangle() {
     fovEtat = null;
 }
 
-map.on('zoom move', redessinerFovTriangle);
+//map.on('zoom move', redessinerFovTriangle);
+map.on('zoom move rotate', redessinerFovTriangle);
 
 // Pendant l'animation de zoom, la position pixel du triangle calculée par
 // latLngToContainerPoint() ne suit pas exactement la transition visuelle de la carte,
