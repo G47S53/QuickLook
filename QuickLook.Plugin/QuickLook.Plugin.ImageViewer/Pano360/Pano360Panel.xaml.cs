@@ -2871,31 +2871,24 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 string json = e.WebMessageAsJson;
                 if (string.IsNullOrWhiteSpace(json)) return;
 
-                // 🛠️ CORRECTIF ROBUSTESSE : Si le JS a utilisé JSON.stringify(), le message arrive 
-                // sous forme de chaîne de texte JSON. On la désérialise une première fois pour avoir le JSON brut.
                 if (json.StartsWith("\""))
                 {
                     json = JsonConvert.DeserializeObject<string>(json);
                 }
 
-                // Désérialisation principale en dictionnaire
-                var msg = JsonConvert.DeserializeObject<Dictionary<string, string>>(json);
+                // 🛠️ FIX : On utilise <string, object> pour accepter les coordonnées numériques
+                var msg = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
                 if (msg == null) return;
 
-                // On extrait l'action (gère à la fois la clé "action" ou la clé "type" de ton clic droit)
                 string commande = null;
-                if (msg.TryGetValue("action", out string act)) commande = act;
-                else if (msg.TryGetValue("type", out string t)) commande = t;
+                if (msg.TryGetValue("action", out object act) && act != null) commande = act.ToString();
+                else if (msg.TryGetValue("type", out object t) && t != null) commande = t.ToString();
 
                 if (commande == "restore_focus")
                 {
-                    // Forcer l'exécution sur le thread UI de WPF
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        // 1. Focus logique WPF
                         viewport3D.Focus();
-
-                        // 2. Arrachement du focus natif Windows (Win32) à la WebView2
                         var window = Window.GetWindow(this);
                         if (window != null)
                         {
@@ -2903,14 +2896,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             if (helper.Handle != IntPtr.Zero)
                             {
                                 SetFocus(helper.Handle);
-                                System.Diagnostics.Debug.WriteLine("[Focus] Focus natif restauré avec succès sur QuickLook !");
                             }
                         }
                     });
                 }
                 else if (commande == "contextmenu")
                 {
-                    // Ton code existant pour gérer le clic droit sur la carte (si applicable)
+                    // 🍾 TON CODE DU CLIC DROIT REVIENT ICI !
+                    // Tu peux récupérer tes coordonnées numériques comme ceci si nécessaire :
+                    double lat = Convert.ToDouble(msg["lat"]);
+                    double lon = Convert.ToDouble(msg["lon"]);
+                    int x = Convert.ToInt32(msg["containerX"]);
+                    int y = Convert.ToInt32(msg["containerY"]);
+
+                    // Insère ici l'appel à ton ancienne méthode qui affiche ton menu WPF
+                    AfficherMenuContextuelCarte(lat, lon, x, y);
                 }
             }
             catch (Exception ex)

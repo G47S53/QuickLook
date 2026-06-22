@@ -144,10 +144,15 @@ map.on('zoomend', function () {
     }
 });
 
-// 🕹️ CORRECTIF SPACEMOUSE : Redonne le focus à QuickLook dès qu'on relâche un clic ou un drag sur la carte
-map.on('mouseup', function () {
+// 🕹️ CORRECTIF SPACEMOUSE : Redonne le focus à QuickLook dès qu'on relâche un clic GAUCHE ou un drag
+map.on('mouseup', function (e) {
+    // Sécurité : On ne déclenche QUE sur le clic GAUCHE (button === 0).
+    // On ignore le clic droit (2) pour laisser le menu contextuel s'ouvrir tranquillement.
+    if (e.originalEvent && e.originalEvent.button !== 0) return;
+
     setTimeout(function () {
         var activeEl = document.activeElement;
+        // Sécurité : Si l'utilisateur clique dans le champ de recherche, on ne vole pas le focus !
         if (activeEl && activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA') {
             window.chrome.webview.postMessage({ type: 'restore_focus' });
         }
