@@ -2918,15 +2918,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Diagnostics.Debug.WriteLine($"Erreur WebView Message: {ex.Message}");
             }
         }
-        private class MessageCarteJs
-        // Structure correspondant au JSON envoyé par window.chrome.webview.postMessage() côté JS.
-        {
-            public string type { get; set; }
-            public double lat { get; set; }
-            public double lon { get; set; }
-            public double containerX { get; set; }
-            public double containerY { get; set; }
-        }
         private void DefinirPositionGpsPhoto(double lat, double lon)
         {
             // Met à jour les coordonnées GPS du panorama en cours et marque les métadonnées comme
