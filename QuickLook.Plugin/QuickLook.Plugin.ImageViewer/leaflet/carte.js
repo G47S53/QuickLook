@@ -36,6 +36,9 @@ var baseMaps = {
 // Ajoute le petit menu volant en haut à droite
 L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
+// Ajoute l'echelle à la carte
+L.control.scale().addTo(map);
+
 
 // ── Barre de recherche (geocoding via OpenStreetMap/Nominatim, gratuit, sans clé API) ──
 // style: 'button' affiche une icône loupe qui révèle la barre de recherche au clic.
@@ -84,10 +87,6 @@ function setFovTriangle(lat, lon, directionDeg, fovDeg, rayonPixels) {
 function redessinerFovTriangle() {
     if (fovEtat === null) return;
 
-    //var pointeOrigine = map.latLngToContainerPoint([fovEtat.lat, fovEtat.lon]);
-    //var angleDebut = fovEtat.directionDeg - fovEtat.fovDeg / 2;
-    //var angleFin = fovEtat.directionDeg + fovEtat.fovDeg / 2;
-
     var pointeOrigine = map.latLngToContainerPoint([fovEtat.lat, fovEtat.lon]);
     
     var bearing = map.getBearing ? map.getBearing() : 0;
@@ -135,7 +134,6 @@ function hideFovTriangle() {
     fovEtat = null;
 }
 
-//map.on('zoom move', redessinerFovTriangle);
 map.on('zoom move rotate', redessinerFovTriangle);
 
 // Pendant l'animation de zoom, la position pixel du triangle calculée par
