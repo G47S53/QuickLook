@@ -60,7 +60,7 @@ var marker = null;
 function setPosition(lat, lon) {
     var latLng = [lat, lon];
     if (marker === null) {
-        marker = L.marker(latLng).addTo(map);
+        marker = L.marker(latLng, { zIndexOffset: 1000 }).addTo(map);
     } else {
         marker.setLatLng(latLng);
     }
@@ -208,4 +208,66 @@ map.on('contextmenu', function (e) {
         containerX: e.containerPoint.x,
         containerY: e.containerPoint.y
     });
+});
+
+// ── Panneau de contrôles repliable (zoom, recherche, boussole) ──
+// Principe : on ne recrée rien. On laisse Leaflet/leaflet-rotate/geosearch
+// créer leurs contrôles normalement (ci-dessus), puis on DÉPLACE leurs
+// éléments DOM dans notre propre panneau replié par défaut. Aucun état
+// interne de ces plugins n'est affecté, seul leur conteneur visuel change.
+
+var ControlePanneauRepliable = L.Control.extend({
+    options: { position: 'topleft' },
+
+    onAdd: function (map) {
+        var conteneur = L.DomUtil.create('div', '');
+
+        // Bouton hamburger
+        var bouton = L.DomUtil.create('div', '', conteneur);
+        bouton.id = 'btnToggleControles';
+        bouton.innerHTML = '☰';
+        bouton.title = 'Afficher / masquer les contrôles';
+
+        // Panneau qui contiendra les contrôles déplacés
+        var panneau = L.DomUtil.create('div', '', conteneur);
+        panneau.id = 'panneauControlesRepliable';
+
+        // Empêche les clics/scroll dans le panneau de se propager à la carte
+        L.DomEvent.disableClickPropagation(conteneur);
+        L.DomEvent.disableScrollPropagation(conteneur);
+
+        L.DomEvent.on(bouton, 'click', function () {
+            panneau.classList.toggle('ouvert');
+        });
+
+        return conteneur;
+    }
+});
+
+map.addControl(new ControlePanneauRepliable());
+
+// Déplace les contrôles natifs déjà créés (zoom, rotate/boussole, geosearch)
+// à l'intérieur du panneau repliable. On le fait juste après leur création,
+// une fois que le DOM de la carte est prêt.
+function deplacerControlesDansPanneau() {
+    var panneau = document.getElementById('panneauControlesRepliable');
+    if (!panneau) return;
+
+    // Sélecteurs des conteneurs de contrôles Leaflet à regrouper
+    var selecteurs = [
+        '.leaflet-control-zoom',
+        '.leaflet-control-rotate',
+        '.leaflet-control-geosearch'
+    ];
+
+    selecteurs.forEach(function (selecteur) {
+        var el = document.querySelector(selecteur);
+        if (el) panneau.appendChild(el);
+    });
+}
+
+// On déplace après le chargement complet pour être sûr que tous les
+// contrôles (notamment geosearch, qui peut s'initialiser un peu après) existent.
+window.addEventListener('load', function () {
+    setTimeout(deplacerControlesDansPanneau, 0);
 });

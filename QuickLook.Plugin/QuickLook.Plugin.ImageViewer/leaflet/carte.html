@@ -16,6 +16,49 @@
         .leaflet-control-attribution {
             font-size: 9px;
         }
+
+        /* ── Bouton hamburger (toggle du panneau de contrôles) ── */
+        #btnToggleControles {
+            width: 30px;
+            height: 30px;
+            background: #fff;
+            border-radius: 4px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            line-height: 1;
+            color: #333;
+            user-select: none;
+        }
+
+            #btnToggleControles:hover {
+                background: #f4f4f4;
+            }
+
+        /* ── Conteneur des contrôles repliables (zoom, recherche, boussole) ──
+           Replié par défaut : display:none. La classe "ouvert" l'affiche.
+           On le place dans un L.Control "vide" positionné topleft, donc il
+           suit naturellement le flux des autres contrôles Leaflet. */
+        #panneauControlesRepliable {
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+            #panneauControlesRepliable.ouvert {
+                display: flex;
+            }
+
+            /* Les contrôles Leaflet natifs (zoom, rotate, geosearch), une fois
+           déplacés dans notre panneau, n'ont plus besoin de leur propre
+           marge Leaflet (.leaflet-top .leaflet-control { margin: 10px ... }) */
+            #panneauControlesRepliable .leaflet-control {
+                margin: 0 !important;
+            }
     </style>
 </head>
 <body>
