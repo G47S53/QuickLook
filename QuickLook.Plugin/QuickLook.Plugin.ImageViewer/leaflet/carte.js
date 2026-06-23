@@ -74,8 +74,10 @@ function recentrerSurMarqueur() {
 }
 
 // ── Triangle FOV (champ de vision du panorama) ──
-// Taille fixe en pixels écran (indépendante du niveau de zoom de la carte), redessiné
-// à chaque zoom/déplacement pour garder cette taille visuelle constante.
+// Remplacement de L.polygon par un L.marker contenant un cône en SVG (L.divIcon).
+// Cela permet de conserver une taille fixe en pixels écran de manière structurelle.
+// Lors des zooms ou déplacements, Leaflet déplace le marqueur sans déformer le SVG,
+// éliminant l'effet de saut et évitant d'avoir à masquer le triangle !
 var fovTriangle = null;
 var fovEtat = null; 
 
@@ -87,42 +89,60 @@ function setFovTriangle(lat, lon, directionDeg, fovDeg, rayonPixels) {
 function redessinerFovTriangle() {
     if (fovEtat === null) return;
 
-    var pointeOrigine = map.latLngToContainerPoint([fovEtat.lat, fovEtat.lon]);
-    
+    var latLng = [fovEtat.lat, fovEtat.lon];
+    var r = fovEtat.rayonPixels;
+    var fov = fovEtat.fovDeg;
+
+    // 1. Calcul des coordonnées de l'arc de cercle SVG (centré vers le haut, à 0°)
+    var angleDebut = -fov / 2;
+    var angleFin = fov / 2;
+
+    var x1 = r + r * Math.sin(angleDebut * Math.PI / 180);
+    var y1 = r - r * Math.cos(angleDebut * Math.PI / 180);
+    var x2 = r + r * Math.sin(angleFin * Math.PI / 180);
+    var y2 = r - r * Math.cos(angleFin * Math.PI / 180);
+
+    // Large-arc-flag (0 pour un angle < 180°, ce qui est toujours le cas d'un FOV de panorama)
+    var largeArcFlag = fov > 180 ? 1 : 0;
+
+    // 2. Tracé du cône (un "camembert" pointant initialement vers le haut)
+    var pathD = `M ${r} ${r} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+
+    // 3. Gestion de la rotation (Cap de la photo + orientation éventuelle de la carte)
     var bearing = map.getBearing ? map.getBearing() : 0;
     
-    var directionEcran = fovEtat.directionDeg + bearing;
-    var angleDebut = directionEcran - fovEtat.fovDeg / 2;
-    var angleFin = directionEcran + fovEtat.fovDeg / 2;
-    
-    // Approximation de l'arc par des segments : plus nbSegments est grand, plus l'arc est lisse.
-    // 24 segments suffit largement pour un secteur de taille modeste (rayonPixels ~100).
-    var nbSegments = 24;
-    var points = [[fovEtat.lat, fovEtat.lon]];
+    // Note : Si votre plugin de rotation fait déjà pivoter nativement les marqueurs avec la carte,
+    // il vous suffira de retirer le bearing et de mettre : var rotationTotale = fovEtat.directionDeg;
+    var rotationTotale = fovEtat.directionDeg + bearing;
 
-    for (var i = 0; i <= nbSegments; i++) {
-        var angleDeg = angleDebut + (angleFin - angleDebut) * (i / nbSegments);
-        var angleRad = angleDeg * Math.PI / 180;
+    // Génération du contenu HTML avec le SVG inline et la rotation CSS
+    var svgHtml = `
+        <svg width="${r * 2}" height="${r * 2}" style="transform: rotate(${rotationTotale}deg); transform-origin: center; display: block;">
+            <path d="${pathD}" fill="#FF3B3B" fill-opacity="0.35" stroke="#FF3B3B" stroke-width="1" />
+        </svg>
+    `;
 
-        var pointPx = L.point(
-            pointeOrigine.x + fovEtat.rayonPixels * Math.sin(angleRad),
-            pointeOrigine.y - fovEtat.rayonPixels * Math.cos(angleRad)
-        );
-
-        points.push(map.containerPointToLatLng(pointPx));
-    }
-
+    // 4. Création ou mise à jour du marqueur Leaflet
     if (fovTriangle === null) {
-        fovTriangle = L.polygon(points, {
-            color: '#FF3B3B',
-            weight: 1,
-            fillColor: '#FF3B3B',
-            fillOpacity: 0.35,
-            interactive: false,
-            className: 'fov-triangle'
+        var fovIcon = L.divIcon({
+            html: svgHtml,
+            className: 'fov-marker-container',
+            iconSize: [r * 2, r * 2],
+            iconAnchor: [r, r] // Aligne le centre du SVG (r, r) sur les coordonnées GPS
+        });
+
+        fovTriangle = L.marker(latLng, {
+            icon: fovIcon,
+            interactive: false // Permet de cliquer à travers le triangle sans bloquer la carte
         }).addTo(map);
     } else {
-        fovTriangle.setLatLngs(points);
+        fovTriangle.setLatLng(latLng);
+        fovTriangle.setIcon(L.divIcon({
+            html: svgHtml,
+            className: 'fov-marker-container',
+            iconSize: [r * 2, r * 2],
+            iconAnchor: [r, r]
+        }));
     }
 }
 
@@ -134,27 +154,15 @@ function hideFovTriangle() {
     fovEtat = null;
 }
 
-map.on('zoom move rotate', redessinerFovTriangle);
+// ── Gestion des événements ──
+// Plus besoin d'écouter 'zoom' et 'move' pour recalculer le tracé, le L.marker suit la carte nativement !
+// On écoute uniquement 'rotate' pour réorienter le cône SVG si la boussole ou la carte tourne.
+map.on('rotate', redessinerFovTriangle);
 
-// Pendant l'animation de zoom, la position pixel du triangle calculée par
-// latLngToContainerPoint() ne suit pas exactement la transition visuelle de la carte,
-// ce qui crée un effet de saut visible à la fin du zoom. On masque donc le triangle
-// (simple opacité, pas de removeLayer — léger, aucun rechargement) pendant la transition,
-// et on le réaffiche une fois la carte stabilisée, repositionné correctement.
-map.on('zoomstart', function () {
-    if (fovTriangle !== null) {
-        fovTriangle.setStyle({ opacity: 0, fillOpacity: 0 });
-    }
-});
-
+// Nettoyage et préservation du correctif matériel de focus
 map.on('zoomend', function () {
     // 🕹️ CORRECTIF SPACEMOUSE : Redonne le focus à QuickLook dès que le zoom se termine
     window.chrome.webview.postMessage({ type: 'restore_focus' });
-
-    if (fovTriangle !== null) {
-        redessinerFovTriangle();
-        fovTriangle.setStyle({ opacity: 1, fillOpacity: 0.35 });
-    }
 });
 
 // 🕹️ CORRECTIF SPACEMOUSE : Redonne le focus à QuickLook dès qu'on relâche un clic GAUCHE ou un drag
