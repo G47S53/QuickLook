@@ -89,6 +89,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private static readonly HttpClient _httpClientGeocodage = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
         private CancellationTokenSource _ctsGeocodage;
         private string _dernierePositionGeocodee;
+        private double _largeurPanneauPositionInfo = 220;                  // Largeur réelle du Border pnlPositionInfo, recalculée via FormattedText à chaque changement de texte (évite tout Measure()/layout pass pendant le drag)
 
         private double _dernierClicCarteLat;
         private double _dernierClicCarteLon;
@@ -2822,20 +2823,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             PositionnerPanneauPositionInfo();
         }
         private void PositionnerPanneauPositionInfo()
+        // Repositionne pnlPositionInfo pour qu'il reste centré horizontalement au-dessus de
+        // pnlMapContainer, et colle juste au-dessus de son bord supérieur.
+        //
+        // N'utilise ni Measure()/DesiredSize ni TranslatePoint : ces deux approches forcent un passe de
+        // layout qui entre en conflit avec le HwndHost du WebView2 pendant ThumbResizeMap_DragDelta
+        // (clignotement/décalage). La largeur réelle du panneau (_largeurPanneauPositionInfo) est calculée
+        // à part, via FormattedText, uniquement quand le texte change (cf CalculerLargeurTexteLocalisation),
+        // PAS à chaque repositionnement. Ici on ne fait plus que de l'arithmétique pure.
         {
-            // Repositionne pnlPositionInfo pour qu'il reste centré horizontalement au-dessus de
-            // pnlMapContainer, et colle juste au-dessus de son bord supérieur.
-            //
-            // Volontairement calculé à la main (sans Measure/TranslatePoint) : pnlMapContainer est ancré en
-            // bas-droite via Margin="0,0,30,90" (cf XAML), donc sa position peut se déduire directement de
-            // ActualWidth/ActualHeight + Width/Height, sans solliciter un layout pass WPF. C'est important car
-            // cette méthode est appelée en rafale pendant ThumbResizeMap_DragDelta : forcer un layout pass à
-            // chaque appel (ce que fait TranslatePoint) entre en conflit avec le HwndHost du WebView2 et
-            // provoque un clignotement / décalage transitoire pendant le drag.
             const double margeDroiteCarte = 30;   // Doit correspondre au Margin droit de pnlMapContainer
             const double margeBasCarte = 90;      // Doit correspondre au Margin bas de pnlMapContainer
             const double espacementVertical = 8;  // Espace entre le bas de pnlPositionInfo et le haut de la carte
-            const double hauteurPanneauInfo = 30;  // Hauteur fixe approximative du panneau (Padding 12,6 + texte ~12px)
+            const double hauteurPanneauInfo = 33; // Hauteur réelle approximative (Padding 6+6 vertical + texte ~21px de haut)
 
             double bordDroitCarte = this.ActualWidth - margeDroiteCarte;
             double bordGaucheCarte = bordDroitCarte - pnlMapContainer.Width;
@@ -2843,10 +2843,44 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             double bordHautCarte = this.ActualHeight - margeBasCarte - pnlMapContainer.Height;
 
-            double marginLeft = centreCarteX - (pnlPositionInfo.Width / 2);
+            double marginLeft = centreCarteX - (_largeurPanneauPositionInfo / 2);
             double marginTop = bordHautCarte - hauteurPanneauInfo - espacementVertical;
 
+            pnlPositionInfo.Width = _largeurPanneauPositionInfo;
             pnlPositionInfo.Margin = new Thickness(marginLeft, marginTop, 0, 0);
+        }
+        private void MettreAJourLargeurPanneauPositionInfo(string texte)
+        {
+            // Calcule la largeur réelle nécessaire pour afficher `texte` avec la police/taille de txtPositionInfo,
+            // via FormattedText : contrairement à Measure()/DesiredSize, cela ne touche pas à l'arbre visuel et
+            // ne déclenche aucun passe de layout (donc aucun risque de conflit avec le HwndHost du WebView2).
+            // Le résultat est mis en cache dans _largeurPanneauPositionInfo, et le panneau est repositionné
+            // immédiatement avec la nouvelle largeur.
+
+            txtPositionInfo.Text = texte;
+
+            const double largeurMax = 320;       // Largeur max avant troncature du texte (au-delà, CharacterEllipsis prendrait le relais visuellement)
+            const double largeurMin = 130;       // Largeur min pour ne pas avoir un panneau trop étroit avec un texte court ("Paris")
+            const double largeurIcone = 19;       // Largeur de l'emoji 📍 + son Margin droit (FontSize 13 + 6)
+            const double largeurPadding = 36;     // Padding="12,6" du Border : 12 de chaque côté (24 au début, mais trop court)
+
+            var typeface = new Typeface(txtPositionInfo.FontFamily, txtPositionInfo.FontStyle, txtPositionInfo.FontWeight, txtPositionInfo.FontStretch);
+
+            var formattedText = new FormattedText(
+                texte,
+                System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                typeface,
+                txtPositionInfo.FontSize,
+                Brushes.Black,
+                VisualTreeHelper.GetDpi(this).PixelsPerDip);
+
+            double largeurTexte = formattedText.WidthIncludingTrailingWhitespace;
+            double largeurSouhaitee = largeurTexte + largeurIcone + largeurPadding;
+
+            _largeurPanneauPositionInfo = Math.Max(largeurMin, Math.Min(largeurMax, largeurSouhaitee));
+
+            PositionnerPanneauPositionInfo();
         }
         private double CalculerHauteurMaxFenetre()
         {
@@ -3013,7 +3047,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (!aDesCoordonnees)
             {
-                txtPositionInfo.Text = "Localisation inconnue";
+                MettreAJourLargeurPanneauPositionInfo("Localisation inconnue");
                 _dernierePositionGeocodee = null;
                 return;
             }
@@ -3043,7 +3077,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             var cts = new CancellationTokenSource();
             _ctsGeocodage = cts;
 
-            txtPositionInfo.Text = "Localisation…";
+            MettreAJourLargeurPanneauPositionInfo("Localisation…");
             PositionnerPanneauPositionInfo();
 
             try
@@ -3077,7 +3111,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         else
                             texte = "Localisation inconnue";
 
-                        txtPositionInfo.Text = texte;
+                        MettreAJourLargeurPanneauPositionInfo(texte);
                         _dernierePositionGeocodee = clePosition;
                     }
                 }
@@ -3090,7 +3124,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 System.Diagnostics.Debug.WriteLine($"[Géocodage] Erreur Nominatim : {ex.GetType().Name} - {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"[Géocodage] InnerException : {ex.InnerException?.GetType().Name} - {ex.InnerException?.Message}");
-                txtPositionInfo.Text = "Localisation indisponible";
+                MettreAJourLargeurPanneauPositionInfo("Localisation indisponible");
             }
             finally
             {
