@@ -2190,9 +2190,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             btnAutoRotate.IsEnabled = false;
         }
-        // ─────────────────────────────────────────────────────────────────────
-        // Logique de détection d'inactivité et de préchargement
-        // ─────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────────────────────────
+        // Logique de détection d'inactivité et de préchargement des panoramas suivants (previous/next)
+        // ─────────────────────────────────────────────────────────────────────────────────────────────
         private async void OnIdleTimerTick(object sender, EventArgs e)
         {
             // Vérification stricte : aucun mouvement utilisateur, aucun mode auto, et vitesse à zéro
@@ -2798,19 +2798,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             e.Handled = true;
         }
         private void Pano360Panel_SizeChanged(object sender, SizeChangedEventArgs e)
-        // Se déclenche notamment lors du basculement plein écran (clic droit) ou si la fenêtre QuickLook
-        // est redimensionnée. Si le panneau carte est ouvert et devient trop grand pour la nouvelle taille
-        // disponible, on le re-contraint pour que la poignée de redimensionnement reste toujours accessible.
         {
+            // Se déclenche notamment lors du basculement plein écran (clic droit) ou si la fenêtre QuickLook
+            // est redimensionnée. Si le panneau carte est ouvert et devient trop grand pour la nouvelle taille
+            // disponible, on le re-contraint pour que la poignée de redimensionnement reste toujours accessible.
             if (!_isMapPanelVisible) return;
 
             ContraindreTailleMap();
         }
         private void ContraindreTailleMap()
-        // Calcule les limites actuelles (haut de fenêtre / barre de notation) et ramène Width/Height
-        // de pnlMapContainer dans ces bornes si nécessaire. Appelée à la fois pendant le drag de
-        // redimensionnement et lors d'un changement de taille de la fenêtre (plein écran, etc.).
         {
+            // Calcule les limites actuelles (haut de fenêtre / barre de notation) et ramène Width/Height
+            // de pnlMapContainer dans ces bornes si nécessaire. Appelée à la fois pendant le drag de
+            // redimensionnement et lors d'un changement de taille de la fenêtre (plein écran, etc.).
             double hauteurMax = CalculerHauteurMaxFenetre();
             double largeurMax = CalculerLargeurMaxAvantRating(margeDroiteFixe: 30);
 
@@ -2823,15 +2823,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             PositionnerPanneauPositionInfo();
         }
         private void PositionnerPanneauPositionInfo()
-        // Repositionne pnlPositionInfo pour qu'il reste centré horizontalement au-dessus de
-        // pnlMapContainer, et colle juste au-dessus de son bord supérieur.
-        //
-        // N'utilise ni Measure()/DesiredSize ni TranslatePoint : ces deux approches forcent un passe de
-        // layout qui entre en conflit avec le HwndHost du WebView2 pendant ThumbResizeMap_DragDelta
-        // (clignotement/décalage). La largeur réelle du panneau (_largeurPanneauPositionInfo) est calculée
-        // à part, via FormattedText, uniquement quand le texte change (cf CalculerLargeurTexteLocalisation),
-        // PAS à chaque repositionnement. Ici on ne fait plus que de l'arithmétique pure.
         {
+            // Repositionne pnlPositionInfo pour qu'il reste centré horizontalement au-dessus de
+            // pnlMapContainer, et colle juste au-dessus de son bord supérieur.
+            //
+            // N'utilise ni Measure()/DesiredSize ni TranslatePoint : ces deux approches forcent un passe de
+            // layout qui entre en conflit avec le HwndHost du WebView2 pendant ThumbResizeMap_DragDelta
+            // (clignotement/décalage). La largeur réelle du panneau (_largeurPanneauPositionInfo) est calculée
+            // à part, via FormattedText, uniquement quand le texte change (cf CalculerLargeurTexteLocalisation),
+            // PAS à chaque repositionnement. Ici on ne fait plus que de l'arithmétique pure.
+
             const double margeDroiteCarte = 30;   // Doit correspondre au Margin droit de pnlMapContainer
             const double margeBasCarte = 90;      // Doit correspondre au Margin bas de pnlMapContainer
             const double espacementVertical = 8;  // Espace entre le bas de pnlPositionInfo et le haut de la carte
@@ -2859,10 +2860,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             txtPositionInfo.Text = texte;
 
-            const double largeurMax = 320;       // Largeur max avant troncature du texte (au-delà, CharacterEllipsis prendrait le relais visuellement)
-            const double largeurMin = 130;       // Largeur min pour ne pas avoir un panneau trop étroit avec un texte court ("Paris")
-            const double largeurIcone = 19;       // Largeur de l'emoji 📍 + son Margin droit (FontSize 13 + 6)
-            const double largeurPadding = 36;     // Padding="12,6" du Border : 12 de chaque côté (24 au début, mais trop court)
+            const double largeurMax = 320;        // Largeur max avant troncature du texte (au-delà, CharacterEllipsis prendrait le relais visuellement)
+            const double largeurMin = 130;        // Largeur min pour ne pas avoir un panneau trop étroit avec un texte court ("Paris")
+            const double largeurIcone = 21;       // Marge gauche, Largeur de l'emoji 📍 + son Margin droit 
+            const double largeurPadding = 38;     // Marge droite, Padding="12,6" du Border : 12 de chaque côté (24 au début, mais trop court)
 
             var typeface = new Typeface(txtPositionInfo.FontFamily, txtPositionInfo.FontStyle, txtPositionInfo.FontWeight, txtPositionInfo.FontStretch);
 

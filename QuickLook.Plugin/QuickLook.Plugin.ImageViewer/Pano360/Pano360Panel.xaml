@@ -845,8 +845,8 @@
                 Visibility="Collapsed"
                 IsHitTestVisible="False">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                <TextBlock Text="📍" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                <TextBlock x:Name="txtPositionInfo" Text="Localisation…" Foreground="White" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <TextBlock Text="📍" FontSize="15" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBlock x:Name="txtPositionInfo" Text="Localisation…" Foreground="White" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
             </StackPanel>
         </Border>
 
