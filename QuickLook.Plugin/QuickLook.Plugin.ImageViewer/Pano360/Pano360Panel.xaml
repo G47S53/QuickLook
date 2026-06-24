@@ -831,6 +831,25 @@
             </Button.Style>
         </Button>
 
+        <!-- ── Panneau Pays/Ville (au-dessus de la carte) ──────────── -->
+        <Border x:Name="pnlPositionInfo"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Width="220"
+                Background="#702E2E2E"
+                CornerRadius="8"
+                BorderBrush="#30FFFFFF"
+                BorderThickness="1"
+                Padding="12,6"
+                Opacity="0"
+                Visibility="Collapsed"
+                IsHitTestVisible="False">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <TextBlock Text="📍" FontSize="13" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                <TextBlock x:Name="txtPositionInfo" Text="Localisation…" Foreground="White" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Border>
+
         <!-- ── Panneau Carte GPS ──────────── -->
         <Grid x:Name="pnlMapContainer"
                 HorizontalAlignment="Right"

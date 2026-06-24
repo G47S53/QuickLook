@@ -21,6 +21,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -82,6 +83,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private const double LargeurMinMap = 370;
         private const double HauteurMinMap = 280;
+
+        private const double HauteurPanneauPositionInfo = 40;
+
+        private static readonly HttpClient _httpClientGeocodage = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+        private CancellationTokenSource _ctsGeocodage;
+        private string _dernierePositionGeocodee;
 
         private double _dernierClicCarteLat;
         private double _dernierClicCarteLon;
@@ -279,6 +286,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         public Pano360Panel(QuickLook.Common.Plugin.ContextObject context, string imagePath)
         {
+            // ── -1. Forcer TLS 1.2 pour les appels HTTP sortants (ex: géocodage Nominatim) ──
+            // Sur .NET Framework, le protocole TLS par défaut négocié par ServicePointManager peut être
+            // trop ancien (SSL3/TLS1.0/1.1) selon la config système, ce que des serveurs comme Nominatim
+            // refusent silencieusement (l'erreur remontée côté client est un HttpRequestException générique,
+            // sans détail). On force explicitement TLS 1.2 (et 1.3 si dispo) avant tout appel HttpClient.
+            try
+            {
+                // Tls13 n'existe pas dans toutes les versions du framework cible : on retombe sur Tls12 seul.
+                System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls12;
+            }
+            catch
+            {
+
+            }
+
             // ── 0. Optimisation système ──
             try
             {
@@ -2729,6 +2751,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8000AAFF"));
                 pnlMapContainer.Visibility = Visibility.Visible;
                 pnlHeadingControl.Visibility = Visibility.Visible;
+                pnlPositionInfo.Visibility = Visibility.Visible;
+                pnlPositionInfo.Opacity = 1;
+
+                PositionnerPanneauPositionInfo();
 
                 _ = AssurerCarteInitialiseeAsync();
                 AfficherPositionSurCarte(_currentMetadata?.GpsLatitude, _currentMetadata?.GpsLongitude);
@@ -2739,6 +2765,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#73000000"));
                 pnlMapContainer.Visibility = Visibility.Collapsed;
                 pnlHeadingControl.Visibility = Visibility.Collapsed;
+                pnlPositionInfo.Visibility = Visibility.Collapsed;
+                pnlPositionInfo.Opacity = 0;
             }
         }
         private void SliderHeading_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -2764,6 +2792,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             pnlMapContainer.Width = Math.Max(LargeurMinMap, Math.Min(largeurMax, nouvelleLargeur));
             pnlMapContainer.Height = Math.Max(HauteurMinMap, Math.Min(hauteurMax, nouvelleHauteur));
 
+            PositionnerPanneauPositionInfo();
+
             e.Handled = true;
         }
         private void Pano360Panel_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -2788,11 +2818,40 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (pnlMapContainer.Height > hauteurMax)
                 pnlMapContainer.Height = Math.Max(HauteurMinMap, hauteurMax);
+
+            PositionnerPanneauPositionInfo();
+        }
+        private void PositionnerPanneauPositionInfo()
+        {
+            // Repositionne pnlPositionInfo pour qu'il reste centré horizontalement au-dessus de
+            // pnlMapContainer, et colle juste au-dessus de son bord supérieur.
+            //
+            // Volontairement calculé à la main (sans Measure/TranslatePoint) : pnlMapContainer est ancré en
+            // bas-droite via Margin="0,0,30,90" (cf XAML), donc sa position peut se déduire directement de
+            // ActualWidth/ActualHeight + Width/Height, sans solliciter un layout pass WPF. C'est important car
+            // cette méthode est appelée en rafale pendant ThumbResizeMap_DragDelta : forcer un layout pass à
+            // chaque appel (ce que fait TranslatePoint) entre en conflit avec le HwndHost du WebView2 et
+            // provoque un clignotement / décalage transitoire pendant le drag.
+            const double margeDroiteCarte = 30;   // Doit correspondre au Margin droit de pnlMapContainer
+            const double margeBasCarte = 90;      // Doit correspondre au Margin bas de pnlMapContainer
+            const double espacementVertical = 8;  // Espace entre le bas de pnlPositionInfo et le haut de la carte
+            const double hauteurPanneauInfo = 30;  // Hauteur fixe approximative du panneau (Padding 12,6 + texte ~12px)
+
+            double bordDroitCarte = this.ActualWidth - margeDroiteCarte;
+            double bordGaucheCarte = bordDroitCarte - pnlMapContainer.Width;
+            double centreCarteX = bordGaucheCarte + (pnlMapContainer.Width / 2);
+
+            double bordHautCarte = this.ActualHeight - margeBasCarte - pnlMapContainer.Height;
+
+            double marginLeft = centreCarteX - (pnlPositionInfo.Width / 2);
+            double marginTop = bordHautCarte - hauteurPanneauInfo - espacementVertical;
+
+            pnlPositionInfo.Margin = new Thickness(marginLeft, marginTop, 0, 0);
         }
         private double CalculerHauteurMaxFenetre()
         {
             const double margeBasFixe = 70;   // doit correspondre au Margin bas de pnlMapContainer
-            const double margeHautMin = 70;
+            const double margeHautMin = 70 + HauteurPanneauPositionInfo;  // + place réservée pour pnlPositionInfo au-dessus de la carte
             return this.ActualHeight - margeBasFixe - margeHautMin;
         }
         private double CalculerLargeurMaxAvantRating(double margeDroiteFixe)
@@ -2952,7 +3011,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             webViewMap.Visibility = aDesCoordonnees ? Visibility.Visible : Visibility.Collapsed;
             bdNoGps.Visibility = aDesCoordonnees ? Visibility.Collapsed : Visibility.Visible;
 
-            if (!aDesCoordonnees) return;
+            if (!aDesCoordonnees)
+            {
+                txtPositionInfo.Text = "Localisation inconnue";
+                _dernierePositionGeocodee = null;
+                return;
+            }
 
             if (_isMapWebViewReady)
                 _ = DeplacerMarqueurAsync(lat, lon);
@@ -2963,6 +3027,95 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 _pendingMapLat = lat;
                 _pendingMapLon = lon;
             }
+
+            _ = MettreAJourLocalisationTexteAsync(lat, lon);
+        }
+        private async Task MettreAJourLocalisationTexteAsync(double lat, double lon)
+        {
+            // Résout pays + ville via géocodage inverse (Nominatim/OSM) et met à jour txtPositionInfo.
+            // Repositionne le panneau après coup car son contenu (donc sa largeur) change.
+            string clePosition = lat.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)
+                + "," + lon.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
+
+            if (clePosition == _dernierePositionGeocodee) return;   // Évite un appel réseau si la position n'a pas vraiment changé
+
+            _ctsGeocodage?.Cancel();
+            var cts = new CancellationTokenSource();
+            _ctsGeocodage = cts;
+
+            txtPositionInfo.Text = "Localisation…";
+            PositionnerPanneauPositionInfo();
+
+            try
+            {
+                string url = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={0}&lon={1}&zoom=10&accept-language=fr",
+                    lat, lon);
+
+                using (var requete = new HttpRequestMessage(HttpMethod.Get, url))
+                {
+                    // User-Agent personnalisé requis par la politique d'usage de Nominatim
+                    // (https://operations.osmfoundation.org/policies/nominatim/).
+                    requete.Headers.UserAgent.ParseAdd("Pano360Panel/1.0 (QuickLook plugin)");
+
+                    using (var reponse = await _httpClientGeocodage.SendAsync(requete, cts.Token))
+                    {
+                        reponse.EnsureSuccessStatusCode();
+                        string json = await reponse.Content.ReadAsStringAsync();
+
+                        if (cts.IsCancellationRequested) return;
+
+                        var resultat = JsonConvert.DeserializeObject<NominatimReverseResult>(json);
+                        string ville = resultat?.Address?.City ?? resultat?.Address?.Town ?? resultat?.Address?.Village ?? resultat?.Address?.Municipality;
+                        string pays = resultat?.Address?.Country;
+
+                        string texte;
+                        if (!string.IsNullOrEmpty(ville) && !string.IsNullOrEmpty(pays))
+                            texte = $"{ville}, {pays}";
+                        else if (!string.IsNullOrEmpty(pays))
+                            texte = pays;
+                        else
+                            texte = "Localisation inconnue";
+
+                        txtPositionInfo.Text = texte;
+                        _dernierePositionGeocodee = clePosition;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Requête annulée car une position plus récente est arrivée : on ne touche pas au texte.
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Géocodage] Erreur Nominatim : {ex.GetType().Name} - {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[Géocodage] InnerException : {ex.InnerException?.GetType().Name} - {ex.InnerException?.Message}");
+                txtPositionInfo.Text = "Localisation indisponible";
+            }
+            finally
+            {
+                if (ReferenceEquals(_ctsGeocodage, cts))
+                    PositionnerPanneauPositionInfo();
+            }
+        }
+        private class NominatimReverseResult
+        {
+            // ── Modèles minimalistes pour désérialiser la réponse JSON de Nominatim (reverse geocoding) ────
+            [JsonProperty("address")]
+            public NominatimAddress Address { get; set; }
+        }
+        private class NominatimAddress
+        {
+            [JsonProperty("city")]
+            public string City { get; set; }
+            [JsonProperty("town")]
+            public string Town { get; set; }
+            [JsonProperty("village")]
+            public string Village { get; set; }
+            [JsonProperty("municipality")]
+            public string Municipality { get; set; }
+            [JsonProperty("country")]
+            public string Country { get; set; }
         }
         private static bool TryParseGps(string value, out double result)
         {
