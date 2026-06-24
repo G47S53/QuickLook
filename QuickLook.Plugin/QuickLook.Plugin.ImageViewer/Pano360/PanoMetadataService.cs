@@ -28,7 +28,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // Orientation du panorama (XMP GPano, standard Google Photo Sphere) : cap compass
         // en degrés, 0=Nord, sens horaire, pour le centre de l'image. null si absent du fichier.
         public double? PoseHeadingDegrees { get; set; }
-
+        // Niveau de zoom Leaflet de la carte GPS (panneau pnlMapContainer), mémorisé par photo pour
+        // retrouver le même cadrage au prochain visionnage (ex: zoom serré pour l'intérieur d'une
+        // cathédrale, zoom large pour Monument Valley). Namespace XMP personnalisé, propre à ce plugin.
+        public int? MapZoomLevel { get; set; }
         // Dictionnaire évolutif pour stocker d'autres propriétés à la volée
         public Dictionary<string, object> CustomTags { get; set; } = new Dictionary<string, object>();
     }
@@ -137,6 +140,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                         // ──── 4. Lecture de l'orientation du panorama (XMP GPano, standard Google Photo Sphere) ────
                         TentativeLecturePoseHeadingDegrees(bitmapMetadata, data);
+
+                        // ──── 5. Lecture du niveau de zoom de la carte (XMP namespace personnalisé) ────
+                        TentativeLectureMapZoomLevel(bitmapMetadata, data);
                     }
                 }
             }
@@ -261,6 +267,27 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             catch (Exception ex)
                             {
                                 System.Diagnostics.Debug.WriteLine($"[Metadata] Échec écriture PoseHeadingDegrees : {ex.Message}");
+                            }
+                        }
+
+                        // Niveau de zoom de la carte GPS (namespace XMP personnalisé à ce plugin).
+                        if (data.MapZoomLevel.HasValue)
+                        {
+                            try
+                            {
+                                if (!metadataClone.ContainsQuery("/xmp"))
+                                {
+                                    metadataClone.SetQuery("/xmp", new BitmapMetadata("xmp"));
+                                }
+
+                                metadataClone.SetQuery(Pano360PanelNamespace + ":MapZoomLevel",
+                                    data.MapZoomLevel.Value.ToString(CultureInfo.InvariantCulture));
+
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] MapZoomLevel écrit : {data.MapZoomLevel.Value}");
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] Échec écriture MapZoomLevel : {ex.Message}");
                             }
                         }
 
@@ -432,6 +459,32 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
             System.Diagnostics.Debug.WriteLine($"[Metadata] PoseHeadingDegrees : {data.PoseHeadingDegrees}");
         }
+        // ─────────────────────────────────────────────────────────────────────
+        // LECTURE ZOOM CARTE — XMP namespace personnalisé (pano360panel:MapZoomLevel)
+        // ─────────────────────────────────────────────────────────────────────
+        // Champ propre à ce plugin (pas un standard externe comme GPano) : niveau de zoom Leaflet
+        // (entier, typiquement 1 à 19) appliqué à pnlMapContainer pour cette photo.
+        private static void TentativeLectureMapZoomLevel(BitmapMetadata bitmapMetadata, PanoMetadata data)
+        {
+            try
+            {
+                var raw = bitmapMetadata.GetQuery(Pano360PanelNamespace + ":MapZoomLevel");
+
+                if (raw != null && int.TryParse(raw.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int zoom))
+                {
+                    data.MapZoomLevel = zoom;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur de lecture MapZoomLevel : {ex.Message}");
+            }
+            System.Diagnostics.Debug.WriteLine($"[Metadata] MapZoomLevel : {data.MapZoomLevel}");
+        }
+        // Namespace XMP personnalisé pour les données propres à ce plugin (pas un standard externe).
+        // URI arbitraire mais stable : sert uniquement de clé d'identification unique, n'a pas besoin
+        // de pointer vers une page web réelle.
+        private const string Pano360PanelNamespace = "/xmp/http\\:\\/\\/www.pano360panel.local\\/ns\\/1.0\\/";
         // ─────────────────────────────────────────────────────────────────────
         // HELPERS GPS
         // ─────────────────────────────────────────────────────────────────────
