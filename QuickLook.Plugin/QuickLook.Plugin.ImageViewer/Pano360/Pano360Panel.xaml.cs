@@ -86,6 +86,24 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private const double HauteurPanneauPositionInfo = 40;
 
+        private class NominatimAddress
+        {
+            [JsonProperty("city")]
+            public string City { get; set; }
+            [JsonProperty("town")]
+            public string Town { get; set; }
+            [JsonProperty("village")]
+            public string Village { get; set; }
+            [JsonProperty("municipality")]
+            public string Municipality { get; set; }
+            [JsonProperty("country")]
+            public string Country { get; set; }
+            [JsonProperty("state")]
+            public string State { get; set; }
+            [JsonProperty("county")]
+            public string Comte { get; set; }
+        }
+
         private static readonly HttpClient _httpClientGeocodage = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
         private CancellationTokenSource _ctsGeocodage;
         private string _dernierePositionGeocodee;
@@ -2737,6 +2755,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // Panneau Carte GPS (WebView2 + Leaflet/OSM)
         // ─────────────────────────────────────────────────────────────────────
+        // ─────────────────────── Evenements ──────────────────────────────────
         private void BtnToggleMap_Click(object sender, RoutedEventArgs e)
         {
             _isMapPanelVisible = !_isMapPanelVisible;   // bascule on/off
@@ -2744,31 +2763,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             AffichagePanneauMap();
 
             e.Handled = true;
-        }
-        private void AffichagePanneauMap()
-        {
-            if (_isMapPanelVisible)
-            {
-                btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8000AAFF"));
-                pnlMapContainer.Visibility = Visibility.Visible;
-                pnlHeadingControl.Visibility = Visibility.Visible;
-                pnlPositionInfo.Visibility = Visibility.Visible;
-                pnlPositionInfo.Opacity = 1;
-
-                PositionnerPanneauPositionInfo();
-
-                _ = AssurerCarteInitialiseeAsync();
-                AfficherPositionSurCarte(_currentMetadata?.GpsLatitude, _currentMetadata?.GpsLongitude);
-                _ = MettreAJourFovSurCarte();
-            }
-            else
-            {
-                btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#73000000"));
-                pnlMapContainer.Visibility = Visibility.Collapsed;
-                pnlHeadingControl.Visibility = Visibility.Collapsed;
-                pnlPositionInfo.Visibility = Visibility.Collapsed;
-                pnlPositionInfo.Opacity = 0;
-            }
         }
         private void SliderHeading_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
@@ -2797,30 +2791,321 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             e.Handled = true;
         }
-        private void Pano360Panel_SizeChanged(object sender, SizeChangedEventArgs e)
+        // ────────────────── Creation de la carte ─────────────────────────────
+        private void AffichagePanneauMap()
         {
-            // Se déclenche notamment lors du basculement plein écran (clic droit) ou si la fenêtre QuickLook
-            // est redimensionnée. Si le panneau carte est ouvert et devient trop grand pour la nouvelle taille
-            // disponible, on le re-contraint pour que la poignée de redimensionnement reste toujours accessible.
-            if (!_isMapPanelVisible) return;
+            if (_isMapPanelVisible)
+            {
+                btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#8000AAFF"));
+                pnlMapContainer.Visibility = Visibility.Visible;
+                pnlHeadingControl.Visibility = Visibility.Visible;
+                pnlPositionInfo.Visibility = Visibility.Visible;
+                pnlPositionInfo.Opacity = 1;
 
-            ContraindreTailleMap();
+                PositionnerPanneauPositionInfo();
+
+                _ = AssurerCarteInitialiseeAsync();
+                AfficherPositionSurCarte(_currentMetadata?.GpsLatitude, _currentMetadata?.GpsLongitude);
+                _ = MettreAJourFovSurCarte();
+            }
+            else
+            {
+                btnToggleMap.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#73000000"));
+                pnlMapContainer.Visibility = Visibility.Collapsed;
+                pnlHeadingControl.Visibility = Visibility.Collapsed;
+                pnlPositionInfo.Visibility = Visibility.Collapsed;
+                pnlPositionInfo.Opacity = 0;
+            }
         }
-        private void ContraindreTailleMap()
+        private void WebViewMap_WebMessageReceived(object sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs e)
         {
-            // Calcule les limites actuelles (haut de fenêtre / barre de notation) et ramène Width/Height
-            // de pnlMapContainer dans ces bornes si nécessaire. Appelée à la fois pendant le drag de
-            // redimensionnement et lors d'un changement de taille de la fenêtre (plein écran, etc.).
-            double hauteurMax = CalculerHauteurMaxFenetre();
-            double largeurMax = CalculerLargeurMaxAvantRating(margeDroiteFixe: 30);
+            try
+            {
+                string json = e.WebMessageAsJson;
+                if (string.IsNullOrWhiteSpace(json)) return;
 
-            if (pnlMapContainer.Width > largeurMax)
-                pnlMapContainer.Width = Math.Max(LargeurMinMap, largeurMax);
+                // 🛠️ CORRECTIF ROBUSTESSE : Si le JS a utilisé JSON.stringify(), le message arrive 
+                // sous forme de chaîne de texte JSON. On la désérialise une première fois pour avoir le JSON brut.
+                if (json.StartsWith("\""))
+                {
+                    json = JsonConvert.DeserializeObject<string>(json);
+                }
 
-            if (pnlMapContainer.Height > hauteurMax)
-                pnlMapContainer.Height = Math.Max(HauteurMinMap, hauteurMax);
+                // 🛠️ // Désérialisation principale en dictionnaire : On utilise <string, object> pour accepter les coordonnées numériques
+                var msg = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
+                if (msg == null) return;
 
+                // On extrait l'action (gère à la fois la clé "action" ou la clé "type" de ton clic droit)
+                string commande = null;
+                if (msg.TryGetValue("action", out object act) && act != null) commande = act.ToString();
+                else if (msg.TryGetValue("type", out object t) && t != null) commande = t.ToString();
+
+                if (commande == "restore_focus")
+                {
+                    // Forcer l'exécution sur le thread UI de WPF
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        // 1. Focus logique WPF
+                        viewport3D.Focus();
+
+                        // 2. Arrachement du focus natif Windows (Win32) à la WebView2
+                        var window = Window.GetWindow(this);
+                        if (window != null)
+                        {
+                            var helper = new WindowInteropHelper(window);
+                            if (helper.Handle != IntPtr.Zero)
+                            {
+                                SetFocus(helper.Handle);
+                            }
+                        }
+                    });
+                }
+                else if (commande == "contextmenu")
+                {
+                    // CODE DU CLIC DROIT
+                    double lat = Convert.ToDouble(msg["lat"]);
+                    double lon = Convert.ToDouble(msg["lon"]);
+                    int x = Convert.ToInt32(msg["containerX"]);
+                    int y = Convert.ToInt32(msg["containerY"]);
+
+                    AfficherMenuContextuelCarte(lat, lon, x, y);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Erreur WebView Message: {ex.Message}");
+            }
+        }
+        private async Task AssurerCarteInitialiseeAsync()
+        {
+            if (_isMapWebViewReady) return;
+
+            try
+            {
+                await webViewMap.EnsureCoreWebView2Async(null);
+
+                // On désactive le menu contextuel natif de Chromium (Enregistrer sous, Imprimer, Inspecter, ...)
+                // pour le remplacer par notre propre ContextMenu WPF.
+                webViewMap.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+                webViewMap.CoreWebView2.Settings.IsStatusBarEnabled = false;
+                webViewMap.CoreWebView2.WebMessageReceived += WebViewMap_WebMessageReceived;
+
+                string dossierLeaflet = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "leaflet");
+
+                if (dossierLeaflet == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("[Carte GPS] Dossier Leaflet introuvable. " +
+                        "Vérifiez que le dossier 'leaflet' (leaflet.js/leaflet.css/images) est bien copié " +
+                        "dans le répertoire de sortie du build (Copy to Output Directory).");
+                    return;
+                }
+
+                webViewMap.CoreWebView2.SetVirtualHostNameToFolderMapping("pano360-app.local", dossierLeaflet, CoreWebView2HostResourceAccessKind.Allow);
+
+                webViewMap.CoreWebView2.Navigate("https://pano360-app.local/carte.html");
+
+                // On attend la fin du chargement de la page avant de pouvoir appeler du JS (ex: déplacer le marqueur)
+                void OnNavCompleted(object s, CoreWebView2NavigationCompletedEventArgs e)
+                {
+                    webViewMap.CoreWebView2.NavigationCompleted -= OnNavCompleted;
+                    _isMapWebViewReady = true;
+
+                    btnToggleMap.Visibility = Visibility.Visible;
+                    var sbIn = (Storyboard)btnToggleMap.Resources["FadeInbtnToggleMap"];
+                    sbIn.Begin();
+
+                    if (_pendingMapLat.HasValue && _pendingMapLon.HasValue)
+                    {
+                        _ = DeplacerMarqueurAsync(_pendingMapLat.Value, _pendingMapLon.Value);
+                        _pendingMapLat = null;
+                        _pendingMapLon = null;
+                    }
+                }
+                webViewMap.CoreWebView2.NavigationCompleted += OnNavCompleted;
+            }
+            catch (Exception ex)
+            {
+                // Cas typique : WebView2 Runtime non installé sur la machine, ou package NuGet manquant à l'exécution
+                System.Diagnostics.Debug.WriteLine($"Erreur d'initialisation WebView2 (carte GPS) : {ex.Message}");
+            }
+        }
+        private void DefinirPositionGpsPhoto(double lat, double lon)
+        {
+            // Met à jour les coordonnées GPS du panorama en cours et marque les métadonnées comme
+            // modifiées : la sauvegarde effective est différée et gérée par le mécanisme existant
+            // (_isMetaChanging + SauvegardeMeta()).
+            if (_currentMetadata == null) return;
+
+            _currentMetadata.GpsLatitude = lat.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+            _currentMetadata.GpsLongitude = lon.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+
+            _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
+
+            // On rafraîchit immédiatement l'affichage (marqueur + sortie de l'état "pas de GPS" si besoin)
+            AfficherPositionSurCarte(_currentMetadata.GpsLatitude, _currentMetadata.GpsLongitude);
+
+            System.Diagnostics.Debug.WriteLine($"Nouvelle position GPS demandée : {_currentMetadata.GpsLatitude}, {_currentMetadata.GpsLongitude}");
+        }
+        private void AfficherPositionSurCarte(string latStr, string lonStr)
+        {
+            // Point d'entrée unique pour mettre à jour la carte : gère à la fois le cas "pas de GPS"
+            // et la mise à jour du marqueur (immédiate si la WebView est prête, sinon mise en attente).
+            //
+            // Prend directement les string telles que stockées dans PanoMetadata.GpsLatitude/GpsLongitude
+            // (format "F6" invariant culture, ex: "49.598494"), le parsing est fait ici une seule fois.
+            bool latOk = TryParseGps(latStr, out double lat);
+            bool lonOk = TryParseGps(lonStr, out double lon);
+            bool aDesCoordonnees = latOk && lonOk;
+
+            webViewMap.Visibility = aDesCoordonnees ? Visibility.Visible : Visibility.Collapsed;
+            bdNoGps.Visibility = aDesCoordonnees ? Visibility.Collapsed : Visibility.Visible;
+
+            if (!aDesCoordonnees)
+            {
+                MettreAJourLargeurPanneauPositionInfo("Localisation inconnue");
+                _dernierePositionGeocodee = null;
+                return;
+            }
+
+            if (_isMapWebViewReady)
+                _ = DeplacerMarqueurAsync(lat, lon);
+            else
+            {
+                // La WebView2/Leaflet n'a pas encore fini de s'initialiser : on mémorise la position
+                // pour l'appliquer dès que NavigationCompleted se déclenche.
+                _pendingMapLat = lat;
+                _pendingMapLon = lon;
+            }
+
+            _ = MettreAJourLocalisationTexteAsync(lat, lon);
+        }
+        private async Task MettreAJourFovSurCarte()
+        // Calcule la direction absolue du centre du champ de vision (cap compass + rotation
+        // actuelle de la vue dans le panorama) et met à jour le triangle FOV sur la carte Leaflet.
+        // Ne fait rien si la WebView n'est pas prête, si le panneau est fermé, ou s'il n'y a pas de GPS.
+        {
+            if (!_isMapWebViewReady) return;
+            if (!_isMapPanelVisible) return;
+            if (_currentMetadata == null) return;
+            if (!TryParseGps(_currentMetadata.GpsLatitude, out double lat)) return;
+            if (!TryParseGps(_currentMetadata.GpsLongitude, out double lon)) return;
+
+            // Cap de référence au moment de la capture (0=Nord si absent, voir choix produit).
+            double headingReference = _currentMetadata.PoseHeadingDegrees ?? 0.0;
+
+            // Rotation actuelle de la vue dans le panorama (lacet), à combiner avec le cap de référence.
+            double angleVueActuelle = double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle;
+
+            double directionAbsolue = (headingReference + angleVueActuelle + OffsetHeadingSphereVersGPano) % 360.0;
+            if (directionAbsolue < 0) directionAbsolue += 360.0;
+
+            // FOV réel de la caméra 3D : reflète le zoom/dézoom actuel de la visionneuse.
+            double fovDeg = _camera.FieldOfView;
+
+            const double rayonPixels = 100;  //Modifie la taille du triangle pour visualiser la FOV sur la carte
+
+            string script = $"setFovTriangle({lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}, " +
+                $"{lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}, " +
+                $"{directionAbsolue.ToString(System.Globalization.CultureInfo.InvariantCulture)}, " +
+                $"{fovDeg.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {rayonPixels});";
+
+            try
+            {
+                await webViewMap.CoreWebView2.ExecuteScriptAsync(script);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Erreur lors de la mise à jour du triangle FOV : {ex.Message}");
+            }
+        }
+        private async Task DeplacerMarqueurAsync(double lat, double lon)
+        {
+            try
+            {
+                string latStr = lat.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                string lonStr = lon.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                // setPosition() est défini dans le HTML/JS ci-dessous (ConstruireHtmlCarteLeaflet) :
+                // il déplace le marqueur et recentre la carte sans tout recharger.
+                await webViewMap.CoreWebView2.ExecuteScriptAsync($"setPosition({latStr}, {lonStr});");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Erreur lors de la mise à jour du marqueur GPS : {ex.Message}");
+            }
+        }
+        // ─────────────── reverse GPS ➡️ pays, ville, ... ─────────────────────
+        private async Task MettreAJourLocalisationTexteAsync(double lat, double lon)
+        {
+            // Résout pays + ville via géocodage inverse (Nominatim/OSM) et met à jour txtPositionInfo.
+            // Repositionne le panneau après coup car son contenu (donc sa largeur) change.
+            string clePosition = lat.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)
+                + "," + lon.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
+
+            if (clePosition == _dernierePositionGeocodee) return;   // Évite un appel réseau si la position n'a pas vraiment changé
+
+            _ctsGeocodage?.Cancel();
+            var cts = new CancellationTokenSource();
+            _ctsGeocodage = cts;
+
+            MettreAJourLargeurPanneauPositionInfo("Localisation…");
             PositionnerPanneauPositionInfo();
+
+            try
+            {
+                string url = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={0}&lon={1}&zoom=10&accept-language=fr",
+                    lat, lon);
+
+                using (var requete = new HttpRequestMessage(HttpMethod.Get, url))
+                {
+                    // User-Agent personnalisé requis par la politique d'usage de Nominatim
+                    // (https://operations.osmfoundation.org/policies/nominatim/).
+                    requete.Headers.UserAgent.ParseAdd("Pano360Panel/1.0 (QuickLook plugin)");
+
+                    using (var reponse = await _httpClientGeocodage.SendAsync(requete, cts.Token))
+                    {
+                        reponse.EnsureSuccessStatusCode();
+                        string json = await reponse.Content.ReadAsStringAsync();
+
+                        if (cts.IsCancellationRequested) return;
+
+                        var resultat = JsonConvert.DeserializeObject<NominatimReverseResult>(json);
+                        string ville = resultat?.Address?.City ?? resultat?.Address?.Town ?? resultat?.Address?.Village ?? resultat?.Address?.Municipality;
+                        string region = resultat?.Address?.State;
+                        string comte = resultat?.Address?.Comte;
+                        string pays = resultat?.Address?.Country;
+
+                        System.Diagnostics.Debug.WriteLine($"[Géocodage] Reverse gps : {pays} - {region} - {comte} - {ville}");
+
+                        string texte;
+                        if (!string.IsNullOrEmpty(ville) && !string.IsNullOrEmpty(pays))
+                            texte = $"{ville}, {pays}";
+                        else if (!string.IsNullOrEmpty(pays))
+                            texte = pays;
+                        else
+                            texte = "Localisation inconnue";
+
+                        MettreAJourLargeurPanneauPositionInfo(texte);
+                        _dernierePositionGeocodee = clePosition;
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Requête annulée car une position plus récente est arrivée : on ne touche pas au texte.
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Géocodage] Erreur Nominatim : {ex.GetType().Name} - {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[Géocodage] InnerException : {ex.InnerException?.GetType().Name} - {ex.InnerException?.Message}");
+                MettreAJourLargeurPanneauPositionInfo("Localisation indisponible");
+            }
+            finally
+            {
+                if (ReferenceEquals(_ctsGeocodage, cts))
+                    PositionnerPanneauPositionInfo();
+            }
         }
         private void PositionnerPanneauPositionInfo()
         {
@@ -2883,353 +3168,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             PositionnerPanneauPositionInfo();
         }
-        private double CalculerHauteurMaxFenetre()
-        {
-            const double margeBasFixe = 70;   // doit correspondre au Margin bas de pnlMapContainer
-            const double margeHautMin = 70 + HauteurPanneauPositionInfo;  // + place réservée pour pnlPositionInfo au-dessus de la carte
-            return this.ActualHeight - margeBasFixe - margeHautMin;
-        }
-        private double CalculerLargeurMaxAvantRating(double margeDroiteFixe)
-        // panelRating est centré horizontalement et peut être masqué (Visibility.Collapsed), donc on ne
-        // peut pas se fier à ActualWidth à cet instant : on le mesure explicitement même caché, une fois,
-        // pour connaître sa largeur réelle (texte + boutons + padding) indépendamment de sa visibilité actuelle.
-        {
-            panelRating.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            double largeurRating = panelRating.DesiredSize.Width;
-
-            double bordDroitRating = (this.ActualWidth / 2) + (largeurRating / 2);
-
-            const double margeSecurite = 20;
-
-            return this.ActualWidth - bordDroitRating - margeDroiteFixe - margeSecurite;
-        }
-        private async Task AssurerCarteInitialiseeAsync()
-        {
-            if (_isMapWebViewReady) return;
-
-            try
-            {
-                await webViewMap.EnsureCoreWebView2Async(null);
-
-                // On désactive le menu contextuel natif de Chromium (Enregistrer sous, Imprimer, Inspecter, ...)
-                // pour le remplacer par notre propre ContextMenu WPF.
-                webViewMap.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-                webViewMap.CoreWebView2.Settings.IsStatusBarEnabled = false;
-                webViewMap.CoreWebView2.WebMessageReceived += WebViewMap_WebMessageReceived;
-
-                string dossierLeaflet = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location), "leaflet");
-
-                if (dossierLeaflet == null)
-                {
-                    System.Diagnostics.Debug.WriteLine("[Carte GPS] Dossier Leaflet introuvable. " +
-                        "Vérifiez que le dossier 'leaflet' (leaflet.js/leaflet.css/images) est bien copié " +
-                        "dans le répertoire de sortie du build (Copy to Output Directory).");
-                    return;
-                }
-
-                webViewMap.CoreWebView2.SetVirtualHostNameToFolderMapping("pano360-app.local", dossierLeaflet, CoreWebView2HostResourceAccessKind.Allow);
-
-                webViewMap.CoreWebView2.Navigate("https://pano360-app.local/carte.html");
-
-                // On attend la fin du chargement de la page avant de pouvoir appeler du JS (ex: déplacer le marqueur)
-                void OnNavCompleted(object s, CoreWebView2NavigationCompletedEventArgs e)
-                {
-                    webViewMap.CoreWebView2.NavigationCompleted -= OnNavCompleted;
-                    _isMapWebViewReady = true;
-
-                    btnToggleMap.Visibility = Visibility.Visible;
-                    var sbIn = (Storyboard)btnToggleMap.Resources["FadeInbtnToggleMap"];
-                    sbIn.Begin();
-
-                    if (_pendingMapLat.HasValue && _pendingMapLon.HasValue)
-                    {
-                        _ = DeplacerMarqueurAsync(_pendingMapLat.Value, _pendingMapLon.Value);
-                        _pendingMapLat = null;
-                        _pendingMapLon = null;
-                    }
-                }
-                webViewMap.CoreWebView2.NavigationCompleted += OnNavCompleted;
-            }
-            catch (Exception ex)
-            {
-                // Cas typique : WebView2 Runtime non installé sur la machine, ou package NuGet manquant à l'exécution
-                System.Diagnostics.Debug.WriteLine($"Erreur d'initialisation WebView2 (carte GPS) : {ex.Message}");
-            }
-        }
-        private void WebViewMap_WebMessageReceived(object sender, Microsoft.Web.WebView2.Core.CoreWebView2WebMessageReceivedEventArgs e)
-        {
-            try
-            {
-                string json = e.WebMessageAsJson;
-                if (string.IsNullOrWhiteSpace(json)) return;
-
-                // 🛠️ CORRECTIF ROBUSTESSE : Si le JS a utilisé JSON.stringify(), le message arrive 
-                // sous forme de chaîne de texte JSON. On la désérialise une première fois pour avoir le JSON brut.
-                if (json.StartsWith("\""))
-                {
-                    json = JsonConvert.DeserializeObject<string>(json);
-                }
-
-                // 🛠️ // Désérialisation principale en dictionnaire : On utilise <string, object> pour accepter les coordonnées numériques
-                var msg = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
-                if (msg == null) return;
-
-                // On extrait l'action (gère à la fois la clé "action" ou la clé "type" de ton clic droit)
-                string commande = null;
-                if (msg.TryGetValue("action", out object act) && act != null) commande = act.ToString();
-                else if (msg.TryGetValue("type", out object t) && t != null) commande = t.ToString();
-
-                if (commande == "restore_focus")
-                {
-                    // Forcer l'exécution sur le thread UI de WPF
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        // 1. Focus logique WPF
-                        viewport3D.Focus();
-
-                        // 2. Arrachement du focus natif Windows (Win32) à la WebView2
-                        var window = Window.GetWindow(this);
-                        if (window != null)
-                        {
-                            var helper = new WindowInteropHelper(window);
-                            if (helper.Handle != IntPtr.Zero)
-                            {
-                                SetFocus(helper.Handle);
-                            }
-                        }
-                    });
-                }
-                else if (commande == "contextmenu")
-                {
-                    // CODE DU CLIC DROIT
-                    double lat = Convert.ToDouble(msg["lat"]);
-                    double lon = Convert.ToDouble(msg["lon"]);
-                    int x = Convert.ToInt32(msg["containerX"]);
-                    int y = Convert.ToInt32(msg["containerY"]);
-
-                    AfficherMenuContextuelCarte(lat, lon, x, y);
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Erreur WebView Message: {ex.Message}");
-            }
-        }
-        private void DefinirPositionGpsPhoto(double lat, double lon)
-        {
-            // Met à jour les coordonnées GPS du panorama en cours et marque les métadonnées comme
-            // modifiées : la sauvegarde effective est différée et gérée par le mécanisme existant
-            // (_isMetaChanging + SauvegardeMeta()).
-            if (_currentMetadata == null) return;
-
-            _currentMetadata.GpsLatitude = lat.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
-            _currentMetadata.GpsLongitude = lon.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
-
-            _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
-
-            // On rafraîchit immédiatement l'affichage (marqueur + sortie de l'état "pas de GPS" si besoin)
-            AfficherPositionSurCarte(_currentMetadata.GpsLatitude, _currentMetadata.GpsLongitude);
-
-            System.Diagnostics.Debug.WriteLine($"Nouvelle position GPS demandée : {_currentMetadata.GpsLatitude}, {_currentMetadata.GpsLongitude}");
-        }
-        private void AfficherPositionSurCarte(string latStr, string lonStr)
-        {
-            // Point d'entrée unique pour mettre à jour la carte : gère à la fois le cas "pas de GPS"
-            // et la mise à jour du marqueur (immédiate si la WebView est prête, sinon mise en attente).
-            //
-            // Prend directement les string telles que stockées dans PanoMetadata.GpsLatitude/GpsLongitude
-            // (format "F6" invariant culture, ex: "49.598494"), le parsing est fait ici une seule fois.
-            bool latOk = TryParseGps(latStr, out double lat);
-            bool lonOk = TryParseGps(lonStr, out double lon);
-            bool aDesCoordonnees = latOk && lonOk;
-
-            webViewMap.Visibility = aDesCoordonnees ? Visibility.Visible : Visibility.Collapsed;
-            bdNoGps.Visibility = aDesCoordonnees ? Visibility.Collapsed : Visibility.Visible;
-
-            if (!aDesCoordonnees)
-            {
-                MettreAJourLargeurPanneauPositionInfo("Localisation inconnue");
-                _dernierePositionGeocodee = null;
-                return;
-            }
-
-            if (_isMapWebViewReady)
-                _ = DeplacerMarqueurAsync(lat, lon);
-            else
-            {
-                // La WebView2/Leaflet n'a pas encore fini de s'initialiser : on mémorise la position
-                // pour l'appliquer dès que NavigationCompleted se déclenche.
-                _pendingMapLat = lat;
-                _pendingMapLon = lon;
-            }
-
-            _ = MettreAJourLocalisationTexteAsync(lat, lon);
-        }
-        private async Task MettreAJourLocalisationTexteAsync(double lat, double lon)
-        {
-            // Résout pays + ville via géocodage inverse (Nominatim/OSM) et met à jour txtPositionInfo.
-            // Repositionne le panneau après coup car son contenu (donc sa largeur) change.
-            string clePosition = lat.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)
-                + "," + lon.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
-
-            if (clePosition == _dernierePositionGeocodee) return;   // Évite un appel réseau si la position n'a pas vraiment changé
-
-            _ctsGeocodage?.Cancel();
-            var cts = new CancellationTokenSource();
-            _ctsGeocodage = cts;
-
-            MettreAJourLargeurPanneauPositionInfo("Localisation…");
-            PositionnerPanneauPositionInfo();
-
-            try
-            {
-                string url = string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={0}&lon={1}&zoom=10&accept-language=fr",
-                    lat, lon);
-
-                using (var requete = new HttpRequestMessage(HttpMethod.Get, url))
-                {
-                    // User-Agent personnalisé requis par la politique d'usage de Nominatim
-                    // (https://operations.osmfoundation.org/policies/nominatim/).
-                    requete.Headers.UserAgent.ParseAdd("Pano360Panel/1.0 (QuickLook plugin)");
-
-                    using (var reponse = await _httpClientGeocodage.SendAsync(requete, cts.Token))
-                    {
-                        reponse.EnsureSuccessStatusCode();
-                        string json = await reponse.Content.ReadAsStringAsync();
-
-                        if (cts.IsCancellationRequested) return;
-
-                        var resultat = JsonConvert.DeserializeObject<NominatimReverseResult>(json);
-                        string ville = resultat?.Address?.City ?? resultat?.Address?.Town ?? resultat?.Address?.Village ?? resultat?.Address?.Municipality;
-                        string pays = resultat?.Address?.Country;
-
-                        string texte;
-                        if (!string.IsNullOrEmpty(ville) && !string.IsNullOrEmpty(pays))
-                            texte = $"{ville}, {pays}";
-                        else if (!string.IsNullOrEmpty(pays))
-                            texte = pays;
-                        else
-                            texte = "Localisation inconnue";
-
-                        MettreAJourLargeurPanneauPositionInfo(texte);
-                        _dernierePositionGeocodee = clePosition;
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Requête annulée car une position plus récente est arrivée : on ne touche pas au texte.
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[Géocodage] Erreur Nominatim : {ex.GetType().Name} - {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"[Géocodage] InnerException : {ex.InnerException?.GetType().Name} - {ex.InnerException?.Message}");
-                MettreAJourLargeurPanneauPositionInfo("Localisation indisponible");
-            }
-            finally
-            {
-                if (ReferenceEquals(_ctsGeocodage, cts))
-                    PositionnerPanneauPositionInfo();
-            }
-        }
-        private class NominatimReverseResult
-        {
-            // ── Modèles minimalistes pour désérialiser la réponse JSON de Nominatim (reverse geocoding) ────
-            [JsonProperty("address")]
-            public NominatimAddress Address { get; set; }
-        }
-        private class NominatimAddress
-        {
-            [JsonProperty("city")]
-            public string City { get; set; }
-            [JsonProperty("town")]
-            public string Town { get; set; }
-            [JsonProperty("village")]
-            public string Village { get; set; }
-            [JsonProperty("municipality")]
-            public string Municipality { get; set; }
-            [JsonProperty("country")]
-            public string Country { get; set; }
-        }
-        private static bool TryParseGps(string value, out double result)
-        {
-            // PanoMetadataService formate toujours GpsLatitude/GpsLongitude en "F6" invariant culture,
-            // mais on reste tolérant (NumberStyles.Float) au cas où la source évolue.
-            return double.TryParse(value, System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out result);
-        }
-        private async Task InvaliderTailleCarteAsync()
-        {
-            // Force Leaflet à recalculer la taille de la carte (voir invalidateMapSize() dans le JS).
-            // Nécessaire car le ScaleTransform de l'animation d'apparition ne déclenche pas toujours
-            // le ResizeObserver côté JS (changement de rendu, pas de taille de layout).
-            if (!_isMapWebViewReady) return; // Si la WebView n'est pas encore prête, le filet de sécurité JS (window.load) prend le relais
-
-            try
-            {
-                await webViewMap.CoreWebView2.ExecuteScriptAsync("invalidateMapSize();");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Erreur lors de l'invalidation de la taille de la carte : {ex.Message}");
-            }
-        }
-        private async Task DeplacerMarqueurAsync(double lat, double lon)
-        {
-            try
-            {
-                string latStr = lat.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                string lonStr = lon.ToString(System.Globalization.CultureInfo.InvariantCulture);
-
-                // setPosition() est défini dans le HTML/JS ci-dessous (ConstruireHtmlCarteLeaflet) :
-                // il déplace le marqueur et recentre la carte sans tout recharger.
-                await webViewMap.CoreWebView2.ExecuteScriptAsync($"setPosition({latStr}, {lonStr});");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Erreur lors de la mise à jour du marqueur GPS : {ex.Message}");
-            }
-        }
-        private async Task MettreAJourFovSurCarte()
-        // Calcule la direction absolue du centre du champ de vision (cap compass + rotation
-        // actuelle de la vue dans le panorama) et met à jour le triangle FOV sur la carte Leaflet.
-        // Ne fait rien si la WebView n'est pas prête, si le panneau est fermé, ou s'il n'y a pas de GPS.
-        {
-            if (!_isMapWebViewReady) return;
-            if (!_isMapPanelVisible) return;
-            if (_currentMetadata == null) return;
-            if (!TryParseGps(_currentMetadata.GpsLatitude, out double lat)) return;
-            if (!TryParseGps(_currentMetadata.GpsLongitude, out double lon)) return;
-
-            // Cap de référence au moment de la capture (0=Nord si absent, voir choix produit).
-            double headingReference = _currentMetadata.PoseHeadingDegrees ?? 0.0;
-
-            // Rotation actuelle de la vue dans le panorama (lacet), à combiner avec le cap de référence.
-            double angleVueActuelle = double.IsNaN(_targetHorizontalAngle) ? _horizontalRotation.Angle : _targetHorizontalAngle;
-
-            double directionAbsolue = (headingReference + angleVueActuelle + OffsetHeadingSphereVersGPano) % 360.0;
-            if (directionAbsolue < 0) directionAbsolue += 360.0;
-
-            // FOV réel de la caméra 3D : reflète le zoom/dézoom actuel de la visionneuse.
-            double fovDeg = _camera.FieldOfView;
-
-            const double rayonPixels = 100;  //Modifie la taille du triangle pour visualiser la FOV sur la carte
-
-            string script = $"setFovTriangle({lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}, " +
-                $"{lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}, " +
-                $"{directionAbsolue.ToString(System.Globalization.CultureInfo.InvariantCulture)}, " +
-                $"{fovDeg.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {rayonPixels});";
-
-            try
-            {
-                await webViewMap.CoreWebView2.ExecuteScriptAsync(script);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Erreur lors de la mise à jour du triangle FOV : {ex.Message}");
-            }
-        }
+        // ──────────────────── Menu clic droit ────────────────────────────────
         private void AfficherMenuContextuelCarte(double lat, double lon, double containerX, double containerY)
         // Mémorise les coordonnées du clic droit, puis ouvre le ContextMenu déclaré en XAML
         // (ressource "MenuContextuelCarte"), positionné exactement à l'endroit du clic.
@@ -3253,27 +3192,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             _ = RecentrerCarteSurMarqueurAsync();
         }
-        private async Task RecentrerCarteSurMarqueurAsync()
-        {
-            if (!_isMapWebViewReady) return;
-
-            try
-            {
-                await webViewMap.CoreWebView2.ExecuteScriptAsync("recentrerSurMarqueur();");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Erreur lors du recentrage sur le marqueur : {ex.Message}");
-            }
-        }
-        private void MenuCentrerPanoramaPrecedent_Click(object sender, RoutedEventArgs e)
-        {
-            // TODO : centrer la carte sur les coordonnées GPS du panorama précédent dans la navigation
-        }
-        private void MenuToggleFov_Click(object sender, RoutedEventArgs e)
-        {
-            // TODO : appeler hideFovTriangle() ou réactiver MettreAJourFovSurCarte() selon menuToggleFov.IsChecked
-        }
+        private void MenuCentrerPanoramaPrecedent_Click(object sender, RoutedEventArgs e) { /* ToDo: */ }
+        private void MenuToggleFov_Click(object sender, RoutedEventArgs e) { /* TODO : appeler hideFovTriangle() ou réactiver MettreAJourFovSurCarte() selon menuToggleFov.IsChecked*/ }
         private void MenuPositionFavorite1_Click(object sender, RoutedEventArgs e) { /* TODO */ }
         private void MenuPositionFavorite2_Click(object sender, RoutedEventArgs e) { /* TODO */ }
         private void MenuPositionFavorite3_Click(object sender, RoutedEventArgs e) { /* TODO */ }
@@ -3350,6 +3270,78 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             double tConstante = θConstante > 0 ? θConstante / vMax : 0;
 
             return tAccel + tConstante + tDecel;
+        }
+        // ────────────────────────── GPS ──────────────────────────────────────
+        private class NominatimReverseResult
+        {
+            // ── Modèles minimalistes pour désérialiser la réponse JSON de Nominatim (reverse geocoding) ────
+            [JsonProperty("address")]
+            public NominatimAddress Address { get; set; }
+        }
+        private async Task RecentrerCarteSurMarqueurAsync()
+        {
+            if (!_isMapWebViewReady) return;
+
+            try
+            {
+                await webViewMap.CoreWebView2.ExecuteScriptAsync("recentrerSurMarqueur();");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Erreur lors du recentrage sur le marqueur : {ex.Message}");
+            }
+        }
+        private double CalculerHauteurMaxFenetre()
+        {
+            const double margeBasFixe = 70;   // doit correspondre au Margin bas de pnlMapContainer
+            const double margeHautMin = 70 + HauteurPanneauPositionInfo;  // + place réservée pour pnlPositionInfo au-dessus de la carte
+            return this.ActualHeight - margeBasFixe - margeHautMin;
+        }
+        private double CalculerLargeurMaxAvantRating(double margeDroiteFixe)
+        // panelRating est centré horizontalement et peut être masqué (Visibility.Collapsed), donc on ne
+        // peut pas se fier à ActualWidth à cet instant : on le mesure explicitement même caché, une fois,
+        // pour connaître sa largeur réelle (texte + boutons + padding) indépendamment de sa visibilité actuelle.
+        {
+            panelRating.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double largeurRating = panelRating.DesiredSize.Width;
+
+            double bordDroitRating = (this.ActualWidth / 2) + (largeurRating / 2);
+
+            const double margeSecurite = 20;
+
+            return this.ActualWidth - bordDroitRating - margeDroiteFixe - margeSecurite;
+        }
+        private void ContraindreTailleMap()
+        {
+            // Calcule les limites actuelles (haut de fenêtre / barre de notation) et ramène Width/Height
+            // de pnlMapContainer dans ces bornes si nécessaire. Appelée à la fois pendant le drag de
+            // redimensionnement et lors d'un changement de taille de la fenêtre (plein écran, etc.).
+            double hauteurMax = CalculerHauteurMaxFenetre();
+            double largeurMax = CalculerLargeurMaxAvantRating(margeDroiteFixe: 30);
+
+            if (pnlMapContainer.Width > largeurMax)
+                pnlMapContainer.Width = Math.Max(LargeurMinMap, largeurMax);
+
+            if (pnlMapContainer.Height > hauteurMax)
+                pnlMapContainer.Height = Math.Max(HauteurMinMap, hauteurMax);
+
+            PositionnerPanneauPositionInfo();
+        }
+        private static bool TryParseGps(string value, out double result)
+        {
+            // PanoMetadataService formate toujours GpsLatitude/GpsLongitude en "F6" invariant culture,
+            // mais on reste tolérant (NumberStyles.Float) au cas où la source évolue.
+            return double.TryParse(value, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out result);
+        }
+        private void Pano360Panel_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // Se déclenche notamment lors du basculement plein écran (clic droit) ou si la fenêtre QuickLook
+            // est redimensionnée. Si le panneau carte est ouvert et devient trop grand pour la nouvelle taille
+            // disponible, on le re-contraint pour que la poignée de redimensionnement reste toujours accessible.
+            if (!_isMapPanelVisible) return;
+
+            ContraindreTailleMap();
         }
         // ──────────────────────── Affichage ──────────────────────────────────
         private void ToggleFullscreen()
