@@ -57,19 +57,47 @@ map.addControl(geoSearchControl);
 
 var marker = null;
 
-function setPosition(lat, lon) {
+// ── Fonction pour placer ou déplacer le marqueur(Pin) sur la carte ──
+function setPosition(lat, lon)
+{
     var latLng = [lat, lon];
-    if (marker === null) {
+    if (marker === null)
+    {
         marker = L.marker(latLng, { zIndexOffset: 1000 }).addTo(map);
-    } else {
+    } 
+    else 
+    {
         marker.setLatLng(latLng);
     }
     map.setView(latLng, 15);
 }
 
-function recentrerSurMarqueur() {
-    if (marker !== null) {
-        map.setView(marker.getLatLng(), map.getZoom());
+// ── Fonction pour recentrer la carte sur des coordonnées GPS données ──
+function GotoView(lat, lon, zoom) {
+    // Il est prudent de s'assurer que les données reçues sont bien traitées comme des nombres
+    var latitude = Number(lat);
+    var longitude = Number(lon);
+    var zoomLevel = Number(zoom);
+
+    if (!isNaN(latitude) && !isNaN(longitude)) {
+        // Option 1 : Déplacement direct avec map.setView
+        // [latitude, longitude] est le format de tableau attendu par Leaflet
+        //map.setView([latitude, longitude], zoomLevel);
+        
+        // Option 2 (Alternative) : transition fluide (glissement)
+        map.flyTo([latitude, longitude], zoomLevel);
+    } else {
+        console.error("GotoView : Les coordonnées fournies ne sont pas des nombres valides.", lat, lon);
+    }
+}
+
+// Appeler cette fonction pour recentrer la carte sur le marqueur(pin) existant
+function recentrerSurMarqueur()
+{
+    if (marker !== null)
+    {
+        //map.setView(marker.getLatLng(), map.getZoom());
+        map.setView(marker.getLatLng(), 15);
     }
 }
 
@@ -81,12 +109,14 @@ function recentrerSurMarqueur() {
 var fovTriangle = null;
 var fovEtat = null; 
 
-function setFovTriangle(lat, lon, directionDeg, fovDeg, rayonPixels) {
+function setFovTriangle(lat, lon, directionDeg, fovDeg, rayonPixels)
+{
     fovEtat = { lat: lat, lon: lon, directionDeg: directionDeg, fovDeg: fovDeg, rayonPixels: rayonPixels };
     redessinerFovTriangle();
 }
 
-function redessinerFovTriangle() {
+function redessinerFovTriangle()
+{
     if (fovEtat === null) return;
 
     var latLng = [fovEtat.lat, fovEtat.lon];
@@ -146,8 +176,10 @@ function redessinerFovTriangle() {
     }
 }
 
-function hideFovTriangle() {
-    if (fovTriangle !== null) {
+function hideFovTriangle()
+{
+    if (fovTriangle !== null) 
+    {
         map.removeLayer(fovTriangle);
         fovTriangle = null;
     }
@@ -205,6 +237,7 @@ map.on('contextmenu', function (e) {
         type: 'contextmenu',
         lat: e.latlng.lat,
         lon: e.latlng.lng,
+        zoom: map.getZoom(),
         containerX: e.containerPoint.x,
         containerY: e.containerPoint.y
     });

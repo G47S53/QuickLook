@@ -22,9 +22,9 @@
 
             <MenuItem Header="📍 Définir ici comme position GPS" Click="MenuDefinirPosition_Click"/>
             <MenuItem Header="⭐  Définir favoris">
-                <MenuItem Header="Favoris 1 : définir ici"/>
-                <MenuItem Header="Favoris 2 : définir ici"/>
-                <MenuItem Header="Favoris 3 : définir ici"/>
+                <MenuItem Header="Favoris 1 : définir ici" Click="MenuSavePositionFavorite1_Click"/>
+                <MenuItem Header="Favoris 2 : définir ici" Click="MenuSavePositionFavorite2_Click"/>
+                <MenuItem Header="Favoris 3 : définir ici" Click="MenuSavePositionFavorite3_Click"/>
             </MenuItem>
 
             <Separator/>
@@ -34,9 +34,9 @@
             
             <Separator/>
             
-            <MenuItem Header="⭐  Centrer sur favoris 1" Click="MenuPositionFavorite1_Click"/>
-            <MenuItem Header="⭐  Centrer sur favoris 2" Click="MenuPositionFavorite2_Click"/>
-            <MenuItem Header="⭐  Centrer sur favoris 3" Click="MenuPositionFavorite3_Click"/>
+            <MenuItem Header="⭐  Aller au favoris 1" Click="MenuPositionFavorite1_Click"/>
+            <MenuItem Header="⭐  Aller au favoris 2" Click="MenuPositionFavorite2_Click"/>
+            <MenuItem Header="⭐  Aller au favoris 3" Click="MenuPositionFavorite3_Click"/>
             
             <Separator/>
 
@@ -99,7 +99,6 @@
             </DoubleAnimation>
         </Storyboard>
     </UserControl.Resources>
-
     <!-- ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── -->
     <!-- ───────────────────────────────────────────────────────────────── Once upon a time 😉 ────────────────────────────────────────────────────────────────────── -->
     <Grid>

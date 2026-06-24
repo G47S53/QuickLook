@@ -102,6 +102,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             public string State { get; set; }
             [JsonProperty("county")]
             public string Comte { get; set; }
+            [JsonProperty("house_number")]
+            public string HouseNumber { get; set; }
+            [JsonProperty("road")]
+            public string Road { get; set; }
         }
 
         private static readonly HttpClient _httpClientGeocodage = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
@@ -109,8 +113,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private string _dernierePositionGeocodee;
         private double _largeurPanneauPositionInfo = 220;                  // Largeur réelle du Border pnlPositionInfo, recalculée via FormattedText à chaque changement de texte (évite tout Measure()/layout pass pendant le drag)
 
-        private double _dernierClicCarteLat;
+        private double _dernierClicCarteLat;                               // Correspond à la position du clic sur la carte Leaflet
         private double _dernierClicCarteLon;
+        private int _dernierClicZoom;
 
         private bool _sliderHeadingMisAJourProgrammatique = false;         // Évite que la mise à jour programmatique du slider (au chargement d'un panorama) ne
                                                                            // déclenche elle-même ValueChanged et n'écrive _isMetaChanging = true à tort, alors que
@@ -119,6 +124,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double OffsetHeadingSphereVersGPano = -90.0;         // Décalage entre la convention interne de la sphère (au chargement, la caméra à Angle=0°
                                                                            // regarde vers U≈0.75 de la texture équirectangulaire) et la convention GPano (PoseHeadingDegrees
                                                                            // se réfère au centre de l'image, U=0.5). Déterminé empiriquement par comparaison avec Pano2Vr.
+        private string _GpsMemoire1Nom = "Vide";
+        private string _GpsMemoire1Latitude = "0";
+        private string _GpsMemoire1Longitude = "0";
+        private int _GpsMemoire1Zoom = 10;
+        private string _GpsMemoire2Nom = "Vide";
+        private string _GpsMemoire2Latitude = "0";
+        private string _GpsMemoire2Longitude = "0";
+        private int _GpsMemoire2Zoom = 10;
+        private string _GpsMemoire3Nom = "Vide";
+        private string _GpsMemoire3Latitude = "0";
+        private string _GpsMemoire3Longitude = "0";
+        private int _GpsMemoire3Zoom = 10;
 
         // ─────────────────────────────────────────────────────────────────────
         // > Sauvegarde des préférences (OPTIONS)
@@ -158,6 +175,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             public bool StartOneTurnAndNext { get; set; } = false;         // Démarrer directement en mode "1 tour + panorama suivant"
             public bool StartOneTurnAndClose { get; set; } = false;        // Démarrer directement en mode "1 tour + fermeture"
             public double StartOneTurnDuration { get; set; } = 15.0;       // Durée totale du tour unique en secondes (profil trapézoïdal accel/croisière/decel)
+            public string GpsMemoire1Nom { get; set; } = "Vide";           // Nom de la première mémoire GPS
+            public string GpsMemoire1Latitude { get; set; } = "0";         // Latitude de la première mémoire GPS
+            public string GpsMemoire1Longitude { get; set; } = "0";        // Longitude de la première mémoire GPS
+            public int GpsMemoire1Zoom { get; set; } = 10;
+            public string GpsMemoire2Nom { get; set; } = "Vide";           // Nom de la seconde mémoire GPS
+            public string GpsMemoire2Latitude { get; set; } = "0";         // Latitude de la seconde mémoire GPS
+            public string GpsMemoire2Longitude { get; set; } = "0";        // Longitude de la seconde mémoire GPS
+            public int GpsMemoire2Zoom { get; set; } = 10;
+            public string GpsMemoire3Nom { get; set; } = "Vide";           // Nom de la troisième mémoire GPS
+            public string GpsMemoire3Latitude { get; set; } = "0";         // Latitude de la troisième mémoire GPS
+            public string GpsMemoire3Longitude { get; set; } = "0";        // Longitude de la troisième mémoire GPS
+            public int GpsMemoire3Zoom { get; set; } = 10;
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -1426,6 +1455,20 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _StartOneTurnNext = settings.StartOneTurnAndNext;
             _oneTurnDuration = settings.StartOneTurnDuration;
 
+            // Memoires GPS
+            _GpsMemoire1Nom = settings.GpsMemoire1Nom;
+            _GpsMemoire1Latitude = settings.GpsMemoire1Latitude;
+            _GpsMemoire1Longitude = settings.GpsMemoire1Longitude;
+            _GpsMemoire1Zoom = settings.GpsMemoire1Zoom;
+            _GpsMemoire2Nom = settings.GpsMemoire2Nom;
+            _GpsMemoire2Latitude = settings.GpsMemoire2Latitude;
+            _GpsMemoire2Longitude = settings.GpsMemoire2Longitude;
+            _GpsMemoire2Zoom = settings.GpsMemoire2Zoom;
+            _GpsMemoire3Nom = settings.GpsMemoire3Nom;
+            _GpsMemoire3Latitude = settings.GpsMemoire3Latitude;
+            _GpsMemoire3Longitude = settings.GpsMemoire3Longitude;
+            _GpsMemoire3Zoom = settings.GpsMemoire3Zoom;
+
             // Mise à jour boite de dialogue: Fullscreen
             chkFullscreen.IsChecked = _chkFullscreenSavedValue;
 
@@ -1520,7 +1563,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     StartAutoRotate = _StartAutoRotate,
                     StartOneTurnAndClose = _StartOneTurnActive,
                     StartOneTurnAndNext = _StartOneTurnNext,
-                    StartOneTurnDuration = (int)sldAutoCloseDelay.Value
+                    StartOneTurnDuration = (int)sldAutoCloseDelay.Value,
+                    GpsMemoire1Nom = _GpsMemoire1Nom,
+                    GpsMemoire1Latitude = _GpsMemoire1Latitude,
+                    GpsMemoire1Longitude = _GpsMemoire1Longitude,
+                    GpsMemoire1Zoom = _GpsMemoire1Zoom,
+                    GpsMemoire2Nom = _GpsMemoire2Nom,
+                    GpsMemoire2Latitude = _GpsMemoire2Latitude,
+                    GpsMemoire2Longitude = _GpsMemoire2Longitude,
+                    GpsMemoire2Zoom = _GpsMemoire2Zoom,
+                    GpsMemoire3Nom = _GpsMemoire3Nom,
+                    GpsMemoire3Latitude = _GpsMemoire3Latitude,
+                    GpsMemoire3Longitude = _GpsMemoire3Longitude,
+                    GpsMemoire3Zoom = _GpsMemoire3Zoom
                 };
 
                 //Serialisation et sauvegarde
@@ -2865,6 +2920,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     // CODE DU CLIC DROIT
                     double lat = Convert.ToDouble(msg["lat"]);
                     double lon = Convert.ToDouble(msg["lon"]);
+                    _dernierClicZoom = Convert.ToInt32(msg["zoom"]);
                     int x = Convert.ToInt32(msg["containerX"]);
                     int y = Convert.ToInt32(msg["containerY"]);
 
@@ -3053,6 +3109,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             try
             {
+                // Le niveau de zoom est important pour un zoom=10, on obtient la ville et le pays, mais pas l'adresse exacte.
+                // Pour un zoom=18, on obtient l'adresse exacte (rue + numéro) si disponible.
                 string url = string.Format(System.Globalization.CultureInfo.InvariantCulture,
                     "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={0}&lon={1}&zoom=10&accept-language=fr",
                     lat, lon);
@@ -3075,8 +3133,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         string region = resultat?.Address?.State;
                         string comte = resultat?.Address?.Comte;
                         string pays = resultat?.Address?.Country;
+                        string rue = resultat?.Address?.Road;
+                        string numero = resultat?.Address?.HouseNumber;
 
-                        System.Diagnostics.Debug.WriteLine($"[Géocodage] Reverse gps : {pays} - {region} - {comte} - {ville}");
+                        System.Diagnostics.Debug.WriteLine($"[Géocodage] Reverse gps : {pays} - {region} - {comte} - {ville} - {rue} - {numero}");
 
                         string texte;
                         if (!string.IsNullOrEmpty(ville) && !string.IsNullOrEmpty(pays))
@@ -3194,9 +3254,22 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void MenuCentrerPanoramaPrecedent_Click(object sender, RoutedEventArgs e) { /* ToDo: */ }
         private void MenuToggleFov_Click(object sender, RoutedEventArgs e) { /* TODO : appeler hideFovTriangle() ou réactiver MettreAJourFovSurCarte() selon menuToggleFov.IsChecked*/ }
-        private void MenuPositionFavorite1_Click(object sender, RoutedEventArgs e) { /* TODO */ }
+        private void MenuPositionFavorite1_Click(object sender, RoutedEventArgs e)
+        {
+            _ = GoToPosition(_GpsMemoire1Latitude, _GpsMemoire1Longitude, _GpsMemoire1Zoom);
+        }
         private void MenuPositionFavorite2_Click(object sender, RoutedEventArgs e) { /* TODO */ }
         private void MenuPositionFavorite3_Click(object sender, RoutedEventArgs e) { /* TODO */ }
+        private void MenuSavePositionFavorite1_Click(object sender, RoutedEventArgs e)
+        {
+            _GpsMemoire1Latitude = _dernierClicCarteLat.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+            _GpsMemoire1Longitude = _dernierClicCarteLon.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+            _GpsMemoire1Zoom = _dernierClicZoom;
+
+            SaveSettings();
+        }
+        private void MenuSavePositionFavorite2_Click(object sender, RoutedEventArgs e) { /* TODO */ }
+        private void MenuSavePositionFavorite3_Click(object sender, RoutedEventArgs e) { /* TODO */ }
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
@@ -3289,6 +3362,38 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Erreur lors du recentrage sur le marqueur : {ex.Message}");
+            }
+        }
+        private async Task GoToPosition(string latitude, string longitide, int zoom)
+        {
+            // On vérifie que la WebView est bien initialisée et prête
+            if (_isMapWebViewReady && webViewMap?.CoreWebView2 != null)
+            {
+                // Extraction et parsing des coordonnées stockées dans la mémoire 1
+                if (TryParseGps(latitude, out double lat) &&
+                    TryParseGps(longitide, out double lon))
+                {
+                    // Conversion stricte au format international avec un point "." décimal
+                    string latStr = lat.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    string lonStr = lon.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+                    // Construction de la commande JavaScript à exécuter
+                    string script = $"GotoView({latStr}, {lonStr}, {zoom});";
+
+                    try
+                    {
+                        // Envoi de la commande à la carte Leaflet
+                        await webViewMap.CoreWebView2.ExecuteScriptAsync(script);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Erreur lors de l'appel à GotoView : {ex.Message}");
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("Les coordonnées de la position favorite 1 sont invalides ou vides.");
+                }
             }
         }
         private double CalculerHauteurMaxFenetre()
