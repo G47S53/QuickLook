@@ -21,22 +21,26 @@
              Foreground="White">
 
             <MenuItem Header="📍 Définir ici comme position GPS" Click="MenuDefinirPosition_Click"/>
+            <MenuItem Header="⭐  Définir favoris">
+                <MenuItem Header="Favoris 1 : définir ici"/>
+                <MenuItem Header="Favoris 2 : définir ici"/>
+                <MenuItem Header="Favoris 3 : définir ici"/>
+            </MenuItem>
 
             <Separator/>
 
-            <MenuItem Header="🎯 Recentrer sur le pin" Click="MenuRecentrerSurPin_Click"/>
-            <MenuItem Header="↩ Centrer sur le panorama précédent" Click="MenuCentrerPanoramaPrecedent_Click"/>
-
+            <MenuItem Header="🎯 Centrer sur la position enregistrée" Click="MenuRecentrerSurPin_Click"/>
+            <MenuItem Header="↩  Centrer sur le panorama précédent" Click="MenuCentrerPanoramaPrecedent_Click"/>
+            
+            <Separator/>
+            
+            <MenuItem Header="⭐  Centrer sur favoris 1" Click="MenuPositionFavorite1_Click"/>
+            <MenuItem Header="⭐  Centrer sur favoris 2" Click="MenuPositionFavorite2_Click"/>
+            <MenuItem Header="⭐  Centrer sur favoris 3" Click="MenuPositionFavorite3_Click"/>
+            
             <Separator/>
 
             <MenuItem x:Name="menuToggleFov" Header="👁 Afficher la FOV" IsCheckable="True" IsChecked="True" Click="MenuToggleFov_Click"/>
-
-            <Separator/>
-
-            <MenuItem Header="⭐ Position favorite 1" Click="MenuPositionFavorite1_Click"/>
-            <MenuItem Header="⭐ Position favorite 2" Click="MenuPositionFavorite2_Click"/>
-            <MenuItem Header="⭐ Position favorite 3" Click="MenuPositionFavorite3_Click"/>
-
         </ContextMenu>
         <!-- ──────────────── Storyboards des fléches prev/next ────────────────────── -->
         <!-- ───────────────────── Passage noir/gris/blanc ─────────────────────────── -->
