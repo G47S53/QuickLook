@@ -1473,6 +1473,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _GpsMemoire3Longitude = settings.GpsMemoire3Longitude;
             _GpsMemoire3Zoom = settings.GpsMemoire3Zoom;
 
+            MettreAJourLibellesFavoris();
+
             // Mise à jour boite de dialogue: Fullscreen
             chkFullscreen.IsChecked = _chkFullscreenSavedValue;
 
@@ -1723,6 +1725,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // 🎯 On bloque aussi la molette de la souris pour empêcher le zoom en arrière-plan
             e.Handled = true;
         }
+        #region Boutons
         // ─────────────────────────────────────────────────────────────────────
         // Barre de BOUTONS
         // ─────────────────────────────────────────────────────────────────────
@@ -2092,6 +2095,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 }
             }
         }
+        #endregion Boutons
+        #region Navigation panoramas
         // ─────────────────────────────────────────────────────────────────────
         // NAVIGATION entre panoramas du dossier courant
         // ─────────────────────────────────────────────────────────────────────
@@ -2444,6 +2449,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 sb.Begin();
             }
         }
+        #endregion Navigation panoramas
         // ─────────────────────────────────────────────────────────────────────
         // Gestion Exif et Xmp
         // ─────────────────────────────────────────────────────────────────────
@@ -2491,7 +2497,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
 
             // ─────── Étape 6 : Mise a jour zoom carte ─────────────────────────────
-
+            // ToDo 
 
         }
         private void SetColorPanelRating(string couleur)
@@ -3108,6 +3114,34 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (clePosition == _dernierePositionGeocodee) return;   // Évite un appel réseau si la position n'a pas vraiment changé
 
+            // Localisation déjà connue en métadonnées (lue depuis le fichier à l'ouverture, ou écrite lors
+            // d'un précédent géocodage pour cette même photo) ? On l'affiche directement sans appel réseau.
+            // Un appel forcé (menu contextuel, cf. RechercherEtEnregistrerLocalisationAsync) contourne ce test.
+            if (_currentMetadata != null && _currentMetadata.ALocalisationConnue)
+            {
+                MettreAJourLargeurPanneauPositionInfo(FormaterTexteLocalisation(_currentMetadata));
+                PositionnerPanneauPositionInfo();
+                _dernierePositionGeocodee = clePosition;
+
+                System.Diagnostics.Debug.WriteLine("[Géocodage] Localisation déjà connue en métadonnées, pas d'appel Nominatim.");
+                return;
+            }
+
+            await RechercherEtEnregistrerLocalisationAsync(lat, lon, clePosition);
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // Interroge Nominatim (géocodage inverse) et persiste systématiquement le résultat dans
+        // _currentMetadata (sauvegarde différée via _isMetaChanging, comme le reste des métadonnées).
+        // Contourne tout cache existant : appelée directement, elle écrase toujours la localisation
+        // précédente. Utilisable depuis MettreAJourLocalisationTexteAsync (rien en cache) ou directement
+        // depuis un menu contextuel "Rechercher la localisation" pour forcer un rafraîchissement.
+        // clePosition est optionnel : si non fourni, il est recalculé à partir de lat/lon.
+        // ─────────────────────────────────────────────────────────────────────
+        private async Task RechercherEtEnregistrerLocalisationAsync(double lat, double lon, string clePosition = null)
+        {
+            clePosition = clePosition ?? (lat.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)
+                + "," + lon.ToString("F4", System.Globalization.CultureInfo.InvariantCulture));
+
             _ctsGeocodage?.Cancel();
             var cts = new CancellationTokenSource();
             _ctsGeocodage = cts;
@@ -3146,8 +3180,23 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         string codePostal = resultat?.Address?.PostCode;
                         string CountryCode = resultat?.Address?.CountryCode;
 
-
                         System.Diagnostics.Debug.WriteLine($"[Géocodage] Reverse gps : {numero} - {rue} - {ville} - {codePostal} - {region} - {comte} - {pays} - {CountryCode}");
+
+                        // Persistance dans les métadonnées de la photo courante (sauvegarde différée, comme le
+                        // reste : GPS, heading... cf. _isMetaChanging + SauvegardeMeta()).
+                        if (_currentMetadata != null)
+                        {
+                            _currentMetadata.LocHouseNumber = numero;
+                            _currentMetadata.LocRoad = rue;
+                            _currentMetadata.LocCity = ville;
+                            _currentMetadata.LocPostCode = codePostal;
+                            _currentMetadata.LocCounty = comte;
+                            _currentMetadata.LocState = region;
+                            _currentMetadata.LocCountry = pays;
+                            _currentMetadata.LocCountryCode = CountryCode;
+
+                            _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
+                        }
 
                         string texte;
                         if (!string.IsNullOrEmpty(ville) && !string.IsNullOrEmpty(pays))
@@ -3257,6 +3306,23 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void MenuDefinirPosition_Click(object sender, RoutedEventArgs e)
         {
+            // Nouvelle position GPS : l'ancienne localisation textuelle (si présente en métadonnées) ne
+            // correspond plus à rien. On vide le cache avant l'appel ci-dessous, pour que la chaîne
+            // DefinirPositionGpsPhoto → AfficherPositionSurCarte → MettreAJourLocalisationTexteAsync
+            // ne réutilise pas une localisation obsolète et relance bien une recherche Nominatim.
+            if (_currentMetadata != null)
+            {
+                _currentMetadata.LocHouseNumber = null;
+                _currentMetadata.LocRoad = null;
+                _currentMetadata.LocCity = null;
+                _currentMetadata.LocPostCode = null;
+                _currentMetadata.LocCounty = null;
+                _currentMetadata.LocState = null;
+                _currentMetadata.LocCountry = null;
+                _currentMetadata.LocCountryCode = null;
+            }
+            _dernierePositionGeocodee = null;
+
             DefinirPositionGpsPhoto(_dernierClicCarteLat, _dernierClicCarteLon);
         }
         private void MenuRecentrerSurPin_Click(object sender, RoutedEventArgs e)
@@ -3270,11 +3336,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void MenuPositionFavorite2_Click(object sender, RoutedEventArgs e) { /* TODO */ }
         private void MenuPositionFavorite3_Click(object sender, RoutedEventArgs e) { /* TODO */ }
-        private void MenuSavePositionFavorite1_Click(object sender, RoutedEventArgs e)
+        private async void MenuSavePositionFavorite1_Click(object sender, RoutedEventArgs e)
         {
             _GpsMemoire1Latitude = _dernierClicCarteLat.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
             _GpsMemoire1Longitude = _dernierClicCarteLon.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
             _GpsMemoire1Zoom = _dernierClicZoom;
+
+            _GpsMemoire1Nom = "Recherche…";
+            MettreAJourLibellesFavoris();
+
+            _GpsMemoire1Nom = await RechercherNomLieuAsync(_dernierClicCarteLat, _dernierClicCarteLon);
+            MettreAJourLibellesFavoris();
 
             SaveSettings();
         }
@@ -3286,6 +3358,17 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
             SauvegardeMeta();
+        }
+        private void MenuRechercherLocalisation_Click(object sender, RoutedEventArgs e)
+        {
+            // Rafraîchit le géocodage de la position actuelle de la photo (sans changer le GPS), en
+            // écrasant systématiquement toute localisation déjà en métadonnées — utile par exemple pour
+            // corriger un résultat Nominatim erroné ou repasser au zoom=18 sur une ancienne photo.
+            if (!TryParseGps(_currentMetadata?.GpsLatitude, out double lat)) return;
+            if (!TryParseGps(_currentMetadata?.GpsLongitude, out double lon)) return;
+
+            _dernierePositionGeocodee = null;
+            _ = RechercherEtEnregistrerLocalisationAsync(lat, lon);
         }
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
@@ -3464,6 +3547,82 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             if (!_isMapPanelVisible) return;
 
             ContraindreTailleMap();
+        }
+        // Formate le texte affiché dans le panneau à partir d'une localisation déjà connue en métadonnées
+        // (même règle d'affichage que la recherche Nominatim : "Ville, Pays" / "Pays" / "Localisation inconnue").
+        private static string FormaterTexteLocalisation(PanoMetadata data)
+        {
+            if (!string.IsNullOrEmpty(data.LocCity) && !string.IsNullOrEmpty(data.LocCountry))
+                return $"{data.LocCity}, {data.LocCountry}";
+            if (!string.IsNullOrEmpty(data.LocCountry))
+                return data.LocCountry;
+            if (!string.IsNullOrEmpty(data.LocCity))
+                return data.LocCity;
+            return "Localisation inconnue";
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // Géocodage inverse dédié aux 3 positions favorites (menu contextuel carte) : indépendant de
+        // _currentMetadata et de _dernierePositionGeocodee (qui pilotent l'affichage de la photo courante).
+        // ─────────────────────────────────────────────────────────────────────
+        private async Task<string> RechercherNomLieuAsync(double lat, double lon)
+        {
+            try
+            {
+                string url = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={0}&lon={1}&zoom=10&accept-language=fr",
+                    lat, lon);
+
+                using (var requete = new HttpRequestMessage(HttpMethod.Get, url))
+                {
+                    requete.Headers.UserAgent.ParseAdd("Pano360Panel/1.0 (QuickLook plugin)");
+
+                    using (var reponse = await _httpClientGeocodage.SendAsync(requete))
+                    {
+                        reponse.EnsureSuccessStatusCode();
+                        string json = await reponse.Content.ReadAsStringAsync();
+
+                        var resultat = JsonConvert.DeserializeObject<NominatimReverseResult>(json);
+                        string ville = resultat?.Address?.City ?? resultat?.Address?.Town ?? resultat?.Address?.Village ?? resultat?.Address?.Municipality;
+                        string pays = resultat?.Address?.Country;
+
+                        if (!string.IsNullOrEmpty(ville) && !string.IsNullOrEmpty(pays))
+                            return $"{ville}, {pays}";
+                        if (!string.IsNullOrEmpty(pays))
+                            return pays;
+                        return "Position favorite";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Géocodage] Erreur Nominatim (favori) : {ex.GetType().Name} - {ex.Message}");
+                return "Position favorite";
+            }
+        }
+        // Met à jour le Header des 3 MenuItem favoris du menu contextuel carte avec le nom de lieu mémorisé,
+        // pour que l'utilisateur voie "Paris, France" plutôt que "Aller au favoris 1".
+        private void MettreAJourLibellesFavoris()
+        {
+            var menu = (ContextMenu)FindResource("MenuContextuelCarte");
+
+            MettreAJourHeaderFavori(menu, "Favori1", _GpsMemoire1Nom);
+            MettreAJourHeaderFavori(menu, "Favori2", _GpsMemoire2Nom);
+            MettreAJourHeaderFavori(menu, "Favori3", _GpsMemoire3Nom);
+        }
+        // Retrouve, par son Tag (identifiant stable posé en XAML, indépendant de l'ordre des MenuItem
+        // et du nom du handler Click), le MenuItem "Aller au favoris X" correspondant et met à jour son
+        // Header. Nécessaire car x:Name sur un élément déclaré statiquement dans une ressource
+        // (ContextMenu en Window.Resources) n'est pas accessible via FindName : on parcourt donc Items.
+        private void MettreAJourHeaderFavori(ItemsControl menu, string tag, string nomLieu)
+        {
+            foreach (var obj in menu.Items)
+            {
+                if (obj is MenuItem item && (string)item.Tag == tag)
+                {
+                    item.Header = "⭐  " + nomLieu;
+                    return;
+                }
+            }
         }
         // ──────────────────────── Affichage ──────────────────────────────────
         private void ToggleFullscreen()

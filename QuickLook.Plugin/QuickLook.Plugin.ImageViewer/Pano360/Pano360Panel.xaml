@@ -33,13 +33,14 @@
             <MenuItem Header="↩  Centrer sur le panorama précédent" Click="MenuCentrerPanoramaPrecedent_Click"/>
             
             <Separator/>
-            
-            <MenuItem Header="⭐  Aller au favoris 1" Click="MenuPositionFavorite1_Click"/>
-            <MenuItem Header="⭐  Aller au favoris 2" Click="MenuPositionFavorite2_Click"/>
-            <MenuItem Header="⭐  Aller au favoris 3" Click="MenuPositionFavorite3_Click"/>
+
+            <MenuItem Tag="Favori1" Header="⭐  Aller au favoris 1" Click="MenuPositionFavorite1_Click"/>
+            <MenuItem Tag="Favori2" Header="⭐  Aller au favoris 2" Click="MenuPositionFavorite2_Click"/>
+            <MenuItem Tag="Favori3" Header="⭐  Aller au favoris 3" Click="MenuPositionFavorite3_Click"/>
 
             <Separator/>
 
+            <MenuItem Header="🔄 Rechercher la localisation" Click="MenuRechercherLocalisation_Click"/>
             <MenuItem Header="💾 Sauvegarder la vue (👓+🗺️)" Click="MenuSauvegardeVueEtMap_Click"/>
         </ContextMenu>
         <!-- ──────────────── Storyboards des fléches prev/next ────────────────────── -->
