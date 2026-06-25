@@ -38,7 +38,8 @@ using TDxInput;
 using Media3D = System.Windows.Media.Media3D;
 
 using System.Runtime.InteropServices; // Pour le DllImport            (Problème de la spacemouse qui perd le focus avec webview2)
-using System.Windows.Interop;         // Pour le WindowInteropHelper  (Problème de la spacemouse qui perd le focus avec webview2)
+using System.Windows.Interop;
+using System.Runtime.CompilerServices;         // Pour le WindowInteropHelper  (Problème de la spacemouse qui perd le focus avec webview2)
 
 namespace QuickLook.Plugin.ImageViewer.Pano360
 {
@@ -120,6 +121,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double _dernierClicCarteLat;                               // Correspond à la position du clic sur la carte Leaflet
         private double _dernierClicCarteLon;
         private int _dernierClicZoom;
+        private int _zoomPinMap;
 
         private bool _sliderHeadingMisAJourProgrammatique = false;         // Évite que la mise à jour programmatique du slider (au chargement d'un panorama) ne
                                                                            // déclenche elle-même ValueChanged et n'écrive _isMetaChanging = true à tort, alors que
@@ -222,6 +224,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private AxisAngleRotation3D _horizontalRotation = new AxisAngleRotation3D();     // Rotation autour de l'axe Y (panoramique horizontal, lacet / yaw)
         private AxisAngleRotation3D _verticalRotation = new AxisAngleRotation3D();       // Rotation autour de l'axe X (inclinaison verticale, tangage / pitch)
 
+        private double _homeHorizontalAngle = 0.0;           // Angle horizontal mémorisé au chargement de la scène (vue "Home", touche Fit de la SpaceMouse)
+        private double _homeVerticalAngle = 0.0;             // Angle vertical mémorisé au chargement de la scène (vue "Home")
+        private double _homeFov = 0.0;
+
         // ─────────────────────────────────────────────────────────────────────
         // > Champs navigation souris
         // ─────────────────────────────────────────────────────────────────────
@@ -274,8 +280,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private double _targetHorizontalAngle = double.NaN;  // Angle horizontal cible pour le snap clavier (NaN = aucun snap actif, la sphère tourne librement)
         private double _targetVerticalAngle = double.NaN;    // Angle vertical cible pour le snap clavier (NaN = aucun snap actif)
         private const double KeySnapSpeed = 180.0;           // Vitesse maximale de rotation animée lors d'un snap clavier (°/s) — interpolation ease-out
-        private double _homeHorizontalAngle = 0.0;           // Angle horizontal mémorisé au chargement de la scène (vue "Home", touche Fit de la SpaceMouse)
-        private double _homeVerticalAngle = 0.0;             // Angle vertical mémorisé au chargement de la scène (vue "Home")
 
         // ─────────────────────────────────────────────────────────────────────
         // > Autorotation
@@ -332,7 +336,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _isMouseOverBarre = false;                 // True quand le curseur survole la barre ou le panneau de progression — force la barre à rester visible
 
         #endregion Constantes et Déclarations de champs
-
+        #region Initialisation
         // ─────────────────────────────────────────────────────────────────────
         // Constructeur
         // ─────────────────────────────────────────────────────────────────────
@@ -402,15 +406,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void InitScene()
         {
+            // lire les données Exif/Xmp de la photo
+            LoadAndDisplayMetadata(_currentPanoPath);
+            _isMetaChanging = false;                         // initialise l'état de l'indicateur de sauvegarde
+
+            // Initialisation de la scène 3D
             SetupCamera();
             SetupLight();
             var material = CreatePanoramaMaterial(_imagePath);
             SetupSphere(material);
             SetupEventHandlers();
-
-            // ── Mémorisation de la vue "Home" ──
-            _homeHorizontalAngle = _horizontalRotation.Angle; // 0° au démarrage
-            _homeVerticalAngle = _verticalRotation.Angle;     // 0° au démarrage
 
             _context.IsBusy = false;  // Signale à QuickLook que le chargement est terminé
 
@@ -418,10 +423,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // Debug pour les données Exif/Xmp
             //PanoMetadataService.DiagnostiquerMetadonnees(_currentPanoPath);
-
-            // lire les données Exif/Xmp de la photo
-            LoadAndDisplayMetadata(_currentPanoPath);
-            _isMetaChanging = false;                         // initialise l'état de l'indicateur de sauvegarde
 
             // ── Connexion SpaceMouse une fois la scène complètement prête ──
             ConnecterSpaceMouse();
@@ -459,6 +460,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Deux rotations indépendantes : horizontale (axe Y) et verticale (axe X).
             _horizontalRotation = new AxisAngleRotation3D(new Media3D.Vector3D(0, 1, 0), 0);
             _verticalRotation = new AxisAngleRotation3D(new Media3D.Vector3D(1, 0, 0), 0);
+
+            // Mise à jour avec la position Home (vide ou enregistrée)
+            _horizontalRotation.Angle = _homeHorizontalAngle;
+            _verticalRotation.Angle = _homeVerticalAngle;
 
             var transformGroup = new Transform3DGroup();
             transformGroup.Children.Add(new RotateTransform3D(_horizontalRotation));
@@ -981,6 +986,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Note l'heure courante comme "dernier mouvement détecté".
             _lastMovementTime = DateTime.Now;
         }
+        #endregion Initialisation
+        #region Evenements
         // ─────────────────────────────────────────────────────────────────────
         // Gestionnaires d'événements
         // ─────────────────────────────────────────────────────────────────────
@@ -1303,7 +1310,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
 
         }
-
+        #endregion Evenements
         // ─────────────────────────────────────────────────────────────────────
         // BOUTONS OPTIONS & PREFERENCES
         // ─────────────────────────────────────────────────────────────────────
@@ -1323,7 +1330,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         Dispatcher.BeginInvoke(new Action(() =>
                         {
                             // FOV
-                            _camera.FieldOfView = _OptionFov;
+                            MiseAJourFovUI();
 
                             // Fullscreen
                             if (_chkFullscreenSavedValue) ToggleFullscreen();
@@ -1482,7 +1489,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             chkBarreReduite.IsChecked = _OptionBarreReduite;
 
             // Mise à jour boite de dialogue: Fov
-            _targetFov = _OptionFov;
             sldFov.Value = _OptionFov;
             txtFov.Text = string.Format("(FOV: {0:F0}°)", _OptionFov);
 
@@ -1725,7 +1731,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // 🎯 On bloque aussi la molette de la souris pour empêcher le zoom en arrière-plan
             e.Handled = true;
         }
-        #region Boutons
+        #region Barre de Boutons
         // ─────────────────────────────────────────────────────────────────────
         // Barre de BOUTONS
         // ─────────────────────────────────────────────────────────────────────
@@ -2095,7 +2101,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 }
             }
         }
-        #endregion Boutons
+        #endregion Barre de Boutons
         #region Navigation panoramas
         // ─────────────────────────────────────────────────────────────────────
         // NAVIGATION entre panoramas du dossier courant
@@ -2202,6 +2208,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // lire les données Exif/Xmp
                 LoadAndDisplayMetadata(_currentPanoPath);
                 _isMetaChanging = false;                         // initialise l'état de l'indicateur de sauvegarde
+
+                // Mise à jour avec la position Home (vide ou enregistrée)
+                _horizontalRotation.Angle = _homeHorizontalAngle;
+                _verticalRotation.Angle = _homeVerticalAngle;
+
+                // FOV
+                MiseAJourFovUI();
 
                 // Permet d'afficher le panneau d'information et de retirer une partie si les informations sont manquantes
                 AffichagePanneauxInfosSansAnimations();
@@ -2470,8 +2483,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // ─────── Étape 4 : Mise à jour du panneau d'informations ──────────────
             UpdateDataPanelInfo();
 
-            // ─────── Étape 5 : GPS ────────────────────────────────────────────────
+            // ─────── Étape 5 : Mise a jour de la vue "home" ───────────────────────
+            _homeHorizontalAngle = _currentMetadata.HomeHorizontalSphere ?? 0.0;
+            _homeVerticalAngle = _currentMetadata.HomeVerticalSphere ?? 0.0;
+            _homeFov = _currentMetadata.HomeFovSphere ?? 0.0;
+            _zoomPinMap = _currentMetadata.MapZoomLevel ?? 15;
 
+            // ─────── Étape 6 : GPS ────────────────────────────────────────────────
             // Permet de précharger la carte
             _ = AssurerCarteInitialiseeAsync();
 
@@ -2495,10 +2513,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 AfficherPositionSurCarte(_currentMetadata.GpsLatitude, _currentMetadata.GpsLongitude);
                 _ = MettreAJourFovSurCarte();
             }
-
-            // ─────── Étape 6 : Mise a jour zoom carte ─────────────────────────────
-            // ToDo 
-
         }
         private void SetColorPanelRating(string couleur)
         {
@@ -3106,7 +3120,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 // setPosition() est défini dans le HTML/JS ci-dessous (ConstruireHtmlCarteLeaflet) :
                 // il déplace le marqueur et recentre la carte sans tout recharger.
-                await webViewMap.CoreWebView2.ExecuteScriptAsync($"setPosition({latStr}, {lonStr});");
+                await webViewMap.CoreWebView2.ExecuteScriptAsync($"setPosition({latStr}, {lonStr}, {_zoomPinMap});");
             }
             catch (Exception ex)
             {
@@ -3333,6 +3347,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _dernierePositionGeocodee = null;
 
             DefinirPositionGpsPhoto(_dernierClicCarteLat, _dernierClicCarteLon);
+
+            pnlPositionInfo.Visibility = Visibility.Visible;
+            pnlPositionInfo.Opacity = 1;
         }
         private void MenuRecentrerSurPin_Click(object sender, RoutedEventArgs e)
         {
@@ -3399,6 +3416,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private void MenuSauvegardeVueEtMap_Click(object sender, RoutedEventArgs e)
         {
             _currentMetadata.MapZoomLevel = _dernierClicZoom;
+            _zoomPinMap = _dernierClicZoom;
+
+            _currentMetadata.HomeHorizontalSphere = _horizontalRotation.Angle; 
+            _currentMetadata.HomeVerticalSphere = _verticalRotation.Angle;
+            _currentMetadata.HomeFovSphere = _camera.FieldOfView;
 
             _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
             SauvegardeMeta();
@@ -3717,6 +3739,22 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             panelRatingScale.ScaleX = 1.0;
             panelRatingScale.ScaleY = 1.0;
             panelRatingTranslate.Y = 0; // reset pour le prochain FadeIn
+        }
+        private void MiseAJourFovUI()
+        {
+            // Permet la mise à jour de la fov au démarrage de l'application
+            // mais également au changement de panorama
+            // Mise à jour de l'interface (UI) et de la caméra
+            if (_homeFov == 0)
+            {
+                _camera.FieldOfView = _OptionFov;
+            }
+            else
+            {
+                _camera.FieldOfView = _homeFov;
+            }
+            _targetFov = _camera.FieldOfView;
+            txtFov.Text = string.Format("(FOV: {0:F0}°)", _camera.FieldOfView);
         }
         // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources

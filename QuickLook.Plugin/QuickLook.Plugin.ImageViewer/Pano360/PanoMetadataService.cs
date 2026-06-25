@@ -57,6 +57,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         public int? MapZoomLevel { get; set; }                  // Niveau de zoom Leaflet de la carte GPS (panneau pnlMapContainer), mémorisé par photo pour
                                                                 // retrouver le même cadrage au prochain visionnage (ex: zoom serré pour l'intérieur d'une
                                                                 // cathédrale, zoom large pour Monument Valley). Namespace XMP personnalisé, propre à ce plugin.
+        public double? HomeHorizontalSphere { get; set; }
+        public double? HomeVerticalSphere { get; set; }
+        public double? HomeFovSphere { get; set; }
     }
 
     public static class PanoMetadataService
@@ -190,6 +193,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                         // ──── 6. Lecture de la localisation textuelle mise en cache (XMP namespace personnalisé) ────
                         TentativeLectureLocalisation(bitmapMetadata, data);
+
+                        // ──── 7. Lecture de la position home du panorama mise en cache (XMP namespace personnalisé) ────
+                        TentativeLectureSphereHome(bitmapMetadata, data);
                     }
                 }
             }
@@ -333,6 +339,28 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             catch (Exception ex)
                             {
                                 System.Diagnostics.Debug.WriteLine($"[Metadata] Échec écriture MapZoomLevel : {ex.Message}");
+                            }
+                        }
+
+                        // Position Home de la sphère (horizontal, vertical et FOV)
+                        if (data.HomeHorizontalSphere.HasValue && data.HomeVerticalSphere.HasValue && data.HomeFovSphere.HasValue) 
+                        {
+                            try
+                            {
+                                if (!metadataClone.ContainsQuery("/xmp"))
+                                {
+                                    metadataClone.SetQuery("/xmp", new BitmapMetadata("xmp"));
+                                }
+
+                                metadataClone.SetQuery(Pano360PanelNamespace + ":HomeHorizontalSphere", data.HomeHorizontalSphere.Value.ToString(CultureInfo.InvariantCulture));
+                                metadataClone.SetQuery(Pano360PanelNamespace + ":HomeVerticalSphere", data.HomeVerticalSphere.Value.ToString(CultureInfo.InvariantCulture));
+                                metadataClone.SetQuery(Pano360PanelNamespace + ":HomeFovSphere", data.HomeFovSphere.Value.ToString(CultureInfo.InvariantCulture));
+
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] SphereHome écrit : {data.HomeHorizontalSphere} - {data.HomeVerticalSphere} - {data.HomeFovSphere}");
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[Metadata] Échec écriture SphereHome : {ex.Message}");
                             }
                         }
 
@@ -628,6 +656,41 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur de lecture MapZoomLevel : {ex.Message}");
             }
             System.Diagnostics.Debug.WriteLine($"[Metadata] MapZoomLevel : {data.MapZoomLevel}");
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // LECTURE POSITION SPHERE — XMP namespace personnalisé (pano360panel:SphereUVHome)
+        // ─────────────────────────────────────────────────────────────────────
+        // Champ propre à ce plugin 
+        private static void TentativeLectureSphereHome(BitmapMetadata bitmapMetadata, PanoMetadata data)
+        {
+            try
+            {
+                var raw = bitmapMetadata.GetQuery(Pano360PanelNamespace + ":HomeHorizontalSphere");
+
+                if (raw != null && double.TryParse(raw.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double horizon))
+                {
+                    data.HomeHorizontalSphere = horizon;
+                }
+
+                var raw2 = bitmapMetadata.GetQuery(Pano360PanelNamespace + ":HomeVerticalSphere");
+
+                if (raw2 != null && double.TryParse(raw2.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double vertical))
+                {
+                    data.HomeVerticalSphere = vertical;
+                }
+
+                var raw3 = bitmapMetadata.GetQuery(Pano360PanelNamespace + ":HomeFovSphere");
+
+                if (raw3 != null && double.TryParse(raw3.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double fov))
+                {
+                    data.HomeFovSphere = fov;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur de lecture SphereHome : {ex.Message}");
+            }
+            System.Diagnostics.Debug.WriteLine($"[Metadata] SphereHome : {data.HomeHorizontalSphere} - {data.HomeVerticalSphere} - {data.HomeFovSphere}");
         }
         // ─────────────────────────────────────────────────────────────────────
         // ÉCRITURE LOCALISATION — helper générique (chemin XMP complet déjà construit par l'appelant)

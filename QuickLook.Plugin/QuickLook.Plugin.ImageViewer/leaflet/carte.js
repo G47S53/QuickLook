@@ -3,12 +3,14 @@
 // 1. Couche Plan (OpenStreetMap)
 var osmLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
+    minZoom: 2,
     attribution: '&copy; OpenStreetMap'
 });
 
 // 2. Couche Satellite (Esri World Imagery)
 var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: 19, // Esri supporte généralement jusqu'au zoom 18-19 selon les zones
+    minZoom: 2, 
     attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
 });
 
@@ -58,9 +60,11 @@ map.addControl(geoSearchControl);
 var marker = null;
 
 // ── Fonction pour placer ou déplacer le marqueur(Pin) sur la carte ──
-function setPosition(lat, lon)
+function setPosition(lat, lon, zoom)
 {
     var latLng = [lat, lon];
+    var zoomLevel = Number(zoom);
+
     if (marker === null)
     {
         marker = L.marker(latLng, { zIndexOffset: 1000 }).addTo(map);
@@ -69,7 +73,7 @@ function setPosition(lat, lon)
     {
         marker.setLatLng(latLng);
     }
-    map.setView(latLng, 15);
+    map.setView(latLng, zoomLevel);
 }
 
 // ── Fonction pour recentrer la carte sur des coordonnées GPS données ──
