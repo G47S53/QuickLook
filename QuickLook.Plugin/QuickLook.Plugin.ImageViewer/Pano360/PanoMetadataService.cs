@@ -25,15 +25,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         public string GpsLatitude { get; set; }
         public string GpsLongitude { get; set; }
         public string GpsAltitude { get; set; }
-
-        public double? PoseHeadingDegrees { get; set; }         // Orientation du panorama (XMP GPano, standard Google Photo Sphere) : cap compass
-                                                                // en degrés, 0=Nord, sens horaire, pour le centre de l'image. null si absent du fichier.
-
-        //Perso (Pano360Panel) : niveau de zoom Leaflet de la carte GPS (panneau pnlMapContainer), mémorisé par photo pour retrouver le même cadrage au prochain visionnage.
-        public int? MapZoomLevel { get; set; }                  // Niveau de zoom Leaflet de la carte GPS (panneau pnlMapContainer), mémorisé par photo pour
-                                                                // retrouver le même cadrage au prochain visionnage (ex: zoom serré pour l'intérieur d'une
-                                                                // cathédrale, zoom large pour Monument Valley). Namespace XMP personnalisé, propre à ce plugin.
-
         // Perso (Pano360Panel) : localisation textuelle issue du géocodage inverse (Nominatim/OSM), mise en cache
         // dans les métadonnées pour éviter de refaire un appel réseau à chaque ouverture de la photo.
         // City/State/Country/CountryCode/Sublocation sont stockés dans les schémas XMP standard IPTC Core /
@@ -49,7 +40,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         public string LocCounty { get; set; }                    // Comté/département (équivalent administratif intermédiaire).
         public string LocState { get; set; }                     // Région/état.
         public string LocCountry { get; set; }                   // Pays (nom complet, dans la langue demandée à Nominatim).
-        public string LocCountryCode { get; set; }                // Code pays ISO (ex: "fr").
+        public string LocCountryCode { get; set; }               // Code pays ISO (ex: "fr").
 
         // Au moins une des informations de localisation ci-dessus est-elle déjà renseignée ?
         // Sert à décider si on peut éviter un appel réseau Nominatim (cf. MettreAJourLocalisationTexteAsync).
@@ -57,6 +48,15 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             !string.IsNullOrEmpty(LocCity) || !string.IsNullOrEmpty(LocCountry) ||
             !string.IsNullOrEmpty(LocRoad) || !string.IsNullOrEmpty(LocCounty) ||
             !string.IsNullOrEmpty(LocState) || !string.IsNullOrEmpty(LocPostCode);
+
+        // Perso (Pano360Panel) : orientation du panorama (XMP GPano, standard Google Photo Sphere), mémorisée par photo pour retrouver le même cadrage au prochain visionnage.
+        public double? PoseHeadingDegrees { get; set; }         // Orientation du panorama (XMP GPano, standard Google Photo Sphere) : cap compass
+                                                                // en degrés, 0=Nord, sens horaire, pour le centre de l'image. null si absent du fichier.
+
+        // Perso (Pano360Panel) : niveau de zoom Leaflet de la carte GPS (panneau pnlMapContainer), mémorisé par photo pour retrouver le même cadrage au prochain visionnage.
+        public int? MapZoomLevel { get; set; }                  // Niveau de zoom Leaflet de la carte GPS (panneau pnlMapContainer), mémorisé par photo pour
+                                                                // retrouver le même cadrage au prochain visionnage (ex: zoom serré pour l'intérieur d'une
+                                                                // cathédrale, zoom large pour Monument Valley). Namespace XMP personnalisé, propre à ce plugin.
     }
 
     public static class PanoMetadataService
@@ -64,27 +64,24 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // Constantes pour la lecture/écriture des métadonnées
         // ─────────────────────────────────────────────────────────────────────
+        private const string DjiNamespace = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";                  // Le namespace DJI dans le XMP utilise cette URI comme clé de requête WPF.
+                                                                                                                    // Partagée entre lecture (TentativeLectureGpsXmpDji) et écriture (mise à jour de cohérence).
         private const string Pano360PanelNamespace = "/xmp/http\\:\\/\\/www.pano360panel.local\\/ns\\/1.0\\/";      // Namespace XMP personnalisé pour les données propres à ce plugin (pas un standard externe).
                                                                                                                     // URI arbitraire mais stable : sert uniquement de clé d'identification unique, n'a pas besoin
                                                                                                                     // de pointer vers une page web réelle.
-        private const string DjiNamespace = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";                  // Le namespace DJI dans le XMP utilise cette URI comme clé de requête WPF.
-                                                                                                                    // Partagée entre lecture (TentativeLectureGpsXmpDji) et écriture (mise à jour de cohérence).
         private const string GpanoNamespace = "/xmp/http\\:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";       // Namespace XMP standard Google Photo Sphere (GPano) pour l'orientation du panorama.
 
         // Namespaces standard pour la localisation (IPTC Core + photoshop), lus/écrits nativement par
         // Lightroom, Bridge, Photoshop, ACDSee, etc. Pas de préfixe à déclarer explicitement : WPF résout
         // tout seul le bon namespace XML à partir du nom court "Iptc4xmpCore:"/"photoshop:" (cf.
         // BitmapMetadata.SetQuery, qui connaît ces préfixes courants nativement).
-        // Répartition des champs entre les deux schémas (historique du standard, pas un choix arbitraire) :
-        //   - photoshop:City / photoshop:State / photoshop:Country / photoshop:CountryCode
-        //     → c'est CE namespace, et non Iptc4xmpCore, qui porte historiquement City/State/Country dans
-        //       le panneau "IPTC Core" d'Adobe (Lightroom/Bridge écrivent réellement ici en pratique).
-        //   - Iptc4xmpCore:Location (= "Sublocation" depuis IPTC Core 1.1) et Iptc4xmpCore:CountryCode
-        //     → utilisés en complément/miroir pour la compatibilité avec les logiciels qui lisent le
-        //       schéma Iptc4xmpCore plutôt que photoshop.
-        private const string PhotoshopNamespace = "/xmp/photoshop:";
-        private const string Iptc4xmpCoreNamespace = "/xmp/Iptc4xmpCore:";
-
+        private const string PhotoshopNamespace = "/xmp/photoshop:";                                                // Répartition des champs entre les deux schémas (historique du standard, pas un choix arbitraire) :
+                                                                                                                    // - photoshop:City / photoshop:State / photoshop:Country / photoshop:CountryCode
+                                                                                                                    // → c'est CE namespace, et non Iptc4xmpCore, qui porte historiquement City/State/Country dans
+                                                                                                                    // le panneau "IPTC Core" d'Adobe (Lightroom/Bridge écrivent réellement ici en pratique).
+        private const string Iptc4xmpCoreNamespace = "/xmp/Iptc4xmpCore:";                                          // - Iptc4xmpCore:Location (= "Sublocation" depuis IPTC Core 1.1) et Iptc4xmpCore:CountryCode
+                                                                                                                    // → utilisés en complément/miroir pour la compatibilité avec les logiciels qui lisent le
+                                                                                                                    // schéma Iptc4xmpCore plutôt que photoshop.
         // ─────────────────────────────────────────────────────────────────────
         // LECTURE DES MÉTADONNÉES
         // ─────────────────────────────────────────────────────────────────────

@@ -3129,16 +3129,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             await RechercherEtEnregistrerLocalisationAsync(lat, lon, clePosition);
         }
-        // ─────────────────────────────────────────────────────────────────────
-        // Interroge Nominatim (géocodage inverse) et persiste systématiquement le résultat dans
-        // _currentMetadata (sauvegarde différée via _isMetaChanging, comme le reste des métadonnées).
-        // Contourne tout cache existant : appelée directement, elle écrase toujours la localisation
-        // précédente. Utilisable depuis MettreAJourLocalisationTexteAsync (rien en cache) ou directement
-        // depuis un menu contextuel "Rechercher la localisation" pour forcer un rafraîchissement.
-        // clePosition est optionnel : si non fourni, il est recalculé à partir de lat/lon.
-        // ─────────────────────────────────────────────────────────────────────
         private async Task RechercherEtEnregistrerLocalisationAsync(double lat, double lon, string clePosition = null)
         {
+            // ─────────────────────────────────────────────────────────────────────
+            // Interroge Nominatim (géocodage inverse) et persiste systématiquement le résultat dans
+            // _currentMetadata (sauvegarde différée via _isMetaChanging, comme le reste des métadonnées).
+            // Contourne tout cache existant : appelée directement, elle écrase toujours la localisation
+            // précédente. Utilisable depuis MettreAJourLocalisationTexteAsync (rien en cache) ou directement
+            // depuis un menu contextuel "Rechercher la localisation" pour forcer un rafraîchissement.
+            // clePosition est optionnel : si non fourni, il est recalculé à partir de lat/lon.
+            // ─────────────────────────────────────────────────────────────────────
             clePosition = clePosition ?? (lat.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)
                 + "," + lon.ToString("F4", System.Globalization.CultureInfo.InvariantCulture));
 
@@ -3548,10 +3548,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             ContraindreTailleMap();
         }
-        // Formate le texte affiché dans le panneau à partir d'une localisation déjà connue en métadonnées
-        // (même règle d'affichage que la recherche Nominatim : "Ville, Pays" / "Pays" / "Localisation inconnue").
         private static string FormaterTexteLocalisation(PanoMetadata data)
         {
+            // Formate le texte affiché dans le panneau à partir d'une localisation déjà connue en métadonnées
+            // (même règle d'affichage que la recherche Nominatim : "Ville, Pays" / "Pays" / "Localisation inconnue").
             if (!string.IsNullOrEmpty(data.LocCity) && !string.IsNullOrEmpty(data.LocCountry))
                 return $"{data.LocCity}, {data.LocCountry}";
             if (!string.IsNullOrEmpty(data.LocCountry))
@@ -3560,12 +3560,12 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 return data.LocCity;
             return "Localisation inconnue";
         }
-        // ─────────────────────────────────────────────────────────────────────
-        // Géocodage inverse dédié aux 3 positions favorites (menu contextuel carte) : indépendant de
-        // _currentMetadata et de _dernierePositionGeocodee (qui pilotent l'affichage de la photo courante).
-        // ─────────────────────────────────────────────────────────────────────
         private async Task<string> RechercherNomLieuAsync(double lat, double lon)
         {
+            // ─────────────────────────────────────────────────────────────────────
+            // Géocodage inverse dédié aux 3 positions favorites (menu contextuel carte) : indépendant de
+            // _currentMetadata et de _dernierePositionGeocodee (qui pilotent l'affichage de la photo courante).
+            // ─────────────────────────────────────────────────────────────────────
             try
             {
                 string url = string.Format(System.Globalization.CultureInfo.InvariantCulture,
@@ -3599,22 +3599,22 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 return "Position favorite";
             }
         }
-        // Met à jour le Header des 3 MenuItem favoris du menu contextuel carte avec le nom de lieu mémorisé,
-        // pour que l'utilisateur voie "Paris, France" plutôt que "Aller au favoris 1".
         private void MettreAJourLibellesFavoris()
         {
+            // Met à jour le Header des 3 MenuItem favoris du menu contextuel carte avec le nom de lieu mémorisé,
+            // pour que l'utilisateur voie "Paris, France" plutôt que "Aller au favoris 1".
             var menu = (ContextMenu)FindResource("MenuContextuelCarte");
 
             MettreAJourHeaderFavori(menu, "Favori1", _GpsMemoire1Nom);
             MettreAJourHeaderFavori(menu, "Favori2", _GpsMemoire2Nom);
             MettreAJourHeaderFavori(menu, "Favori3", _GpsMemoire3Nom);
         }
-        // Retrouve, par son Tag (identifiant stable posé en XAML, indépendant de l'ordre des MenuItem
-        // et du nom du handler Click), le MenuItem "Aller au favoris X" correspondant et met à jour son
-        // Header. Nécessaire car x:Name sur un élément déclaré statiquement dans une ressource
-        // (ContextMenu en Window.Resources) n'est pas accessible via FindName : on parcourt donc Items.
         private void MettreAJourHeaderFavori(ItemsControl menu, string tag, string nomLieu)
         {
+            // Retrouve, par son Tag (identifiant stable posé en XAML, indépendant de l'ordre des MenuItem
+            // et du nom du handler Click), le MenuItem "Aller au favoris X" correspondant et met à jour son
+            // Header. Nécessaire car x:Name sur un élément déclaré statiquement dans une ressource
+            // (ContextMenu en Window.Resources) n'est pas accessible via FindName : on parcourt donc Items.
             foreach (var obj in menu.Items)
             {
                 if (obj is MenuItem item && (string)item.Tag == tag)
