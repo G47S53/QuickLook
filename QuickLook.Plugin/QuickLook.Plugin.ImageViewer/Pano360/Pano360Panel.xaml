@@ -37,10 +37,10 @@
             <MenuItem Header="⭐  Aller au favoris 1" Click="MenuPositionFavorite1_Click"/>
             <MenuItem Header="⭐  Aller au favoris 2" Click="MenuPositionFavorite2_Click"/>
             <MenuItem Header="⭐  Aller au favoris 3" Click="MenuPositionFavorite3_Click"/>
-            
+
             <Separator/>
 
-            <MenuItem x:Name="menuToggleFov" Header="👁 Afficher la FOV" IsCheckable="True" IsChecked="True" Click="MenuToggleFov_Click"/>
+            <MenuItem Header="💾 Sauvegarder la vue (👓+🗺️)" Click="MenuSauvegardeVueEtMap_Click"/>
         </ContextMenu>
         <!-- ──────────────── Storyboards des fléches prev/next ────────────────────── -->
         <!-- ───────────────────── Passage noir/gris/blanc ─────────────────────────── -->

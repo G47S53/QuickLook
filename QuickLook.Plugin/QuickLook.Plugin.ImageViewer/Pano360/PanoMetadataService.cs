@@ -25,19 +25,28 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         public string GpsLatitude { get; set; }
         public string GpsLongitude { get; set; }
         public string GpsAltitude { get; set; }
-        // Orientation du panorama (XMP GPano, standard Google Photo Sphere) : cap compass
-        // en degrés, 0=Nord, sens horaire, pour le centre de l'image. null si absent du fichier.
-        public double? PoseHeadingDegrees { get; set; }
-        // Niveau de zoom Leaflet de la carte GPS (panneau pnlMapContainer), mémorisé par photo pour
-        // retrouver le même cadrage au prochain visionnage (ex: zoom serré pour l'intérieur d'une
-        // cathédrale, zoom large pour Monument Valley). Namespace XMP personnalisé, propre à ce plugin.
-        public int? MapZoomLevel { get; set; }
-        // Dictionnaire évolutif pour stocker d'autres propriétés à la volée
-        public Dictionary<string, object> CustomTags { get; set; } = new Dictionary<string, object>();
+
+        public double? PoseHeadingDegrees { get; set; }         // Orientation du panorama (XMP GPano, standard Google Photo Sphere) : cap compass
+                                                                // en degrés, 0=Nord, sens horaire, pour le centre de l'image. null si absent du fichier.
+
+        //Perso (Pano360Panel) : niveau de zoom Leaflet de la carte GPS (panneau pnlMapContainer), mémorisé par photo pour retrouver le même cadrage au prochain visionnage.
+        public int? MapZoomLevel { get; set; }                  // Niveau de zoom Leaflet de la carte GPS (panneau pnlMapContainer), mémorisé par photo pour
+                                                                // retrouver le même cadrage au prochain visionnage (ex: zoom serré pour l'intérieur d'une
+                                                                // cathédrale, zoom large pour Monument Valley). Namespace XMP personnalisé, propre à ce plugin.
     }
 
     public static class PanoMetadataService
     {
+        // ─────────────────────────────────────────────────────────────────────
+        // Constantes pour la lecture/écriture des métadonnées XMP.
+        // ─────────────────────────────────────────────────────────────────────
+        private const string Pano360PanelNamespace = "/xmp/http\\:\\/\\/www.pano360panel.local\\/ns\\/1.0\\/";      // Namespace XMP personnalisé pour les données propres à ce plugin (pas un standard externe).
+                                                                                                                    // URI arbitraire mais stable : sert uniquement de clé d'identification unique, n'a pas besoin
+                                                                                                                    // de pointer vers une page web réelle.
+        private const string DjiNamespace = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";                  // Le namespace DJI dans le XMP utilise cette URI comme clé de requête WPF.
+                                                                                                                    // Partagée entre lecture (TentativeLectureGpsXmpDji) et écriture (mise à jour de cohérence).
+        private const string GpanoNamespace = "/xmp/http\\:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";       // Namespace XMP standard Google Photo Sphere (GPano) pour l'orientation du panorama.
+
         // ─────────────────────────────────────────────────────────────────────
         // LECTURE DES MÉTADONNÉES
         // ─────────────────────────────────────────────────────────────────────
@@ -249,8 +258,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             System.Diagnostics.Debug.WriteLine($"[Metadata] PoseHeadingDegrees est : {data.PoseHeadingDegrees.Value.ToString(CultureInfo.InvariantCulture)}");
                             try
                             {
-                                const string gpanoNs = "/xmp/http\\:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
-
                                 // Comme pour le bloc GPS EXIF, WPF a besoin que le bloc XMP racine existe avant
                                 // qu'on puisse y écrire un namespace personnalisé (GPano). S'il n'existe pas encore
                                 // (fichier qui n'a jamais eu de XMP du tout), on le crée explicitement.
@@ -259,7 +266,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                     metadataClone.SetQuery("/xmp", new BitmapMetadata("xmp"));
                                 }
 
-                                metadataClone.SetQuery(gpanoNs + ":PoseHeadingDegrees",
+                                metadataClone.SetQuery(GpanoNamespace + ":PoseHeadingDegrees",
                                     data.PoseHeadingDegrees.Value.ToString(CultureInfo.InvariantCulture));
 
                                 System.Diagnostics.Debug.WriteLine($"[Metadata] PoseHeadingDegrees écrit : {data.PoseHeadingDegrees.Value}");
@@ -333,10 +340,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur d'écriture sur {Path.GetFileName(filePath)} : {ex.Message}");
             }
         }
+        #region GPS
         // ─────────────────────────────────────────────────────────────────────
         //                            GPS
-        // ─────────────────────────────────────────────────────────────────────
-        // ─────────────────────────────────────────────────────────────────────
+        // ═════════════════════════════════════════════════════════════════════
         // LECTURE GPS — Source 1 : EXIF standard (tous appareils photo/drone)
         // ─────────────────────────────────────────────────────────────────────
         // Retourne true si lat+lon ont bien été lus, false sinon.
@@ -393,9 +400,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             try
             {
-                // Le namespace DJI dans le XMP utilise cette URI comme clé de requête WPF
-                // const string djiNs = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";
-
                 var latStr = bitmapMetadata.GetQuery(DjiNamespace + ":GpsLatitude") as string;
                 var lonStr = bitmapMetadata.GetQuery(DjiNamespace + ":GpsLongitude") as string;
                 var altStr = bitmapMetadata.GetQuery(DjiNamespace + ":AbsoluteAltitude") as string;
@@ -432,59 +436,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Diagnostics.Debug.WriteLine($"[Metadata] Échec lecture GPS XMP DJI : {ex.Message}");
             }
         }
-        // ─────────────────────────────────────────────────────────────────────
-        // LECTURE ORIENTATION — XMP GPano:PoseHeadingDegrees (standard Google Photo Sphere)
-        // ─────────────────────────────────────────────────────────────────────
-        // Cap compass du centre de l'image, en degrés, 0=Nord, sens horaire. C'est le standard
-        // utilisé par les logiciels de panorama (Hugin, PTGui, Pano2Vr...) pour orienter une
-        // sphère sur une carte. Différent du GPS DJI : c'est un champ XMP générique, pas propriétaire.
-        private static void TentativeLecturePoseHeadingDegrees(BitmapMetadata bitmapMetadata, PanoMetadata data)
-        {
-            try
-            {
-                //const string gpanoNs = "/xmp/http\\/:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
-
-                const string gpanoNs = "/xmp/http\\:\\/\\/ns.google.com\\/photos\\/1.0\\/panorama\\/";
-
-                var raw = bitmapMetadata.GetQuery(gpanoNs + ":PoseHeadingDegrees");
-
-                if (raw != null && double.TryParse(raw.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double heading)) 
-                {
-                    data.PoseHeadingDegrees = heading;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur de lecture PoseHeadingDegrees : {ex.Message}");
-            }
-            System.Diagnostics.Debug.WriteLine($"[Metadata] PoseHeadingDegrees : {data.PoseHeadingDegrees}");
-        }
-        // ─────────────────────────────────────────────────────────────────────
-        // LECTURE ZOOM CARTE — XMP namespace personnalisé (pano360panel:MapZoomLevel)
-        // ─────────────────────────────────────────────────────────────────────
-        // Champ propre à ce plugin (pas un standard externe comme GPano) : niveau de zoom Leaflet
-        // (entier, typiquement 1 à 19) appliqué à pnlMapContainer pour cette photo.
-        private static void TentativeLectureMapZoomLevel(BitmapMetadata bitmapMetadata, PanoMetadata data)
-        {
-            try
-            {
-                var raw = bitmapMetadata.GetQuery(Pano360PanelNamespace + ":MapZoomLevel");
-
-                if (raw != null && int.TryParse(raw.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int zoom))
-                {
-                    data.MapZoomLevel = zoom;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur de lecture MapZoomLevel : {ex.Message}");
-            }
-            System.Diagnostics.Debug.WriteLine($"[Metadata] MapZoomLevel : {data.MapZoomLevel}");
-        }
-        // Namespace XMP personnalisé pour les données propres à ce plugin (pas un standard externe).
-        // URI arbitraire mais stable : sert uniquement de clé d'identification unique, n'a pas besoin
-        // de pointer vers une page web réelle.
-        private const string Pano360PanelNamespace = "/xmp/http\\:\\/\\/www.pano360panel.local\\/ns\\/1.0\\/";
         // ─────────────────────────────────────────────────────────────────────
         // HELPERS GPS
         // ─────────────────────────────────────────────────────────────────────
@@ -547,10 +498,60 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             return (dms, reference);
         }
-        // Le namespace DJI dans le XMP utilise cette URI comme clé de requête WPF.
-        // Partagée entre lecture (TentativeLectureGpsXmpDji) et écriture (mise à jour de cohérence).
-        private const string DjiNamespace = "/xmp/http\\/:\\/\\/www.dji.com\\/drone-dji\\/1.0\\/";
+        #endregion GPS
+        #region Perso
         // ─────────────────────────────────────────────────────────────────────
+        //                            Perso
+        // ═════════════════════════════════════════════════════════════════════
+        // LECTURE ORIENTATION — XMP GPano:PoseHeadingDegrees (standard Google Photo Sphere)
+        // ─────────────────────────────────────────────────────────────────────
+        // Cap compass du centre de l'image, en degrés, 0=Nord, sens horaire. C'est le standard
+        // utilisé par les logiciels de panorama (Hugin, PTGui, Pano2Vr...) pour orienter une
+        // sphère sur une carte. Différent du GPS DJI : c'est un champ XMP générique, pas propriétaire.
+        private static void TentativeLecturePoseHeadingDegrees(BitmapMetadata bitmapMetadata, PanoMetadata data)
+        {
+            try
+            {
+                var raw = bitmapMetadata.GetQuery(GpanoNamespace + ":PoseHeadingDegrees");
+
+                if (raw != null && double.TryParse(raw.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double heading))
+                {
+                    data.PoseHeadingDegrees = heading;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur de lecture PoseHeadingDegrees : {ex.Message}");
+            }
+            System.Diagnostics.Debug.WriteLine($"[Metadata] PoseHeadingDegrees : {data.PoseHeadingDegrees}");
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // LECTURE ZOOM CARTE — XMP namespace personnalisé (pano360panel:MapZoomLevel)
+        // ─────────────────────────────────────────────────────────────────────
+        // Champ propre à ce plugin (pas un standard externe comme GPano) : niveau de zoom Leaflet
+        // (entier, typiquement 1 à 19) appliqué à pnlMapContainer pour cette photo.
+        private static void TentativeLectureMapZoomLevel(BitmapMetadata bitmapMetadata, PanoMetadata data)
+        {
+            try
+            {
+                var raw = bitmapMetadata.GetQuery(Pano360PanelNamespace + ":MapZoomLevel");
+
+                if (raw != null && int.TryParse(raw.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int zoom))
+                {
+                    data.MapZoomLevel = zoom;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Metadata] Erreur de lecture MapZoomLevel : {ex.Message}");
+            }
+            System.Diagnostics.Debug.WriteLine($"[Metadata] MapZoomLevel : {data.MapZoomLevel}");
+        }
+        #endregion Perso
+        #region Photographie
+        // ─────────────────────────────────────────────────────────────────────
+        //                            Photo
+        // ═════════════════════════════════════════════════════════════════════
         //                         ExposureTime
         // ─────────────────────────────────────────────────────────────────────
         private static string FormatExposureTime(object value)
@@ -615,6 +616,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             string heure = date.ToString("HH:mm:ss");
             return heure;
         }
+        #endregion Photographie
+        #region Debogage
         // ─────────────────────────────────────────────────────────────────────
         //                    DÉBOGAGE DES MÉTADONNÉES
         // ─────────────────────────────────────────────────────────────────────
@@ -675,5 +678,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 }
             }
         }
+        #endregion Debogage
     }
 }

@@ -2485,6 +2485,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 AfficherPositionSurCarte(_currentMetadata.GpsLatitude, _currentMetadata.GpsLongitude);
                 _ = MettreAJourFovSurCarte();
             }
+
+            // ─────── Étape 6 : Mise a jour zoom carte ─────────────────────────────
+
+
         }
         private void SetColorPanelRating(string couleur)
         {
@@ -3253,7 +3257,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _ = RecentrerCarteSurMarqueurAsync();
         }
         private void MenuCentrerPanoramaPrecedent_Click(object sender, RoutedEventArgs e) { /* ToDo: */ }
-        private void MenuToggleFov_Click(object sender, RoutedEventArgs e) { /* TODO : appeler hideFovTriangle() ou réactiver MettreAJourFovSurCarte() selon menuToggleFov.IsChecked*/ }
         private void MenuPositionFavorite1_Click(object sender, RoutedEventArgs e)
         {
             _ = GoToPosition(_GpsMemoire1Latitude, _GpsMemoire1Longitude, _GpsMemoire1Zoom);
@@ -3270,6 +3273,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void MenuSavePositionFavorite2_Click(object sender, RoutedEventArgs e) { /* TODO */ }
         private void MenuSavePositionFavorite3_Click(object sender, RoutedEventArgs e) { /* TODO */ }
+        private void MenuSauvegardeVueEtMap_Click(object sender, RoutedEventArgs e)
+        {
+            _currentMetadata.MapZoomLevel = _dernierClicZoom;
+
+            _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
+            SauvegardeMeta();
+        }
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
