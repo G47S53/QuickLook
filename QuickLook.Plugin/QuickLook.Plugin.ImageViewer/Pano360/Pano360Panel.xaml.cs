@@ -3346,8 +3346,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             _ = GoToPosition(_GpsMemoire1Latitude, _GpsMemoire1Longitude, _GpsMemoire1Zoom);
         }
-        private void MenuPositionFavorite2_Click(object sender, RoutedEventArgs e) { /* TODO */ }
-        private void MenuPositionFavorite3_Click(object sender, RoutedEventArgs e) { /* TODO */ }
+        private void MenuPositionFavorite2_Click(object sender, RoutedEventArgs e)
+        {
+            _ = GoToPosition(_GpsMemoire2Latitude, _GpsMemoire2Longitude, _GpsMemoire2Zoom);
+        }
+        private void MenuPositionFavorite3_Click(object sender, RoutedEventArgs e)
+        {
+            _ = GoToPosition(_GpsMemoire3Latitude, _GpsMemoire3Longitude, _GpsMemoire3Zoom);
+        }
         private async void MenuSavePositionFavorite1_Click(object sender, RoutedEventArgs e)
         {
             _GpsMemoire1Latitude = _dernierClicCarteLat.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
@@ -3362,8 +3368,34 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             SaveSettings();
         }
-        private void MenuSavePositionFavorite2_Click(object sender, RoutedEventArgs e) { /* TODO */ }
-        private void MenuSavePositionFavorite3_Click(object sender, RoutedEventArgs e) { /* TODO */ }
+        private async void MenuSavePositionFavorite2_Click(object sender, RoutedEventArgs e)
+        {
+            _GpsMemoire2Latitude = _dernierClicCarteLat.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+            _GpsMemoire2Longitude = _dernierClicCarteLon.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+            _GpsMemoire2Zoom = _dernierClicZoom;
+
+            _GpsMemoire2Nom = "Recherche…";
+            MettreAJourLibellesFavoris();
+
+            _GpsMemoire2Nom = await RechercherNomLieuAsync(_dernierClicCarteLat, _dernierClicCarteLon);
+            MettreAJourLibellesFavoris();
+
+            SaveSettings();
+        }
+        private async void MenuSavePositionFavorite3_Click(object sender, RoutedEventArgs e)
+        {
+            _GpsMemoire3Latitude = _dernierClicCarteLat.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+            _GpsMemoire3Longitude = _dernierClicCarteLon.ToString("F6", System.Globalization.CultureInfo.InvariantCulture);
+            _GpsMemoire3Zoom = _dernierClicZoom;
+
+            _GpsMemoire3Nom = "Recherche…";
+            MettreAJourLibellesFavoris();
+
+            _GpsMemoire3Nom = await RechercherNomLieuAsync(_dernierClicCarteLat, _dernierClicCarteLon);
+            MettreAJourLibellesFavoris();
+
+            SaveSettings();
+        }
         private void MenuSauvegardeVueEtMap_Click(object sender, RoutedEventArgs e)
         {
             _currentMetadata.MapZoomLevel = _dernierClicZoom;
