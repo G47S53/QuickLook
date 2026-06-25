@@ -15,7 +15,7 @@ var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/se
 });
 
 // ── Initialisation de la carte ──
-// On charge 'osmLayer' par défaut dans le tableau 'layers'
+// On charge 'satelliteLayer' par défaut dans le tableau 'layers'
 var map = L.map('map', {
     zoomControl: true,
     attributionControl: true,
@@ -25,7 +25,7 @@ var map = L.map('map', {
         position: 'topleft',
         closeOnZeroBearing: false  // garde la boussole visible même à 0°
     },
-    layers: [osmLayer]
+    layers: [satelliteLayer]
 }).setView([0, 0], 2);
 
 

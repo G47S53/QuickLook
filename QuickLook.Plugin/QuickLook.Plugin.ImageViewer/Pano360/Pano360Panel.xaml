@@ -20,11 +20,12 @@
              BorderThickness="1"
              Foreground="White">
 
-            <MenuItem Header="📍 Définir ici comme position GPS" Click="MenuDefinirPosition_Click"/>
-            <MenuItem Header="⭐  Définir favoris">
-                <MenuItem Header="Favoris 1 : définir ici" Click="MenuSavePositionFavorite1_Click"/>
-                <MenuItem Header="Favoris 2 : définir ici" Click="MenuSavePositionFavorite2_Click"/>
-                <MenuItem Header="Favoris 3 : définir ici" Click="MenuSavePositionFavorite3_Click"/>
+            <MenuItem Header="🎯 ici">
+                <MenuItem Header="ℹ️ informations" Click="MenuInfoPosition_Click"/>
+                <MenuItem Header="📍 Définir comme position GPS" Click="MenuDefinirPosition_Click"/>
+                <MenuItem Header="⭐  Définir Favoris 1" Click="MenuSavePositionFavorite1_Click"/>
+                <MenuItem Header="⭐  Définir Favoris 2" Click="MenuSavePositionFavorite2_Click"/>
+                <MenuItem Header="⭐  Définir Favoris 3" Click="MenuSavePositionFavorite3_Click"/>
             </MenuItem>
 
             <Separator/>
@@ -40,7 +41,6 @@
 
             <Separator/>
 
-            <MenuItem Header="🔄 Rechercher la localisation" Click="MenuRechercherLocalisation_Click"/>
             <MenuItem Header="💾 Sauvegarder la vue (👓+🗺️)" Click="MenuSauvegardeVueEtMap_Click"/>
         </ContextMenu>
         <!-- ──────────────── Storyboards des fléches prev/next ────────────────────── -->

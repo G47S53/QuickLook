@@ -120,7 +120,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
         private double _dernierClicCarteLat;                               // Correspond à la position du clic sur la carte Leaflet
         private double _dernierClicCarteLon;
-        private int _dernierClicZoom;
+        private int _dernierClicZoom = 10;
+        private bool _isContextMenu = false;
         private int _zoomPinMap;
 
         private bool _sliderHeadingMisAJourProgrammatique = false;         // Évite que la mise à jour programmatique du slider (au chargement d'un panorama) ne
@@ -2959,6 +2960,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         _dernierClicZoom = Convert.ToInt32(msg["zoom"]);
                         int x = Convert.ToInt32(msg["containerX"]);
                         int y = Convert.ToInt32(msg["containerY"]);
+                        _isContextMenu = true;
 
                         AfficherMenuContextuelCarte(lat, lon, x, y);
                         break;
@@ -3009,7 +3011,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                     if (_pendingMapLat.HasValue && _pendingMapLon.HasValue)
                     {
-                        _ = DeplacerMarqueurAsync(_pendingMapLat.Value, _pendingMapLon.Value);
+                        System.Diagnostics.Debug.WriteLine($"AssurerCarteInitialiseeAsync (_zoomPinMap) : {_zoomPinMap}");
+                        _ = DeplacerMarqueurAsync(_pendingMapLat.Value, _pendingMapLon.Value, _zoomPinMap);
                         _pendingMapLat = null;
                         _pendingMapLon = null;
                     }
@@ -3061,7 +3064,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
 
             if (_isMapWebViewReady)
-                _ = DeplacerMarqueurAsync(lat, lon);
+            {
+                System.Diagnostics.Debug.WriteLine($"AfficherPositionSurCarte (_isContextMenu) : {_isContextMenu}");
+                if (_isContextMenu) 
+                {
+                    _ = DeplacerMarqueurAsync(lat, lon, _dernierClicZoom);
+                    _currentMetadata.MapZoomLevel = _dernierClicZoom;
+                    _zoomPinMap = _dernierClicZoom;
+                    _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
+                }
+                else 
+                {
+                    _ = DeplacerMarqueurAsync(lat, lon, _zoomPinMap);
+                }
+                _isContextMenu = false;
+            }
             else
             {
                 // La WebView2/Leaflet n'a pas encore fini de s'initialiser : on mémorise la position
@@ -3111,7 +3128,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 System.Diagnostics.Debug.WriteLine($"Erreur lors de la mise à jour du triangle FOV : {ex.Message}");
             }
         }
-        private async Task DeplacerMarqueurAsync(double lat, double lon)
+        private async Task DeplacerMarqueurAsync(double lat, double lon, int zoom)
         {
             try
             {
@@ -3120,7 +3137,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                 // setPosition() est défini dans le HTML/JS ci-dessous (ConstruireHtmlCarteLeaflet) :
                 // il déplace le marqueur et recentre la carte sans tout recharger.
-                await webViewMap.CoreWebView2.ExecuteScriptAsync($"setPosition({latStr}, {lonStr}, {_zoomPinMap});");
+                await webViewMap.CoreWebView2.ExecuteScriptAsync($"setPosition({latStr}, {lonStr}, {zoom});");
             }
             catch (Exception ex)
             {
@@ -3327,6 +3344,13 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             menu.VerticalOffset = containerY;
             menu.IsOpen = true;
         }
+        private async void MenuInfoPosition_Click(object sender, RoutedEventArgs e)
+        {
+            txtPositionInfo.Text = await RechercherNomLieuAsync(_dernierClicCarteLat, _dernierClicCarteLon);
+
+            pnlPositionInfo.Visibility = Visibility.Visible;
+            pnlPositionInfo.Opacity = 1;
+        }
         private void MenuDefinirPosition_Click(object sender, RoutedEventArgs e)
         {
             // Nouvelle position GPS : l'ancienne localisation textuelle (si présente en métadonnées) ne
@@ -3361,14 +3385,23 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private void MenuCentrerPanoramaPrecedent_Click(object sender, RoutedEventArgs e) { /* ToDo: */ }
         private void MenuPositionFavorite1_Click(object sender, RoutedEventArgs e)
         {
+            pnlPositionInfo.Visibility = Visibility.Collapsed;
+            pnlPositionInfo.Opacity = 0;
+
             _ = GoToPosition(_GpsMemoire1Latitude, _GpsMemoire1Longitude, _GpsMemoire1Zoom);
         }
         private void MenuPositionFavorite2_Click(object sender, RoutedEventArgs e)
         {
+            pnlPositionInfo.Visibility = Visibility.Collapsed;
+            pnlPositionInfo.Opacity = 0;
+
             _ = GoToPosition(_GpsMemoire2Latitude, _GpsMemoire2Longitude, _GpsMemoire2Zoom);
         }
         private void MenuPositionFavorite3_Click(object sender, RoutedEventArgs e)
         {
+            pnlPositionInfo.Visibility = Visibility.Collapsed;
+            pnlPositionInfo.Opacity = 0;
+
             _ = GoToPosition(_GpsMemoire3Latitude, _GpsMemoire3Longitude, _GpsMemoire3Zoom);
         }
         private async void MenuSavePositionFavorite1_Click(object sender, RoutedEventArgs e)
@@ -3424,17 +3457,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
             SauvegardeMeta();
-        }
-        private void MenuRechercherLocalisation_Click(object sender, RoutedEventArgs e)
-        {
-            // Rafraîchit le géocodage de la position actuelle de la photo (sans changer le GPS), en
-            // écrasant systématiquement toute localisation déjà en métadonnées — utile par exemple pour
-            // corriger un résultat Nominatim erroné ou repasser au zoom=18 sur une ancienne photo.
-            if (!TryParseGps(_currentMetadata?.GpsLatitude, out double lat)) return;
-            if (!TryParseGps(_currentMetadata?.GpsLongitude, out double lon)) return;
-
-            _dernierePositionGeocodee = null;
-            _ = RechercherEtEnregistrerLocalisationAsync(lat, lon);
         }
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
