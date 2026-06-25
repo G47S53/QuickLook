@@ -106,6 +106,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             public string HouseNumber { get; set; }
             [JsonProperty("road")]
             public string Road { get; set; }
+            [JsonProperty("postcode")]
+            public string PostCode { get; set; }
+            [JsonProperty("country_code")]
+            public string CountryCode { get; set; }
         }
 
         private static readonly HttpClient _httpClientGeocodage = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
@@ -3116,7 +3120,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // Le niveau de zoom est important pour un zoom=10, on obtient la ville et le pays, mais pas l'adresse exacte.
                 // Pour un zoom=18, on obtient l'adresse exacte (rue + numéro) si disponible.
                 string url = string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={0}&lon={1}&zoom=10&accept-language=fr",
+                    "https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={0}&lon={1}&zoom=18&accept-language=fr",
                     lat, lon);
 
                 using (var requete = new HttpRequestMessage(HttpMethod.Get, url))
@@ -3139,8 +3143,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         string pays = resultat?.Address?.Country;
                         string rue = resultat?.Address?.Road;
                         string numero = resultat?.Address?.HouseNumber;
+                        string codePostal = resultat?.Address?.PostCode;
+                        string CountryCode = resultat?.Address?.CountryCode;
 
-                        System.Diagnostics.Debug.WriteLine($"[Géocodage] Reverse gps : {pays} - {region} - {comte} - {ville} - {rue} - {numero}");
+
+                        System.Diagnostics.Debug.WriteLine($"[Géocodage] Reverse gps : {numero} - {rue} - {ville} - {codePostal} - {region} - {comte} - {pays} - {CountryCode}");
 
                         string texte;
                         if (!string.IsNullOrEmpty(ville) && !string.IsNullOrEmpty(pays))
