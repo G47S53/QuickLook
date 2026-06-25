@@ -191,6 +191,24 @@ function hideFovTriangle()
 // On écoute uniquement 'rotate' pour réorienter le cône SVG si la boussole ou la carte tourne.
 map.on('rotate', redessinerFovTriangle);
 
+// Indique que la carte a été déplacée
+map.on('drag', function() {
+    window.chrome.webview.postMessage({ type: 'drag_map' });
+});
+
+// ── Clic droit personnalisé ──
+// Le menu natif de Chromium est désactivé côté C# (AreDefaultContextMenusEnabled = false).
+map.on('contextmenu', function (e) {
+    window.chrome.webview.postMessage({
+        type: 'contextmenu',
+        lat: e.latlng.lat,
+        lon: e.latlng.lng,
+        zoom: map.getZoom(),
+        containerX: e.containerPoint.x,
+        containerY: e.containerPoint.y
+    });
+});
+
 // Nettoyage et préservation du correctif matériel de focus
 map.on('zoomend', function () {
     // 🕹️ CORRECTIF SPACEMOUSE : Redonne le focus à QuickLook dès que le zoom se termine
@@ -229,19 +247,6 @@ window.addEventListener('load', function () {
 function invalidateMapSize() {
     map.invalidateSize();
 }
-
-// ── Clic droit personnalisé ──
-// Le menu natif de Chromium est désactivé côté C# (AreDefaultContextMenusEnabled = false).
-map.on('contextmenu', function (e) {
-    window.chrome.webview.postMessage({
-        type: 'contextmenu',
-        lat: e.latlng.lat,
-        lon: e.latlng.lng,
-        zoom: map.getZoom(),
-        containerX: e.containerPoint.x,
-        containerY: e.containerPoint.y
-    });
-});
 
 // ── Panneau de contrôles repliable (zoom, recherche, boussole) ──
 // Principe : on ne recrée rien. On laisse Leaflet/leaflet-rotate/geosearch

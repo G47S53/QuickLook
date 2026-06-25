@@ -2909,36 +2909,45 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 if (msg.TryGetValue("action", out object act) && act != null) commande = act.ToString();
                 else if (msg.TryGetValue("type", out object t) && t != null) commande = t.ToString();
 
-                if (commande == "restore_focus")
+                switch (commande)
                 {
-                    // Forcer l'exécution sur le thread UI de WPF
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        // 1. Focus logique WPF
-                        viewport3D.Focus();
-
-                        // 2. Arrachement du focus natif Windows (Win32) à la WebView2
-                        var window = Window.GetWindow(this);
-                        if (window != null)
+                    case "restore_focus":
+                        // Forcer l'exécution sur le thread UI de WPF
+                        Application.Current.Dispatcher.Invoke(() =>
                         {
-                            var helper = new WindowInteropHelper(window);
-                            if (helper.Handle != IntPtr.Zero)
-                            {
-                                SetFocus(helper.Handle);
-                            }
-                        }
-                    });
-                }
-                else if (commande == "contextmenu")
-                {
-                    // CODE DU CLIC DROIT
-                    double lat = Convert.ToDouble(msg["lat"]);
-                    double lon = Convert.ToDouble(msg["lon"]);
-                    _dernierClicZoom = Convert.ToInt32(msg["zoom"]);
-                    int x = Convert.ToInt32(msg["containerX"]);
-                    int y = Convert.ToInt32(msg["containerY"]);
+                            // 1. Focus logique WPF
+                            viewport3D.Focus();
 
-                    AfficherMenuContextuelCarte(lat, lon, x, y);
+                            // 2. Arrachement du focus natif Windows (Win32) à la WebView2
+                            var window = Window.GetWindow(this);
+                            if (window != null)
+                            {
+                                var helper = new WindowInteropHelper(window);
+                                if (helper.Handle != IntPtr.Zero)
+                                {
+                                    SetFocus(helper.Handle);
+                                }
+                            }
+                        });
+                        break;
+
+                    case "drag_map":
+                        // Quand on fait un "Drag" sur la carte
+
+                        pnlPositionInfo.Visibility = Visibility.Collapsed;
+                        pnlPositionInfo.Opacity = 0;
+                        break;
+
+                    case "contextmenu":
+                        // Code du clic droit
+                        double lat = Convert.ToDouble(msg["lat"]);
+                        double lon = Convert.ToDouble(msg["lon"]);
+                        _dernierClicZoom = Convert.ToInt32(msg["zoom"]);
+                        int x = Convert.ToInt32(msg["containerX"]);
+                        int y = Convert.ToInt32(msg["containerY"]);
+
+                        AfficherMenuContextuelCarte(lat, lon, x, y);
+                        break;
                 }
             }
             catch (Exception ex)
@@ -3327,6 +3336,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         }
         private void MenuRecentrerSurPin_Click(object sender, RoutedEventArgs e)
         {
+            pnlPositionInfo.Visibility = Visibility.Visible;
+            pnlPositionInfo.Opacity = 1;
+
             _ = RecentrerCarteSurMarqueurAsync();
         }
         private void MenuCentrerPanoramaPrecedent_Click(object sender, RoutedEventArgs e) { /* ToDo: */ }
