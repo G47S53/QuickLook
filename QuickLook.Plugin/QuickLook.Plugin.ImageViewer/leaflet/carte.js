@@ -100,8 +100,8 @@ function recentrerSurMarqueur()
 {
     if (marker !== null)
     {
-        //map.setView(marker.getLatLng(), map.getZoom());
-        map.setView(marker.getLatLng(), 15);
+        map.setView(marker.getLatLng(), map.getZoom());
+        //map.setView(marker.getLatLng(), 15);
     }
 }
 
