@@ -203,7 +203,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const int SphereStacks = 36;             // Nombre de segments verticaux du mesh sphérique
 
         private const double FovMin = 30.0;              // FOV minimum autorisé en degrés (zoom maximum — vision très zoomée)
-        private const double FovMax = 135.0;             // FOV maximum autorisé en degrés (zoom minimum — grand angle)
+        private const double FovMax = 150.0;             // FOV maximum autorisé en degrés (zoom minimum — grand angle)
         private const double FovDefault = 90.0;          // FOV utilisé à l'initialisation de la caméra (avant lecture des settings)
         private const double FovZoomStep = 5.0;          // Pas de zoom fixe (non utilisé directement — remplacé par le pas adaptatif de la molette)
 
@@ -213,7 +213,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private const double VerticalAngleMin = -80.0;   // Angle vertical minimum (regarde vers le bas, axe X) — en degrés
         private const double VerticalAngleMax = 70.0;    // Angle vertical maximum (regarde vers le haut, axe X) — en degrés
 
-        private const double SphereVPower = 1.0;         // Déformation UV verticale : 1.0 = aucune (standard équirectangulaire)
+        private const double SphereVPower = 1.1;         // Déformation UV verticale : 1.0 = aucune (standard équirectangulaire)
                                                          // < 1.0 → étirement vers les pôles (effet "little planet")
                                                          // > 1.0 → compression vers les pôles (ciel/sol plus "plat")
                                                          // Plage utile : 0.5 à 2.0
