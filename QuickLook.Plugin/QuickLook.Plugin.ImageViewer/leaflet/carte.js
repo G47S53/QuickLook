@@ -14,6 +14,14 @@ var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/se
     attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
 });
 
+// 3. Couche utilisée dans la MiniMap
+var miniMapLayer = L.tileLayer(
+    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+        minZoom: 0,
+        maxZoom: 19
+    });
+
 // ── Initialisation de la carte ──
 // On charge 'satelliteLayer' par défaut dans le tableau 'layers'
 var map = L.map('map', {
@@ -56,6 +64,24 @@ var geoSearchControl = new window.GeoSearch.GeoSearchControl({
     searchLabel: 'Rechercher un lieu...'
 });
 map.addControl(geoSearchControl);
+
+// ── MiniMap ──────────────────────────────────────────────
+var miniMap = new L.Control.MiniMap(miniMapLayer, {
+    position: 'bottomright',
+    toggleDisplay: true,
+    minimized: true,
+    width: 180,
+    height: 120,
+    zoomLevelOffset: -6,
+        mapOptions: {
+        rotate: false,
+        rotateControl: false
+    }
+}).addTo(map);
+
+//miniMap.on('restore', function () {
+//    miniMap._miniMap.invalidateSize();
+//});
 
 var marker = null;
 

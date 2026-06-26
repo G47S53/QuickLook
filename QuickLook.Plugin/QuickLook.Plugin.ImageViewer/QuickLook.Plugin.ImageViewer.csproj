@@ -190,6 +190,12 @@
         <None Update="leaflet\carte.js">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Update="leaflet\Control.MiniMap.min.css">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="leaflet\Control.MiniMap.min.js">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Update="leaflet\images\layers-2x.png">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
@@ -203,6 +209,12 @@
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
         <None Update="leaflet\images\marker-shadow.png">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="leaflet\images\toggle.png">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="leaflet\images\toggle.svg">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
         <None Update="leaflet\leaflet-geosearch.css">
@@ -233,6 +245,12 @@
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
         <None Update="leaflet\leaflet.js.map">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="leaflet\minimap.css">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="leaflet\minimap.js">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
         <None Update="Translations.config">
