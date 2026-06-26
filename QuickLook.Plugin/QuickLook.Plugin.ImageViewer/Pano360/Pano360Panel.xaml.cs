@@ -1305,7 +1305,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             AfficheEtatAutoRotation();
                             break;
                         case 32:
-                            txtInfoPopup.Text = "🏠 Vue d'origine";
+                            txtInfoPopup.Text = "🏠 Vue de départ";
                             (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                             _targetHorizontalAngle = _homeHorizontalAngle;
                             _targetVerticalAngle = _homeVerticalAngle;
