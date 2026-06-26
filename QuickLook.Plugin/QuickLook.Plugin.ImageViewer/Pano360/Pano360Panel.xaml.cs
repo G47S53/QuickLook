@@ -571,18 +571,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             _lastRenderTime = args.RenderingTime;
 
-            // ── Mise à jour du triangle FOV sur la carte GPS (throttle ~10x/s, suffisant visuellement,
-            // et ExecuteScriptAsync vers la WebView2 est trop coûteux pour être appelé à 60 FPS) ──
+            // ──────────────────────────────────────────────────────────────────────
+            // ─ -1. Mise à jour du triangle FOV sur la carte GPS (throttle ~10x/s, suffisant visuellement pour le WebView2  ──
             if ((args.RenderingTime - _lastFovUpdateTime).TotalSeconds > 0.05)
             {
                 _lastFovUpdateTime = args.RenderingTime;
                 _ = MettreAJourFovSurCarte();
             }
 
-            // ──── LE TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
+            // ──────────────────────────────────────────────────────────────────────
+            // ── 0. TEST : Si l'écran est trop rapide (ex: 144Hz), on ignore la frame 
             // pour forcer un rythme de 60 FPS maximum (1 frame toutes les ~16ms) ---
             if (elapsed < 0.016) return;
-
             // Protection contre les délais aberrants (ex. : fenêtre minimisée)
             if (elapsed > 0.1) return;
 
@@ -729,7 +729,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // ────────────────────────────────────────────────────────────────────── 
             // ── 2. MOTEUR PHYSIQUE (Calcul des vitesses) ──────────────────────────
             // ────────────────────────────────────────────────────────────────────── 
-
             double targetSpeed = 0; // Déclarée ici au début du moteur physique
 
             if (_oneTurnActive)
@@ -1017,26 +1016,40 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void OnWindowKeyDown(object sender, KeyEventArgs e)
         {
-            //Différents cas où le clavier n'est pas accessible
-            if (_OptionOpen) return;
+            ////Différents cas où le clavier n'est pas accessible
+            //if (_OptionOpen) return;
 
-            if (_oneTurnActive) return;
+            //if (_oneTurnActive) return;
 
-            if (_isMouseDown) return;
+            //if (_isMouseDown) return;
 
-            if (_autoRotState == AutoRotationState.Lent || _autoRotState == AutoRotationState.Normal || _autoRotState == AutoRotationState.Rapide) return;
+            //if (_autoRotState == AutoRotationState.Lent || _autoRotState == AutoRotationState.Normal || _autoRotState == AutoRotationState.Rapide) return;
 
-            //Fléches gauche et droites
-            if (e.Key == Key.Right)
-            {
-                e.Handled = true;
-                _ = ShowMessageAndNavigateAsync(+1);
-            }
-            else if (e.Key == Key.Left)
-            {
-                e.Handled = true;
-                _ = ShowMessageAndNavigateAsync(-1);
-            }
+            ////Fléches gauche et droites
+            //if (e.Key == Key.Right)
+            //{
+            //    if (_autoCloseActive && !_oneTurnNextActive)
+            //    {
+            //        txtInfoPopup.Text = "Bouton désactivé dans ce mode";
+            //        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+            //        return;
+            //    }
+
+            //    e.Handled = true;
+            //    _ = ShowMessageAndNavigateAsync(+1);
+            //}
+            //else if (e.Key == Key.Left)
+            //{
+            //    if (_autoCloseActive && !_oneTurnNextActive)
+            //    {
+            //        txtInfoPopup.Text = "Bouton désactivé dans ce mode";
+            //        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+            //        return;
+            //    }
+
+            //    e.Handled = true;
+            //    _ = ShowMessageAndNavigateAsync(-1);
+            //}
         }
         private void OnWindowKeyUp(object sender, KeyEventArgs e)
         {
@@ -1062,6 +1075,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (_autoRotState != AutoRotationState.Off)
             {
+                txtInfoPopup.Text = "Arrêt rotation automatique";
+                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+
+                _autoNextFromButton = false;
+
                 _autoRotState = AutoRotationState.Off;
                 btnAutoRotate.Content = "Rotation auto.";
                 btnAutoRotate.Background = Brushes.Transparent;
@@ -1217,19 +1235,19 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             if (_isMouseDown) return;
 
-            if (_oneTurnActive)
-            {
-                txtInfoPopup.Text = "⌨️ Clavier désactivé dans ce mode";
-                if (_oneTurnDuration > 6)
-                {
-                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                }
-                else
-                {
-                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                }
-                return;
-            }
+            //if (_oneTurnActive)
+            //{
+            //    txtInfoPopup.Text = "⌨️ Clavier désactivé dans ce mode";
+            //    if (_oneTurnDuration > 6)
+            //    {
+            //        (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+            //    }
+            //    else
+            //    {
+            //        (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
+            //    }
+            //    return;
+            //}
 
             Dispatcher.Invoke(() =>
             {
@@ -1254,10 +1272,22 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     switch (keyCode)
                     {
                         case 9:
+                            if (_autoCloseActive && !_oneTurnNextActive)
+                            {
+                                txtInfoPopup.Text = "Bouton désactivé dans ce mode";
+                                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                                return;
+                            }
                             _ = ShowMessageAndNavigateAsync(-1);
 
                             break;
                         case 3:
+                            if (_autoCloseActive && !_oneTurnNextActive)
+                            {
+                                txtInfoPopup.Text = "Bouton désactivé dans ce mode";
+                                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                                return;
+                            }
                             _ = ShowMessageAndNavigateAsync(+1);
                             break;
                         case 6:
@@ -1286,7 +1316,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 {
                     switch (keyCode)
                     {
-                        case 9 or 3 or 6 or 5 or 32:
+                        //case 9 or 3 or 6 or 5 or 32:
+                        case 6 or 5 or 32:
                             txtInfoPopup.Text = "⌨️ Touche désactivée dans ce mode";
                             if (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)
                             {
@@ -1297,14 +1328,33 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                                 (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                             }
                             break;
+                        case 9:
+                            if (_autoCloseActive && !_oneTurnNextActive)
+                            {
+                                txtInfoPopup.Text = "Bouton désactivé dans ce mode";
+                                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                                return;
+                            }
+
+                            _ = ShowMessageAndNavigateAsync(-1);
+
+                            break;
+                        case 3:
+                            if (_autoCloseActive && !_oneTurnNextActive)
+                            {
+                                txtInfoPopup.Text = "Bouton désactivé dans ce mode";
+                                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                                return;
+                            }
+
+                            _ = ShowMessageAndNavigateAsync(+1);
+                            break;
                         case 11:
                             AutoRotate_ActionBouton();
                             AfficheEtatAutoRotation();
                             break;
                     }
                 }
-
-
             });
         }
         private void OnSpaceMouseKeyUp(int keyCode)
@@ -1890,63 +1940,25 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void BtnBarrePrevPano_Click(object sender, RoutedEventArgs e)
         {
-            if (_oneTurnActive)
+            if (_autoCloseActive && !_oneTurnNextActive)
             {
                 txtInfoPopup.Text = "Bouton désactivé dans ce mode";
-                if (_oneTurnDuration > 6)
-                {
-                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                }
-                else
-                {
-                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                }
+                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                 return;
             }
-            if (_autoRotState != AutoRotationState.Off)
-            {
-                txtInfoPopup.Text = "Bouton désactivé dans ce mode";
-                if (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)
-                {
-                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                }
-                else
-                {
-                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                }
-                return;
-            }
+
             _ = ShowMessageAndNavigateAsync(-1);
             e.Handled = true;
         }
         private void BtnBarreNextPano_Click(object sender, RoutedEventArgs e)
         {
-            if (_oneTurnActive)
+            if (_autoCloseActive && !_oneTurnNextActive)
             {
                 txtInfoPopup.Text = "Bouton désactivé dans ce mode";
-                if (_oneTurnDuration > 6)
-                {
-                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                }
-                else
-                {
-                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                }
+                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
                 return;
             }
-            if (_autoRotState != AutoRotationState.Off)
-            {
-                txtInfoPopup.Text = "Bouton désactivé dans ce mode";
-                if (AutoRotateFastSeconds < 6 && _autoRotState == AutoRotationState.Rapide)
-                {
-                    (infoPopup.Resources["StoryboardShowInfoRapide"] as Storyboard)?.Begin(infoPopup);
-                }
-                else
-                {
-                    (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
-                }
-                return;
-            }
+
             _ = ShowMessageAndNavigateAsync(+1);
             e.Handled = true;
         }
@@ -2016,6 +2028,24 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         private void BtnAutoCloseAutoNext_Click(object sender, RoutedEventArgs e)
         {
+            if (_oneTurnActive)
+            {
+                // Si l’utilisateur clique sur le bouton alors que l'autorotation au démarrage est activée, on lui rend la main
+                txtInfoPopup.Text = "Arrêt rotation automatique";
+                (infoPopup.Resources["StoryboardShowInfo"] as Storyboard)?.Begin(infoPopup);
+                _oneTurnActive = false;
+                _oneTurnNextActive = false; // ← AJOUT
+                _StartOneTurnNext = false;
+                _autoCloseActive = false;
+                btnAutoRotate.Content = "Rotation auto.";
+                btnAutoRotate.Background = Brushes.Transparent;
+                btnAutoRotate.IsEnabled = true;
+                _isPopupShown = false;
+                MajEtatAutoCloseAutoNext();
+
+                return;
+            }
+
             if (_autoRotState == AutoRotationState.Off) return;
 
             if (!_autoCloseActive && !_oneTurnNextActive)

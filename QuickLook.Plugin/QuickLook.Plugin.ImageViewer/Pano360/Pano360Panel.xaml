@@ -342,7 +342,7 @@
         </Grid>
 
         <!-- ══════════════════════════════════════════════════════════════════
-                        Boite de dialogue des préférences
+                           Boite de dialogue des préférences
         ══════════════════════════════════════════════════════════════════════ -->
         <Grid x:Name="gridPreferences" Visibility="Collapsed" Background="#33000000" Panel.ZIndex="1000" MouseDown="GridPreferences_MouseDown" PreviewMouseWheel="GridPreferences_PreviewMouseWheel">
 
@@ -536,7 +536,7 @@
             </Border>
         </Grid>
         <!-- ══════════════════════════════════════════════════════════════════
-                              Info texte (PopUp) centrale 
+                             Info texte (PopUp) centrale 
         ══════════════════════════════════════════════════════════════════════ -->
         <Border x:Name="infoPopup" Padding="20,10,20,10" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#CC222222" CornerRadius="8" IsHitTestVisible="False" Opacity="0">
             <Border.Effect>
@@ -573,7 +573,7 @@
             </Border.Resources>
         </Border>
         <!-- ══════════════════════════════════════════════════════════════════
-                                   Barre Rating (5 étoiles)
+                              Barre Rating (5 étoiles)
         ══════════════════════════════════════════════════════════════════════ -->        
         <Border x:Name="panelRating" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,75" Background="#80000000" CornerRadius="10" Padding="8,2" RenderTransformOrigin="0.5,0.5" MouseEnter="BarrePanelRating_MouseEnter" MouseLeave="BarrePanelRating_MouseLeave">
             <Border.RenderTransform>
@@ -637,7 +637,7 @@
             </StackPanel>
         </Border>
         <!-- ══════════════════════════════════════════════════════════════════
-                    Bouton et panneau d'information en bas à gauche
+                      Bouton et panneau d'information en bas à gauche
         ══════════════════════════════════════════════════════════════════════ -->
         <!-- ── Bouton Information Exif/Xmp  ─────────────── -->
         <Button x:Name="btnToggleInfo" 
