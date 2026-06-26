@@ -1976,18 +1976,21 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             {
                 case AutoRotationState.Off:
                     _autoRotState = AutoRotationState.Lent;
+                    _autoNextSavedRotState = _autoRotState;
                     btnAutoRotate.Content = "🐢 Lent";
                     btnAutoRotate.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                     break;
 
                 case AutoRotationState.Lent:
                     _autoRotState = AutoRotationState.Normal;
+                    _autoNextSavedRotState = _autoRotState;
                     btnAutoRotate.Content = "▶️ Normal";
                     btnAutoRotate.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                     break;
 
                 case AutoRotationState.Normal:
                     _autoRotState = AutoRotationState.Rapide;
+                    _autoNextSavedRotState = _autoRotState;
                     btnAutoRotate.Content = "▶️▶️ Rapide";
                     btnAutoRotate.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#4400AAFF"));
                     break;
