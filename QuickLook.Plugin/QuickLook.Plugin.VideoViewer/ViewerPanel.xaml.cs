@@ -46,6 +46,10 @@ namespace QuickLook.Plugin.VideoViewer;
 
 public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChanged
 {
+    // ─────────────────────────────────────────────────────────────────────
+    // > Constantes et Déclarations de champs
+    // ─────────────────────────────────────────────────────────────────────
+
     private readonly ContextObject _context;
     private BitmapSource _coverArt;
     private DispatcherTimer _lyricTimer;
@@ -58,19 +62,30 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
     private bool _shouldLoop;
     private bool _useHardwareAcceleration;
 
-    // Ajout G47S53: Ajout d'une configuration, avec persistance dans un fichier JSON, pour la molette de défilement et l'auto-fermeture à la fin de la vidéo.
+    // ─────────────────────────────────────────────────────────────────────
+    // Constantes et Déclarations : Ajout G47S53 😉
+    // ─────────────────────────────────────────────────────────────────────
+    private int seekMode = 0;      // Ajout d'un champ pour stocker le mode de seek sélectionné par l'utilisateur (0 pour 5% de la durée totale, 1 pour 1 seconde, 2 pour 5 secondes).
+
+    // Ajout d'une configuration, avec persistance dans un fichier JSON, pour la molette de défilement et l'auto-fermeture à la fin de la vidéo.
     private readonly string configPath = Path.Combine(
                                          Environment.GetFolderPath(
                                          Environment.SpecialFolder.ApplicationData),
                                          "QuickLook",
                                          "VideoViewerSettings.json");
     
-    // Ajout G47S53: Ajout d'un objet de settings pour stocker les configurations personnalisées de l'utilisateur, avec sérialisation/désérialisation JSON.
-    private VideoViewerSettings settings;
+    private VideoViewerSettings settings;      // Objet de settings pour stocker les configurations personnalisées de l'utilisateur, avec sérialisation/désérialisation JSON.
+    public bool AutoCloseEnabled;              // Propriété pour activer/désactiver l'auto-fermeture à la fin de la vidéo, avec mise à jour de l'interface utilisateur en conséquence.
+    public class VideoViewerSettings           // Classe pour stocker les paramètres personnalisés de l'utilisateur.
+    {
+        public bool CloseWhenFinished { get; set; } = false;
 
-    // Ajout G47S53: Ajout d'une propriété pour activer/désactiver l'auto-fermeture à la fin de la vidéo, avec mise à jour de l'interface utilisateur en conséquence.
-    public bool AutoCloseEnabled;
+        public int SeekMode { get; set; } = 2;
+    }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // Constructeur
+    // ─────────────────────────────────────────────────────────────────────
     public ViewerPanel(ContextObject context)
     {
         InitializeComponent();
@@ -226,11 +241,16 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         };
         // Ajout G47S53: Clic droit → bascule plein écran
         MouseRightButtonUp += (s, e) => ToggleFullscreen();
-    }
 
-    // Ajout G47S53: Ajout d'une méthode pour charger les paramètres personnalisés de l'utilisateur depuis un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème de lecture ou de format, et mise à jour de l'interface utilisateur en conséquence.
+        Mouse.OverrideCursor = null;
+    }
+    // ─────────────────────────────────────────────────────────────────────
+    // Méthodes supplémentaires : Ajout G47S53
+    // ─────────────────────────────────────────────────────────────────────
     private void LoadSettings()
     {
+        // Ajout G47S53: Ajout d'une méthode pour charger les paramètres personnalisés de l'utilisateur depuis un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème de lecture ou de format, et mise à jour de l'interface utilisateur en conséquence.
+
         try
         {
             if (File.Exists(configPath))
@@ -255,10 +275,9 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             settings = new VideoViewerSettings();
         }
     }
-
-    // Ajout G47S53: Ajout d'une méthode pour sauvegarder les paramètres personnalisés de l'utilisateur dans un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème d'écriture.
     private void SaveSettings()
     {
+        // Ajout G47S53: Ajout d'une méthode pour sauvegarder les paramètres personnalisés de l'utilisateur dans un fichier JSON, avec gestion des exceptions pour éviter les plantages en cas de problème d'écriture.
         try
         {
             string folder =
@@ -277,19 +296,15 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         {
         }
     }
-
-    // Ajout G47S53: Ajout d'un champ pour stocker le mode de seek sélectionné par l'utilisateur (0 pour 5% de la durée totale, 1 pour 1 seconde, 2 pour 5 secondes).
-    private int seekMode = 0;
-
-    // Ajout G47S53: Ajout d'une méthode pour gérer le clic sur le bouton de changement de mode de seek.
     private void ButtonSeekMode_Click(object sender, RoutedEventArgs e)
     {
+        // Ajout G47S53: Ajout d'une méthode pour gérer le clic sur le bouton de changement de mode de seek.
         CycleSeekMode();
     }
-
-    // Ajout G47S53: Ajout d'une méthode pour faire défiler les modes de seek disponibles (5% de la durée totale, 1 seconde, 5 secondes) à chaque appel.
     private void CycleSeekMode()
     {
+        // Ajout G47S53: Ajout d'une méthode pour faire défiler les modes de seek disponibles (5% de la durée totale, 1 seconde, 5 secondes) à chaque appel.
+
         seekMode++;
 
         if (seekMode > 2)
@@ -301,17 +316,17 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
         SaveSettings();
     }
-
-    // Ajout G47S53: Ajout d'une méthode pour mettre à jour l'interface utilisateur en fonction de l'état de l'option d'auto-fermeture à la fin de la vidéo, en modifiant l'opacité du bouton dédié et en ajoutant une décoration de texte barré au label associé lorsque l'option est désactivée.
     private void UpdateAutoCloseUI()
     {
+        // Ajout G47S53: Ajout d'une méthode pour mettre à jour l'interface utilisateur en fonction de l'état de l'option d'auto-fermeture à la fin de la vidéo, en modifiant l'opacité du bouton dédié et en ajoutant une décoration de texte barré au label associé lorsque l'option est désactivée.
+
         buttonAutoClose.Opacity = AutoCloseEnabled ? 1d : 0.5d;
         textAutoClose.TextDecorations = AutoCloseEnabled ? null : TextDecorations.Strikethrough;
     }
-
-    // Ajout G47S53: Ajout d'une méthode pour mettre à jour l'interface utilisateur en fonction du mode de seek sélectionné.
     private void UpdateSeekModeUI()
     {
+        // Ajout G47S53: Ajout d'une méthode pour mettre à jour l'interface utilisateur en fonction du mode de seek sélectionné.
+
         switch (seekMode)
         {
             case 0:
@@ -328,11 +343,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
                 break;
         }
     }
-
-    // Ajout G47S53: Ajout d'une méthode pour mettre à jour silencieusement l'interface utilisateur en fonction du mode de seek sélectionné, sans afficher d'info-bulle.
-    // Utile pour le chargement initial des paramètres sans afficher d'info-bulle inutile.
     private void UpdateSeekModeUISilencieux()
     {
+        // Ajout G47S53: Ajout d'une méthode pour mettre à jour silencieusement l'interface utilisateur en fonction du mode de seek sélectionné, sans afficher d'info-bulle.
+        // Utile pour le chargement initial des paramètres sans afficher d'info-bulle inutile.
         switch (seekMode)
         {
             case 0:
@@ -346,10 +360,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
                 break;
         }
     }
-
-    // Ajout G47S53: Ajout d'une méthode pour afficher une info-bulle au centre de la vidéo avec un texte personnalisé.
     private void ShowVideoInfo(string text)
     {
+        // Ajout G47S53: Ajout d'une méthode pour afficher une info-bulle au centre de la vidéo avec un texte personnalisé.
+
         videoInfoText.Text = text;
 
         var storyboard =
@@ -357,17 +371,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
         storyboard.Begin();
     }
-
-    // Ajout G47S53: Ajout d'une classe pour stocker les paramètres personnalisés de l'utilisateur.
-    public class VideoViewerSettings
-    {
-        public bool CloseWhenFinished { get; set; } = false;
-
-        public int SeekMode { get; set; } = 2;
-    }
-
+    // ─────────────────────────────────────────────────────────────────────
+    // Méthodes initiales du plugin (non modifiées par G47S53)
+    // ─────────────────────────────────────────────────────────────────────
     private partial void LoadAndInsertGlassLayer();
-
     public bool HasVideo
     {
         get => _hasVideo;
@@ -378,7 +385,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             OnPropertyChanged();
         }
     }
-
     public bool IsPlaying
     {
         get => _isPlaying;
@@ -389,7 +395,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             OnPropertyChanged();
         }
     }
-
     public bool ShouldLoop
     {
         get => _shouldLoop;
@@ -400,7 +405,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             OnPropertyChanged();
         }
     }
-
     public bool UseHardwareAcceleration
     {
         get => _useHardwareAcceleration;
@@ -411,7 +415,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             OnPropertyChanged();
         }
     }
-
     public BitmapSource CoverArt
     {
         get => _coverArt;
@@ -423,36 +426,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             OnPropertyChanged();
         }
     }
-
-    public void Dispose()
-    {
-        // old plugin use an int-typed "Volume" config key ranged from 0 to 100. Let's use a new one here.
-        SettingHelper.Set("VolumeDouble", LinearVolume, "QuickLook.Plugin.VideoViewer");
-        SettingHelper.Set("ShouldLoop", ShouldLoop, "QuickLook.Plugin.VideoViewer");
-        SettingHelper.Set("UseHardwareAcceleration", UseHardwareAcceleration, "QuickLook.Plugin.VideoViewer");
-
-        try
-        {
-            mediaElement?.Close();
-
-            Task.Run(() =>
-            {
-                mediaElement?.MediaUriPlayer.Dispose();
-                mediaElement = null;
-            });
-        }
-        catch (Exception e)
-        {
-            Debug.WriteLine(e);
-        }
-
-        _lyricTimer?.Stop();
-        _lyricTimer = null;
-        _lyricLines = null;
-        _midiPlayer?.Dispose();
-        _midiPlayer = null;
-    }
-
     private void Panel_MouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.LeftButton == MouseButtonState.Pressed)
@@ -473,9 +446,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             CycleSeekMode();
         }*/
     }
-
     public event PropertyChangedEventHandler PropertyChanged;
-
     private void MediaOpened(object o, RoutedEventArgs args)
     {
         if (mediaElement == null)
@@ -485,7 +456,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
         _context.IsBusy = false;
     }
-
     private void MediaFailed(object sender, MediaFailedEventArgs e)
     {
         ((MediaUriElement)sender).Dispatcher.BeginInvoke(new Action(() =>
@@ -499,7 +469,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             _context.IsBusy = false;
         }));
     }
-
     private void MediaEnded(object sender, RoutedEventArgs e)
     {
         if (mediaElement == null)
@@ -523,14 +492,12 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
                 Window.GetWindow(this)?.Close();
         }
     }
-
     private void ShowViedoControlContainer(object sender, MouseEventArgs e)
     {
         var show = (Storyboard)videoControlContainer.FindResource("ShowControlStoryboard");
         if (videoControlContainer.Opacity == 0d || videoControlContainer.Opacity == 1d)
             show.Begin();
     }
-
     private void AutoHideViedoControlContainer(object sender, EventArgs e)
     {
         if (!HasVideo)
@@ -543,7 +510,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
         hide.Begin();
     }
-
     private void PlayerStateChanged(PlayerState oldState, PlayerState newState)
     {
         switch (newState)
@@ -559,7 +525,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
                 break;
         }
     }
-
     private void UpdateMeta(string path, MediaInfoLib info)
     {
         if (HasVideo)
@@ -656,7 +621,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             metaLyric.Visibility = Visibility.Collapsed;
         }
     }
-
     public double LinearVolume
     {
         get => mediaElement.Volume;
@@ -666,12 +630,10 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             OnPropertyChanged();
         }
     }
-
     private void ChangeVolume(double delta)
     {
         LinearVolume = Math.Max(0d, Math.Min(1d, LinearVolume + delta));
     }
-
     private void TogglePlayPause(object sender, EventArgs e)
     {
         if (mediaElement.IsPlaying)
@@ -679,19 +641,16 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         else
             mediaElement.Play();
     }
-
     private void ToggleShouldLoop(object sender, EventArgs e)
     {
         ShouldLoop = !ShouldLoop;
     }
-
     private void ToggleHardwareAcceleration(object sender, EventArgs e)
     {
         UseHardwareAcceleration = !UseHardwareAcceleration;
         SettingHelper.Set("UseHardwareAcceleration", UseHardwareAcceleration, "QuickLook.Plugin.VideoViewer");
         HardwareAccelerationModeChanged(UseHardwareAcceleration);
     }
-
     private void HardwareAccelerationModeChanged(bool enable)
     {
         try
@@ -725,7 +684,6 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             Debug.WriteLine(ex);
         }
     }
-
     public void LoadAndPlay(string path, MediaInfoLib info)
     {
         // Detect whether it is other playback formats
@@ -757,21 +715,19 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
         mediaElement.Play();
     }
-
     [NotifyPropertyChangedInvocator]
     protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
     // ─────────────────────────────────────────────────────────────────────
-    // Bascule plein écran (G47S53)
+    // Helpers
     // ─────────────────────────────────────────────────────────────────────
-    /// <summary>
-    /// Invoque la méthode ToggleFullscreen() de la fenêtre parente par
-    /// réflexion, car elle n'est pas exposée dans une interface publique.
-    /// </summary>
+    // ──────────────────────── Affichage ──────────────────────────────────
     private void ToggleFullscreen()
     {
+        // Invoque la méthode ToggleFullscreen() de la fenêtre parente par
+        // réflexion, car elle n'est pas exposée dans une interface publique.
         var window = Window.GetWindow(this);
         if (window == null) return;
 
@@ -783,4 +739,36 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
 
         method?.Invoke(window, null);
     }
+    // ─────────────────────────────────────────────────────────────────────
+    // Dispose — nettoyage des ressources
+    // ─────────────────────────────────────────────────────────────────────
+    public void Dispose()
+    {
+        // old plugin use an int-typed "Volume" config key ranged from 0 to 100. Let's use a new one here.
+        SettingHelper.Set("VolumeDouble", LinearVolume, "QuickLook.Plugin.VideoViewer");
+        SettingHelper.Set("ShouldLoop", ShouldLoop, "QuickLook.Plugin.VideoViewer");
+        SettingHelper.Set("UseHardwareAcceleration", UseHardwareAcceleration, "QuickLook.Plugin.VideoViewer");
+
+        try
+        {
+            mediaElement?.Close();
+
+            Task.Run(() =>
+            {
+                mediaElement?.MediaUriPlayer.Dispose();
+                mediaElement = null;
+            });
+        }
+        catch (Exception e)
+        {
+            Debug.WriteLine(e);
+        }
+
+        _lyricTimer?.Stop();
+        _lyricTimer = null;
+        _lyricLines = null;
+        _midiPlayer?.Dispose();
+        _midiPlayer = null;
+    }
+
 }
