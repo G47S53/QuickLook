@@ -123,6 +123,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         {
                             data.Titre = bitmapMetadata.GetQuery("/xmp/dc:title/x-default") as string;
                         }
+                        System.Diagnostics.Debug.WriteLine($"[Metadata-Lecture] Titre : {data.Titre}");
 
                         // Mots clé (bag XMP dc:subject : nombre d'éléments variable)
                         int indexMotCle = 0;
@@ -422,6 +423,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
                         if (!string.IsNullOrEmpty(data.Titre))
                         {
+                            // dc:title est une structure XMP "Alt" (rdf:Alt) : on doit créer ce nœud
+                            // explicitement avant de pouvoir indexer sa clé "x-default", sinon SetQuery
+                            // lève une ArgumentException ("Impossible de trouver la propriété") sur les
+                            // fichiers qui n'ont jamais eu de titre écrit auparavant.
+                            if (!metadataClone.ContainsQuery("/xmp/dc:title"))
+                            {
+                                metadataClone.SetQuery("/xmp/dc:title", new BitmapMetadata("xmpalt"));
+                            }
                             metadataClone.SetQuery("/xmp/dc:title/x-default", data.Titre);
                             System.Diagnostics.Debug.WriteLine($"[Metadata] Titre écrit : {data.Titre}");
                         }
@@ -435,6 +444,15 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         // (bag XMP dc:subject : nombre d'éléments variable)
                         try
                         {
+                            // dc:subject est une structure XMP "Bag" (rdf:Bag) : comme pour dc:title,
+                            // il faut créer ce nœud explicitement sur les fichiers qui n'ont jamais eu
+                            // de mots-clés, sinon SetQuery sur le premier élément lève la même
+                            // ArgumentException ("Impossible de trouver la propriété").
+                            if (!metadataClone.ContainsQuery("/xmp/dc:subject"))
+                            {
+                                metadataClone.SetQuery("/xmp/dc:subject", new BitmapMetadata("xmpbag"));
+                            }
+
                             // On vide d'abord les entrées existantes, sinon SetQuery se contente
                             // d'écraser les index déjà présents et laisse les anciens en trop si
                             // la nouvelle liste est plus courte que l'ancienne.

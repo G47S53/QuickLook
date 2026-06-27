@@ -1841,11 +1841,14 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 // Mots-clés : on applique la copie de travail
                 _currentMetadata.Keywords = new List<string>(_motsClesEnEdition);
 
-                // Sauvegarde immédiate dans le fichier (même pattern que SauvegardeMetadata pour Rating/Label)
-                if (!string.IsNullOrEmpty(_currentPanoPath))
-                {
-                    PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
-                }
+                // Sauvegarde temporisée via le flag _isMetaChanging
+                _isMetaChanging = true;
+
+                //// Sauvegarde immédiate dans le fichier (même pattern que SauvegardeMetadata pour Rating/Label)
+                //if (!string.IsNullOrEmpty(_currentPanoPath))
+                //{
+                //    PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
+                //}
 
                 // Rafraîchissement de l'affichage du panneau d'infos (titre/mots-clés affichés au survol)
                 UpdateDataPanelInfo();
