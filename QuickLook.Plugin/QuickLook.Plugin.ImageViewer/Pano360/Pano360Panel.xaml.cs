@@ -4088,6 +4088,27 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
 
             // 6. Libération du WebView2 (carte GPS)
             webViewMap?.Dispose();
+
+            //🤔❓ A ajouter ??🤔❓
+            //// 7. Annulation de toute requête de géocodage en cours
+            //_ctsGeocodage?.Cancel();
+            //_ctsGeocodage?.Dispose();
+            //_ctsGeocodage = null;
+            //// 8. Annulation de toute requête HTTP en cours
+            //_httpClientGeocodage?.CancelPendingRequests();
+            //_httpClientGeocodage?.Dispose();
+            //// 9. Annulation de toute tâche asynchrone en cours
+            //_ = Task.Run(() =>
+            //{
+            //    // On attend un peu pour que les tâches en cours se terminent
+            //    Thread.Sleep(500);
+            //    _ctsGeocodage?.Cancel();
+            //    _ctsGeocodage?.Dispose();
+            //    _httpClientGeocodage?.CancelPendingRequests();
+            //    _httpClientGeocodage?.Dispose();
+            //});
+
+            Mouse.OverrideCursor = null;
         }
     }
 }
