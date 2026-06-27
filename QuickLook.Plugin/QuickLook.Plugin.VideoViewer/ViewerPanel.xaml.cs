@@ -63,7 +63,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
     private bool _useHardwareAcceleration;
 
     // ─────────────────────────────────────────────────────────────────────
-    // Constantes et Déclarations : Ajout G47S53 😉
+    // 😉 Constantes et Déclarations : Ajout G47S53 😉
     // ─────────────────────────────────────────────────────────────────────
     private int seekMode = 0;      // Ajout d'un champ pour stocker le mode de seek sélectionné par l'utilisateur (0 pour 5% de la durée totale, 1 pour 1 seconde, 2 pour 5 secondes).
 
@@ -84,7 +84,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // Constructeur
+    // 🎉 Constructeur
     // ─────────────────────────────────────────────────────────────────────
     public ViewerPanel(ContextObject context)
     {
@@ -245,7 +245,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         Mouse.OverrideCursor = null;
     }
     // ─────────────────────────────────────────────────────────────────────
-    // Méthodes supplémentaires : Ajout G47S53
+    // 😉 Méthodes supplémentaires : Ajout G47S53 😉
     // ─────────────────────────────────────────────────────────────────────
     private void LoadSettings()
     {

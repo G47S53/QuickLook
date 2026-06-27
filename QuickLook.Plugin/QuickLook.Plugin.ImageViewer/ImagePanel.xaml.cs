@@ -43,6 +43,9 @@ namespace QuickLook.Plugin.ImageViewer;
 
 public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposable
 {
+    // ─────────────────────────────────────────────────────────────────────
+    // > Constantes et Déclarations de champs
+    // ─────────────────────────────────────────────────────────────────────
     private Visibility _backgroundVisibility = Visibility.Visible;
     private ContextObject _contextObject;
     private Point? _dragInitPos;
@@ -66,6 +69,200 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
     private Visibility _reverseColorVisibility = Visibility.Collapsed;
     private Visibility _metaIconVisibility = Visibility.Visible;
 
+    public event PropertyChangedEventHandler PropertyChanged;
+    public event EventHandler<int> ImageScrolled;
+    public event EventHandler ZoomChanged;
+
+    internal ImagePanel(ContextObject context, MetaProvider meta) : this()
+    {
+        ContextObject = context;
+        Meta = meta;
+
+        _ = meta.GetSize();
+
+        ShowMeta();
+        Theme = ContextObject.Theme;
+    }
+    public bool ZoomWithControlKey
+    {
+        get => _zoomWithControlKey;
+        set
+        {
+            _zoomWithControlKey = value;
+            OnPropertyChanged();
+        }
+    }
+    public bool ShowZoomLevelInfo
+    {
+        get => _showZoomLevelInfo;
+        set
+        {
+            if (value == _showZoomLevelInfo) return;
+            _showZoomLevelInfo = value;
+            OnPropertyChanged();
+        }
+    }
+    public Themes Theme
+    {
+        get => ContextObject?.Theme ?? Themes.Dark;
+        set
+        {
+            ContextObject.Theme = value;
+            OnPropertyChanged();
+        }
+    }
+    public BitmapScalingMode RenderMode
+    {
+        get => _renderMode;
+        set
+        {
+            _renderMode = value;
+            OnPropertyChanged();
+        }
+    }
+    public bool ZoomToFit
+    {
+        get => _zoomToFit;
+        set
+        {
+            _zoomToFit = value;
+            OnPropertyChanged();
+        }
+    }
+    public Visibility CopyIconVisibility
+    {
+        get => _copyIconVisibility;
+        set
+        {
+            _copyIconVisibility = value;
+            OnPropertyChanged();
+        }
+    }
+    public Visibility SaveAsVisibility
+    {
+        get => _saveAsVisibility;
+        set
+        {
+            _saveAsVisibility = value;
+            OnPropertyChanged();
+        }
+    }
+    public Visibility ReverseColorVisibility
+    {
+        get => _reverseColorVisibility;
+        set
+        {
+            _reverseColorVisibility = value;
+            OnPropertyChanged();
+        }
+    }
+    public Visibility MetaIconVisibility
+    {
+        get => _metaIconVisibility;
+        set
+        {
+            _metaIconVisibility = value;
+            OnPropertyChanged();
+        }
+    }
+    public Visibility BackgroundVisibility
+    {
+        get => _backgroundVisibility;
+        set
+        {
+            _backgroundVisibility = value;
+            OnPropertyChanged();
+        }
+    }
+    public double MinZoomFactor
+    {
+        get => _minZoomFactor;
+        set
+        {
+            _minZoomFactor = value;
+            OnPropertyChanged();
+        }
+    }
+    public double MaxZoomFactor
+    {
+        get => _maxZoomFactor;
+        set
+        {
+            _maxZoomFactor = value;
+            OnPropertyChanged();
+        }
+    }
+    public double ZoomToFitFactor
+    {
+        get => _zoomToFitFactor;
+        private set
+        {
+            _zoomToFitFactor = value;
+            OnPropertyChanged();
+        }
+    }
+    public double ZoomFactor
+    {
+        get => _zoomFactor;
+        private set
+        {
+            _zoomFactor = value;
+            OnPropertyChanged();
+
+            if (_isZoomFactorFirstSet)
+            {
+                _isZoomFactorFirstSet = false;
+                return;
+            }
+
+            if (ShowZoomLevelInfo)
+                ((Storyboard)zoomLevelInfo.FindResource("StoryboardShowZoomLevelInfo")).Begin();
+        }
+    }
+    public Uri ImageUriSource
+    {
+        get => _imageSource;
+        set
+        {
+            _imageSource = value;
+
+            OnPropertyChanged();
+        }
+    }
+    public BitmapSource Source
+    {
+        get => _source;
+        set
+        {
+            _source = value;
+            OnPropertyChanged();
+
+            if (ImageUriSource == null)
+                viewPanelImage.Source = _source;
+        }
+    }
+    public ContextObject ContextObject
+    {
+        get => _contextObject;
+        set
+        {
+            _contextObject = value;
+            OnPropertyChanged();
+        }
+    }
+    public MetaProvider Meta
+    {
+        get => _meta;
+        set
+        {
+            if (Equals(value, _meta)) return;
+            _meta = value;
+            OnPropertyChanged();
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────
+    // 🎉 Constructeur
+    // ─────────────────────────────────────────────────────────────────────
     public ImagePanel()
     {
         InitializeComponent();
@@ -104,221 +301,9 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
             ToggleFullscreen();
         };
     }
-
-    internal ImagePanel(ContextObject context, MetaProvider meta) : this()
-    {
-        ContextObject = context;
-        Meta = meta;
-
-        _ = meta.GetSize();
-
-        ShowMeta();
-        Theme = ContextObject.Theme;
-    }
-
-    public bool ZoomWithControlKey
-    {
-        get => _zoomWithControlKey;
-        set
-        {
-            _zoomWithControlKey = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool ShowZoomLevelInfo
-    {
-        get => _showZoomLevelInfo;
-        set
-        {
-            if (value == _showZoomLevelInfo) return;
-            _showZoomLevelInfo = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public Themes Theme
-    {
-        get => ContextObject?.Theme ?? Themes.Dark;
-        set
-        {
-            ContextObject.Theme = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public BitmapScalingMode RenderMode
-    {
-        get => _renderMode;
-        set
-        {
-            _renderMode = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public bool ZoomToFit
-    {
-        get => _zoomToFit;
-        set
-        {
-            _zoomToFit = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public Visibility CopyIconVisibility
-    {
-        get => _copyIconVisibility;
-        set
-        {
-            _copyIconVisibility = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public Visibility SaveAsVisibility
-    {
-        get => _saveAsVisibility;
-        set
-        {
-            _saveAsVisibility = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public Visibility ReverseColorVisibility
-    {
-        get => _reverseColorVisibility;
-        set
-        {
-            _reverseColorVisibility = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public Visibility MetaIconVisibility
-    {
-        get => _metaIconVisibility;
-        set
-        {
-            _metaIconVisibility = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public Visibility BackgroundVisibility
-    {
-        get => _backgroundVisibility;
-        set
-        {
-            _backgroundVisibility = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public double MinZoomFactor
-    {
-        get => _minZoomFactor;
-        set
-        {
-            _minZoomFactor = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public double MaxZoomFactor
-    {
-        get => _maxZoomFactor;
-        set
-        {
-            _maxZoomFactor = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public double ZoomToFitFactor
-    {
-        get => _zoomToFitFactor;
-        private set
-        {
-            _zoomToFitFactor = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public double ZoomFactor
-    {
-        get => _zoomFactor;
-        private set
-        {
-            _zoomFactor = value;
-            OnPropertyChanged();
-
-            if (_isZoomFactorFirstSet)
-            {
-                _isZoomFactorFirstSet = false;
-                return;
-            }
-
-            if (ShowZoomLevelInfo)
-                ((Storyboard)zoomLevelInfo.FindResource("StoryboardShowZoomLevelInfo")).Begin();
-        }
-    }
-
-    public Uri ImageUriSource
-    {
-        get => _imageSource;
-        set
-        {
-            _imageSource = value;
-
-            OnPropertyChanged();
-        }
-    }
-
-    public BitmapSource Source
-    {
-        get => _source;
-        set
-        {
-            _source = value;
-            OnPropertyChanged();
-
-            if (ImageUriSource == null)
-                viewPanelImage.Source = _source;
-        }
-    }
-
-    public ContextObject ContextObject
-    {
-        get => _contextObject;
-        set
-        {
-            _contextObject = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public MetaProvider Meta
-    {
-        get => _meta;
-        set
-        {
-            if (Equals(value, _meta)) return;
-            _meta = value;
-            OnPropertyChanged();
-        }
-    }
-
-    public void Dispose()
-    {
-        viewPanelImage?.Dispose();
-        viewPanelImage = null;
-    }
-
-    public event PropertyChangedEventHandler PropertyChanged;
-
+    // ─────────────────────────────────────────────────────────────────────
+    // Méthodes 
+    // ─────────────────────────────────────────────────────────────────────
     private void OnCopyOnClick(object sender, RoutedEventArgs e)
     {
         try
@@ -340,7 +325,6 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
             ///
         }
     }
-
     private void OnSaveAsOnClick(object sender, RoutedEventArgs e)
     {
         if (_source == null)
@@ -375,7 +359,6 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
             }
         }
     }
-
     private void OnReverseColorOnClick(object sender, RoutedEventArgs e)
     {
         if (_source == null)
@@ -385,14 +368,12 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
 
         Source = _source.InvertColors();
     }
-
     private void OnBackgroundColourOnClick(object sender, RoutedEventArgs e)
     {
         Theme = Theme == Themes.Dark ? Themes.Light : Themes.Dark;
 
         SettingHelper.Set("LastTheme", (int)Theme, "QuickLook.Plugin.ImageViewer");
     }
-
     private void ShowMeta()
     {
         textMeta.Inlines.Clear();
@@ -410,11 +391,6 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         if (!textMeta.Inlines.Any())
             MetaIconVisibility = Visibility.Collapsed;
     }
-
-    public event EventHandler<int> ImageScrolled;
-
-    public event EventHandler ZoomChanged;
-
     private void ImagePanel_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateZoomToFitFactor();
@@ -422,7 +398,6 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         if (ZoomToFit)
             DoZoomToFit();
     }
-
     private void ViewPanel_ManipulationInertiaStarting(object sender, ManipulationInertiaStartingEventArgs e)
     {
         e.TranslationBehavior = new InertiaTranslationBehavior
@@ -431,13 +406,11 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
             DesiredDeceleration = 10d * 96d / (1000d * 1000d)
         };
     }
-
     private void ViewPanel_ManipulationStarting(object sender, ManipulationStartingEventArgs e)
     {
         e.ManipulationContainer = viewPanel;
         e.Mode = ManipulationModes.Scale | ManipulationModes.Translate;
     }
-
     private void ViewPanel_ManipulationDelta(object sender, ManipulationDeltaEventArgs e)
     {
         var delta = e.DeltaManipulation;
@@ -451,7 +424,6 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
 
         e.Handled = true;
     }
-
     private void ViewPanel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         e.MouseDevice.Capture(viewPanel);
@@ -461,12 +433,10 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         temp.Offset(viewPanel.HorizontalOffset, viewPanel.VerticalOffset);
         _dragInitPos = temp;
     }
-
     private void ViewPanel_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
         DoZoomToFit();
     }
-
     private void ViewPanel_MouseMove(object sender, MouseEventArgs e)
     {
         if (!_dragInitPos.HasValue)
@@ -487,7 +457,6 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         viewPanel.ScrollToHorizontalOffset(delta.X);
         viewPanel.ScrollToVerticalOffset(delta.Y);
     }
-
     private void ViewPanel_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         e.Handled = true;
@@ -505,30 +474,25 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
 
         Zoom(newZoom);
     }
-
     public Size GetScrollSize()
     {
         return new Size(viewPanel.ScrollableWidth, viewPanel.ScrollableHeight);
     }
-
     public Point GetScrollPosition()
     {
         return new Point(viewPanel.HorizontalOffset, viewPanel.VerticalOffset);
     }
-
     public void SetScrollPosition(Point point)
     {
         viewPanel.ScrollToHorizontalOffset(point.X);
         viewPanel.ScrollToVerticalOffset(point.Y);
     }
-
     public void DoZoomToFit()
     {
         UpdateZoomToFitFactor();
 
         Zoom(ZoomToFitFactor, false, true);
     }
-
     private void UpdateZoomToFitFactor()
     {
         if (viewPanelImage?.Source == null)
@@ -542,13 +506,11 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
 
         ZoomToFitFactor = factor;
     }
-
     public void ResetZoom()
     {
         ZoomToFitFactor = 1;
         Zoom(1d, true, ZoomToFit);
     }
-
     public void Zoom(double factor, bool suppressEvent = false, bool isToFit = false)
     {
         if (viewPanelImage?.Source == null)
@@ -599,7 +561,6 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         if (!suppressEvent)
             FireZoomChangedEvent();
     }
-
     private void FireZoomChangedEvent()
     {
         _lastZoomTime = DateTime.Now;
@@ -615,18 +576,15 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
                 DispatcherPriority.Background);
         });
     }
-
     [NotifyPropertyChangedInvocator]
     protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
-
     public void ScrollToTop()
     {
         viewPanel.ScrollToTop();
     }
-
     public void ScrollToBottom()
     {
         viewPanel.ScrollToBottom();
@@ -651,7 +609,6 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         if (buttonsContainer.Opacity == 0 || buttonsContainer.Opacity == 1)
             show.Begin();
     }
-
     private void AutoHideButtonsContainer(object sender, EventArgs e)
     {
         // Cette méthode est appelée automatiquement quand l'animation Show
@@ -665,9 +622,14 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
         var hide = (Storyboard)buttonsContainer.FindResource("HideButtonsStoryboard");
         hide.Begin();
     }
-    // Ajout G47S53: J'ai ajouté ce code pour permettre de basculer en plein écran.
+    // ─────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────
+    // ──────────────────────── Affichage ──────────────────────────────────
     private void ToggleFullscreen()
     {
+        // Invoque la méthode ToggleFullscreen() de la fenêtre parente par
+        // réflexion, car elle n'est pas exposée dans une interface publique.
         var window = Window.GetWindow(this);
         if (window == null) return;
 
@@ -678,5 +640,13 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
             System.Reflection.BindingFlags.NonPublic);
 
         method?.Invoke(window, null);
+    }
+    // ─────────────────────────────────────────────────────────────────────
+    // Dispose — nettoyage des ressources
+    // ─────────────────────────────────────────────────────────────────────
+    public void Dispose()
+    {
+        viewPanelImage?.Dispose();
+        viewPanelImage = null;
     }
 }
