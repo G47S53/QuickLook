@@ -555,7 +555,9 @@
                              Padding="8,6"
                              FontSize="14"
                              CaretBrush="White"
-                             Margin="0,0,0,18"/>
+                             Margin="0,0,0,18"
+                             SpellCheck.IsEnabled="True"
+                             Language="fr-FR"/>
 
                     <!-- ── Mots-clés déjà présents (tags) ───────────────────────── -->
                     <TextBlock Text="Mots-clés" Foreground="#AAFFFFFF" FontSize="12" Margin="0,0,0,5"/>
@@ -580,6 +582,8 @@
                                  CaretBrush="White"
                                  Margin="0,0,6,0"
                                  ToolTip="Tapez un mot-clé puis Entrée"
+                                 SpellCheck.IsEnabled="True"
+                                 Language="fr-FR"
                                  KeyDown="TxtNouveauMotCle_KeyDown"/>
                         <Button Grid.Column="1" Content="➕" Width="34" Padding="0" Cursor="Hand" Click="BtnAjouterMotCle_Click">
                             <Button.Style>
@@ -876,11 +880,12 @@
                 <Button x:Name="btnTitreMotsCles"
                         Content="⚙️"
                         Width="24" Height="24"
-                        Margin="6,6,0,0"
+                        Margin="6,6,6,6"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Top"
                         Padding="0"
                         FontSize="13"
+                        Foreground="#B3FFFFFF"
                         Background="Transparent"
                         BorderThickness="0"
                         Cursor="Hand"

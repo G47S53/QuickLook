@@ -44,6 +44,7 @@ public class ContextObject : INotifyPropertyChanged
 
     // Ajout G47S53: cette propriété est utilisée pour bloquer la méthode permettant l'affichage de la barre haute.
     public bool BlocageShowCaption { get; set; } = false;
+    public bool BlocageEspaceFerme { get; set; } = false;   // Modification G47S52: empêche la touche Espace de fermer/toggler QuickLook quand un plugin édite du texte (ex: TextBox)
 
     /// <summary>
     /// Get the instance of Viewer window.

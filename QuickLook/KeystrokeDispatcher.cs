@@ -96,6 +96,15 @@ internal class KeystrokeDispatcher : IDisposable
             return;
         _lastInvalidKeyPressTick = 0L;
 
+        // skip Space entirely if a plugin reports it is currently editing text
+        // (e.g. a TextBox), so the user can type a space without closing/toggling the preview.
+        // Modification G47S52
+        if (e.KeyCode == Keys.Space &&
+            ViewWindowManager.GetInstance().CurrentContextObject?.BlocageEspaceFerme == true)
+        {
+            return;
+        }
+
         // skip if user is holding Space (don't skip other valid keys)
         if (isKeyDown && e.KeyCode == Keys.Space)
         {

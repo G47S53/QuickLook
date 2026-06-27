@@ -260,6 +260,11 @@ public class ViewWindowManager : IDisposable
         };
     }
 
+    // Modification G47S52: expose le ContextObject de la fenêtre courante, pour que
+    // KeystrokeDispatcher (singleton global, sans référence directe à ViewerWindow)
+    // puisse savoir si un plugin est en train d'éditer du texte (ex: TextBox).
+    public ContextObject CurrentContextObject => _viewerWindow?.ContextObject;
+
     public static ViewWindowManager GetInstance()
     {
         return _instance ??= new ViewWindowManager();

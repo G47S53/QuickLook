@@ -1820,6 +1820,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Indique qu'une boite de dialogue est ouverte (utile pour désactiver la spacemouse)
             _OptionOpen = true;
 
+            // Empêche la touche Espace de fermer/toggler QuickLook tant que ce dialogue est ouvert
+            // (sinon, taper un espace dans le titre ou un mot-clé peut fermer toute la fenêtre QuickLook)
+            if (_context != null) _context.BlocageEspaceFerme = true;
+
+            // Affiche la boite de dialogue
             gridTitreMotsCles.Visibility = Visibility.Visible;
             txtTitre.Focus();
         }
@@ -1829,6 +1834,9 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             viewBlur.Radius = 0;
 
             _OptionOpen = false;
+
+            // Redonne la possibilité de fermer QuickLook avec la touche Espace
+            if (_context != null) _context.BlocageEspaceFerme = false;
 
             gridTitreMotsCles.Visibility = Visibility.Collapsed;
 
@@ -3092,6 +3100,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private void BtnToggleMap_Click(object sender, RoutedEventArgs e)
         {
             _isMapPanelVisible = !_isMapPanelVisible;   // bascule on/off
+
+            if (_isMapPanelVisible && _context != null)
+            {
+                // Empêche la touche Espace de fermer/toggler QuickLook tant que ce dialogue est ouvert
+                // (sinon, taper un espace dans le titre ou un mot-clé peut fermer toute la fenêtre QuickLook)
+                _context.BlocageEspaceFerme = true;
+            }
+            else 
+            {
+                // Redonne la possibilité de fermer QuickLook avec la touche Espace
+                _context.BlocageEspaceFerme = false;
+            }
 
             AffichagePanneauMap();
 
