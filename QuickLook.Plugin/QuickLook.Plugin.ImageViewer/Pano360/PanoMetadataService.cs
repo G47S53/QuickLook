@@ -225,17 +225,18 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                         var frame = decoder.Frames[0];
                         var metadataClone = frame.Metadata is BitmapMetadata bm ? bm.Clone() : new BitmapMetadata("jpg");
 
-                        // Rating
+                        // ── 1. Rating ────────────────────────────────────────────────────────────────────────────────────
                         if (data.Rating.HasValue)
                             metadataClone.SetQuery("/xmp/xmp:Rating", data.Rating.Value.ToString());
                         else if (metadataClone.ContainsQuery("/xmp/xmp:Rating"))
                             metadataClone.RemoveQuery("/xmp/xmp:Rating");
 
-                        // Label
+                        // ── 2. Label ─────────────────────────────────────────────────────────────────────────────────────
                         if (data.Label != null)
                             metadataClone.SetQuery("/xmp/xmp:Label", data.Label);
 
-                        // GPS (EXIF standard uniquement — jamais XMP DJI, qui reste un format de lecture/fallback)
+                        // ── 3. GPS ───────────────────────────────────────────────────────────────────────────────────────
+                        // (EXIF standard uniquement — jamais XMP DJI, qui reste un format de lecture/fallback)
                         if (data.GpsLatitude != null && data.GpsLongitude != null &&
                             double.TryParse(data.GpsLatitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double latDecimal) &&
                             double.TryParse(data.GpsLongitude, NumberStyles.Float, CultureInfo.InvariantCulture, out double lonDecimal))
@@ -294,6 +295,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             }
                         }
 
+                        // ── 4. Champs perso ──────────────────────────────────────────────────────────────────────────────
+                        // ── Orientation du panorama ────────────────────────────────────────────────────────────────────── 
                         // Orientation du panorama (XMP GPano:PoseHeadingDegrees, standard Google Photo Sphere).
                         // C'est ce champ que les logiciels de visite virtuelle comme Pano2Vr lisent pour orienter
                         // le panorama sur leur propre outil carte.
@@ -321,7 +324,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             }
                         }
 
-                        // Niveau de zoom de la carte GPS (namespace XMP personnalisé à ce plugin).
+                        // ── Niveau de zoom de la carte GPS (namespace XMP personnalisé à ce plugin). ─────────────────────
                         if (data.MapZoomLevel.HasValue)
                         {
                             try
@@ -342,7 +345,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             }
                         }
 
-                        // Position Home de la sphère (horizontal, vertical et FOV)
+                        // ── Position Home de la sphère (horizontal, vertical et FOV) ─────────────────────────────────────
                         if (data.HomeHorizontalSphere.HasValue && data.HomeVerticalSphere.HasValue && data.HomeFovSphere.HasValue) 
                         {
                             try
@@ -408,28 +411,58 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                             }
                         }
 
-                        // 
-                        // ToDo: A ajouter ?
-                        // !! Mots clé (bag XMP dc:subject)
-                        // >Normalement OK ?
-                        //if (data.CustomTags.TryGetValue("Keywords", out var keywordsObj) && keywordsObj is List<string> motsCles)
-                        //{
-                        //    // On vide d'abord les entrées existantes, sinon SetQuery se contente
-                        //    // d'écraser les index déjà présents et laisse les anciens en trop si
-                        //    // la nouvelle liste est plus courte que l'ancienne.
-                        //    int indexExistant = 0;
-                        //    while (metadataClone.ContainsQuery($"/xmp/dc:subject/{{ulong={indexExistant}}}"))
-                        //    {
-                        //        metadataClone.RemoveQuery($"/xmp/dc:subject/{{ulong={indexExistant}}}");
-                        //        indexExistant++;
-                        //    }
-                        //    for (int i = 0; i < motsCles.Count; i++)
-                        //    {
-                        //        metadataClone.SetQuery($"/xmp/dc:subject/{{ulong={i}}}", motsCles[i]);
-                        //    }
-                        //}
+                        // ── 5. Titre ─────────────────────────────────────────────────────────────────────────────────────
+                        // Titre (XMP dc:title, structure LangAlt — on écrit dans la variante "x-default",
+                        // celle lue par défaut par WPF et par la quasi-totalité des logiciels). Une chaîne
+                        // vide/null efface le titre existant plutôt que de laisser une ancienne valeur périmée.
+                        if (!metadataClone.ContainsQuery("/xmp"))
+                        {
+                            metadataClone.SetQuery("/xmp", new BitmapMetadata("xmp"));
+                        }
 
-                        // Reconstruction du fichier
+                        if (!string.IsNullOrEmpty(data.Titre))
+                        {
+                            metadataClone.SetQuery("/xmp/dc:title/x-default", data.Titre);
+                            System.Diagnostics.Debug.WriteLine($"[Metadata] Titre écrit : {data.Titre}");
+                        }
+                        else if (metadataClone.ContainsQuery("/xmp/dc:title/x-default"))
+                        {
+                            metadataClone.RemoveQuery("/xmp/dc:title/x-default");
+                            System.Diagnostics.Debug.WriteLine("[Metadata] Titre effacé (vide)");
+                        }
+
+                        // ── 6. Mots clé ───────────────────────────────────────────────────────────────────────────────────
+                        // (bag XMP dc:subject : nombre d'éléments variable)
+                        try
+                        {
+                            // On vide d'abord les entrées existantes, sinon SetQuery se contente
+                            // d'écraser les index déjà présents et laisse les anciens en trop si
+                            // la nouvelle liste est plus courte que l'ancienne.
+                            int indexExistant = 0;
+                            while (metadataClone.ContainsQuery($"/xmp/dc:subject/{{ulong={indexExistant}}}"))
+                            {
+                                metadataClone.RemoveQuery($"/xmp/dc:subject/{{ulong={indexExistant}}}");
+                                indexExistant++;
+                            }
+
+                            if (data.Keywords != null)
+                            {
+                                for (int i = 0; i < data.Keywords.Count; i++)
+                                {
+                                    metadataClone.SetQuery($"/xmp/dc:subject/{{ulong={i}}}", data.Keywords[i]);
+                                }
+                            }
+
+                            System.Diagnostics.Debug.WriteLine($"[Metadata] Mots-clés écrits ({data.Keywords?.Count ?? 0}) : {string.Join(", ", data.Keywords ?? new List<string>())}");
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[Metadata] Échec écriture mots-clés : {ex.Message}");
+                        }
+
+                        // ──────────────────────────────────────────────────────────────────────────────────────────────────
+                        // ── 999. Reconstruction du fichier ────────────────────────────────────────────────────────────────
+                        // ──────────────────────────────────────────────────────────────────────────────────────────────────
                         var encoder = new JpegBitmapEncoder();
                         encoder.Frames.Add(BitmapFrame.Create(frame, frame.Thumbnail, metadataClone, frame.ColorContexts));
 

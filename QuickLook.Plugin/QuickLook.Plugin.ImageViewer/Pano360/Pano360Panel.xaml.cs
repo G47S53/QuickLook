@@ -37,7 +37,7 @@ using System.Windows.Navigation;
 using TDxInput;
 using Media3D = System.Windows.Media.Media3D;
 
-using System.Runtime.InteropServices; // Pour le DllImport            (Problème de la spacemouse qui perd le focus avec webview2)
+using System.Runtime.InteropServices;          // Pour le DllImport            (Problème de la spacemouse qui perd le focus avec webview2)
 using System.Windows.Interop;
 using System.Runtime.CompilerServices;         // Pour le WindowInteropHelper  (Problème de la spacemouse qui perd le focus avec webview2)
 
@@ -167,33 +167,35 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _OptionBarreReduite = false;                          // Option : démarrer avec la barre de boutons en mode compact (sans les groupes gauche/droite)
 
         private Pano360Settings settings;                                  // Instance désérialisée du fichier JSON (utilisée par LoadSettings / SaveSettings)
+        private List<string> _DerniersMotsCles = new List<string>();       // Les 6 derniers mots-clés utilisés via la boite de dialogue Titre/Mots-clés (le plus récent en premier), issu du JSON
 
         // ─────── Structure pour le stockage des options ───────
         public class Pano360Settings
         {
-            public double AutoRotateSlowSeconds { get; set; } = 60.0;      // Durée d'un tour complet en mode Lent (secondes)
-            public double AutoRotateNormalSeconds { get; set; } = 20.0;    // Durée d'un tour complet en mode Normal (secondes)
-            public double AutoRotateFastSeconds { get; set; } = 10.0;      // Durée d'un tour complet en mode Rapide (secondes)
-            public bool FullscreenStartup { get; set; } = false;           // Ouvre la fenêtre en plein écran au démarrage
-            public bool StartBarreReduite { get; set; } = false;           // Démarre avec la barre de boutons compactée (uniquement FOV + ◀▶)
-            public double DefaultFov { get; set; } = 90.0;                 // Champ de vision par défaut (degrés), appliqué à la caméra à l'ouverture
-            public int StartRadioBouton { get; set; } = 1;                 // Mode de démarrage (voir _StartRadioBouton)
-            public int StartAutoRotate { get; set; } = 1;                  // Vitesse d'autorotation au démarrage (voir _StartAutoRotate)
-            public bool StartOneTurnAndNext { get; set; } = false;         // Démarrer directement en mode "1 tour + panorama suivant"
-            public bool StartOneTurnAndClose { get; set; } = false;        // Démarrer directement en mode "1 tour + fermeture"
-            public double StartOneTurnDuration { get; set; } = 15.0;       // Durée totale du tour unique en secondes (profil trapézoïdal accel/croisière/decel)
-            public string GpsMemoire1Nom { get; set; } = "Vide";           // Nom de la première mémoire GPS
-            public string GpsMemoire1Latitude { get; set; } = "0";         // Latitude de la première mémoire GPS
-            public string GpsMemoire1Longitude { get; set; } = "0";        // Longitude de la première mémoire GPS
+            public double AutoRotateSlowSeconds { get; set; } = 60.0;                // Durée d'un tour complet en mode Lent (secondes)
+            public double AutoRotateNormalSeconds { get; set; } = 20.0;              // Durée d'un tour complet en mode Normal (secondes)
+            public double AutoRotateFastSeconds { get; set; } = 10.0;                // Durée d'un tour complet en mode Rapide (secondes)
+            public bool FullscreenStartup { get; set; } = false;                     // Ouvre la fenêtre en plein écran au démarrage
+            public bool StartBarreReduite { get; set; } = false;                     // Démarre avec la barre de boutons compactée (uniquement FOV + ◀▶)
+            public double DefaultFov { get; set; } = 90.0;                           // Champ de vision par défaut (degrés), appliqué à la caméra à l'ouverture
+            public int StartRadioBouton { get; set; } = 1;                           // Mode de démarrage (voir _StartRadioBouton)
+            public int StartAutoRotate { get; set; } = 1;                            // Vitesse d'autorotation au démarrage (voir _StartAutoRotate)
+            public bool StartOneTurnAndNext { get; set; } = false;                   // Démarrer directement en mode "1 tour + panorama suivant"
+            public bool StartOneTurnAndClose { get; set; } = false;                  // Démarrer directement en mode "1 tour + fermeture"
+            public double StartOneTurnDuration { get; set; } = 15.0;                 // Durée totale du tour unique en secondes (profil trapézoïdal accel/croisière/decel)
+            public string GpsMemoire1Nom { get; set; } = "Vide";                     // Nom de la première mémoire GPS
+            public string GpsMemoire1Latitude { get; set; } = "0";                   // Latitude de la première mémoire GPS
+            public string GpsMemoire1Longitude { get; set; } = "0";                  // Longitude de la première mémoire GPS
             public int GpsMemoire1Zoom { get; set; } = 10;
-            public string GpsMemoire2Nom { get; set; } = "Vide";           // Nom de la seconde mémoire GPS
-            public string GpsMemoire2Latitude { get; set; } = "0";         // Latitude de la seconde mémoire GPS
-            public string GpsMemoire2Longitude { get; set; } = "0";        // Longitude de la seconde mémoire GPS
+            public string GpsMemoire2Nom { get; set; } = "Vide";                     // Nom de la seconde mémoire GPS
+            public string GpsMemoire2Latitude { get; set; } = "0";                   // Latitude de la seconde mémoire GPS
+            public string GpsMemoire2Longitude { get; set; } = "0";                  // Longitude de la seconde mémoire GPS
             public int GpsMemoire2Zoom { get; set; } = 10;
-            public string GpsMemoire3Nom { get; set; } = "Vide";           // Nom de la troisième mémoire GPS
-            public string GpsMemoire3Latitude { get; set; } = "0";         // Latitude de la troisième mémoire GPS
-            public string GpsMemoire3Longitude { get; set; } = "0";        // Longitude de la troisième mémoire GPS
+            public string GpsMemoire3Nom { get; set; } = "Vide";                     // Nom de la troisième mémoire GPS
+            public string GpsMemoire3Latitude { get; set; } = "0";                   // Latitude de la troisième mémoire GPS
+            public string GpsMemoire3Longitude { get; set; } = "0";                  // Longitude de la troisième mémoire GPS
             public int GpsMemoire3Zoom { get; set; } = 10;
+            public List<string> DerniersMotsCles { get; set; } = new List<string>(); // Les 6 derniers mots-clés utilisés via la boite de dialogue Titre/Mots-clés (le plus récent en premier)
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -1531,6 +1533,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _GpsMemoire3Longitude = settings.GpsMemoire3Longitude;
             _GpsMemoire3Zoom = settings.GpsMemoire3Zoom;
 
+            // Derniers mots-clés utilisés (boite de dialogue Titre/Mots-clés)
+            _DerniersMotsCles = settings.DerniersMotsCles ?? new List<string>();
+            MettreAJourBoutonsSuggestionsMotsCles();
+
+            // Permet de mettre a jour les textes des items dans le sous menu de la carte
             MettreAJourLibellesFavoris();
 
             // Mise à jour boite de dialogue: Fullscreen
@@ -1638,7 +1645,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     GpsMemoire3Nom = _GpsMemoire3Nom,
                     GpsMemoire3Latitude = _GpsMemoire3Latitude,
                     GpsMemoire3Longitude = _GpsMemoire3Longitude,
-                    GpsMemoire3Zoom = _GpsMemoire3Zoom
+                    GpsMemoire3Zoom = _GpsMemoire3Zoom,
+                    DerniersMotsCles = _DerniersMotsCles
                 };
 
                 //Serialisation et sauvegarde
@@ -1781,6 +1789,211 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
             // 🎯 On bloque aussi la molette de la souris pour empêcher le zoom en arrière-plan
             e.Handled = true;
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // Boite de dialogue Titre / Mots-clés
+        // ─────────────────────────────────────────────────────────────────────
+        private List<string> _motsClesEnEdition = new List<string>();     // Copie de travail des mots-clés de la photo courante, modifiée pendant que la boite de dialogue est ouverte (appliquée à _currentMetadata.Keywords seulement à la fermeture)
+        private void BtnTitreMotsCles_Click(object sender, RoutedEventArgs e)
+        {
+            // 🎯 On empêche le clic de remonter au Grid parent (infoExifXmp), qui replierait le panneau d'infos
+            e.Handled = true;
+
+            if (_currentMetadata == null) return;
+
+            // Pré-remplissage du titre
+            txtTitre.Text = _currentMetadata.Titre ?? "";
+
+            // Copie de travail des mots-clés actuels (on ne touche pas directement à _currentMetadata.Keywords avant la fermeture)
+            _motsClesEnEdition = _currentMetadata.Keywords != null
+                ? new List<string>(_currentMetadata.Keywords)
+                : new List<string>();
+            RafraichirWrapMotsCles();
+
+            txtNouveauMotCle.Text = "";
+
+            MettreAJourBoutonsSuggestionsMotsCles();
+
+            // 🎯 ON ALLUME LE FLOU DERRIÈRE, comme pour le panneau Options
+            viewBlur.Radius = 15;
+
+            // Indique qu'une boite de dialogue est ouverte (utile pour désactiver la spacemouse)
+            _OptionOpen = true;
+
+            gridTitreMotsCles.Visibility = Visibility.Visible;
+            txtTitre.Focus();
+        }
+        private void BtnCloseTitreMotsCles_Click(object sender, RoutedEventArgs e)
+        {
+            // 🎯 ON ÉTEINT LE FLOU : Le panorama redevient instantanément net
+            viewBlur.Radius = 0;
+
+            _OptionOpen = false;
+
+            gridTitreMotsCles.Visibility = Visibility.Collapsed;
+
+            if (_currentMetadata != null)
+            {
+                // Titre : chaîne vide considérée comme "pas de titre" (cohérent avec la lecture, qui laisse Titre à null si absent)
+                string titreSaisi = txtTitre.Text?.Trim();
+                _currentMetadata.Titre = string.IsNullOrEmpty(titreSaisi) ? null : titreSaisi;
+
+                // Mots-clés : on applique la copie de travail
+                _currentMetadata.Keywords = new List<string>(_motsClesEnEdition);
+
+                // Sauvegarde immédiate dans le fichier (même pattern que SauvegardeMetadata pour Rating/Label)
+                if (!string.IsNullOrEmpty(_currentPanoPath))
+                {
+                    PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
+                }
+
+                // Rafraîchissement de l'affichage du panneau d'infos (titre/mots-clés affichés au survol)
+                UpdateDataPanelInfo();
+                AppliquerVisibiliteGrids();
+            }
+
+            // Sauvegarde définitive des settings (dont les 6 derniers mots-clés)
+            SaveSettings();
+        }
+        private void GridTitreMotsCles_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            // 🎯 On indique à WPF que l'événement s'arrête ici.
+            // Le clic est "consommé" par le fond noir et ne traverse pas vers le panorama !
+            e.Handled = true;
+        }
+        private void GridTitreMotsCles_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // 🎯 On bloque aussi la molette de la souris pour empêcher le zoom en arrière-plan
+            e.Handled = true;
+        }
+        // ── Puces des mots-clés déjà présents sur la photo (générées dynamiquement) ──
+        private void RafraichirWrapMotsCles()
+        {
+            wrapMotsCles.Children.Clear();
+
+            foreach (string motCle in _motsClesEnEdition)
+            {
+                wrapMotsCles.Children.Add(CreerPuceMotCle(motCle));
+            }
+        }
+        private Border CreerPuceMotCle(string motCle)
+        {
+            var bouton = new Button
+            {
+                Content = "✕",
+                Width = 16,
+                Height = 16,
+                Padding = new Thickness(0),
+                Margin = new Thickness(6, 0, 0, 0),
+                FontSize = 9,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Background = Brushes.Transparent,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#B3FFFFFF")),
+                BorderThickness = new Thickness(0),
+                Tag = motCle
+            };
+            bouton.Click += BtnSupprimerMotCle_Click;
+
+            var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            panel.Children.Add(new TextBlock
+            {
+                Text = motCle,
+                Foreground = Brushes.White,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            panel.Children.Add(bouton);
+
+            return new Border
+            {
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF00AAFF")),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(10, 4, 8, 4),
+                Margin = new Thickness(0, 0, 6, 6),
+                Child = panel
+            };
+        }
+        private void BtnSupprimerMotCle_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button bouton && bouton.Tag is string motCle)
+            {
+                _motsClesEnEdition.Remove(motCle);
+                RafraichirWrapMotsCles();
+            }
+        }
+        // ── Ajout d'un nouveau mot-clé (TextBox + Entrée, ou bouton ➕) ──
+        private void TxtNouveauMotCle_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                AjouterMotCle(txtNouveauMotCle.Text);
+                e.Handled = true;
+            }
+        }
+        private void BtnAjouterMotCle_Click(object sender, RoutedEventArgs e)
+        {
+            AjouterMotCle(txtNouveauMotCle.Text);
+        }
+        private void AjouterMotCle(string motCle)
+        {
+            motCle = motCle?.Trim();
+            if (string.IsNullOrEmpty(motCle)) return;
+
+            // Pas de doublon (insensible à la casse, pour éviter "Plage" et "plage" en double)
+            if (!_motsClesEnEdition.Any(m => string.Equals(m, motCle, StringComparison.OrdinalIgnoreCase)))
+            {
+                _motsClesEnEdition.Add(motCle);
+                RafraichirWrapMotsCles();
+
+                EnregistrerMotCleDansHistorique(motCle);
+            }
+
+            txtNouveauMotCle.Text = "";
+            txtNouveauMotCle.Focus();
+        }
+        // ── 6 boutons "suggestions" : les derniers mots-clés utilisés via cette boite de dialogue ──
+        private void MettreAJourBoutonsSuggestionsMotsCles()
+        {
+            var boutons = new[] { btnMotCleRecent1, btnMotCleRecent2, btnMotCleRecent3, btnMotCleRecent4, btnMotCleRecent5, btnMotCleRecent6 };
+
+            for (int i = 0; i < boutons.Length; i++)
+            {
+                if (i < _DerniersMotsCles.Count)
+                {
+                    boutons[i].Content = _DerniersMotsCles[i];
+                    boutons[i].Tag = _DerniersMotsCles[i];
+                    boutons[i].IsEnabled = true;
+                }
+                else
+                {
+                    boutons[i].Content = "";
+                    boutons[i].Tag = null;
+                    boutons[i].IsEnabled = false;
+                }
+            }
+        }
+        private void BtnMotCleRecent_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button bouton && bouton.Tag is string motCle)
+            {
+                AjouterMotCle(motCle);
+            }
+        }
+        // ── Mémorisation des 6 derniers mots-clés utilisés (le plus récent en tête) ──
+        private void EnregistrerMotCleDansHistorique(string motCle)
+        {
+            // On retire l'éventuelle occurrence existante (insensible à la casse) avant de la remettre en tête,
+            // pour qu'un mot-clé réutilisé remonte en première position plutôt que d'être dupliqué.
+            _DerniersMotsCles.RemoveAll(m => string.Equals(m, motCle, StringComparison.OrdinalIgnoreCase));
+            _DerniersMotsCles.Insert(0, motCle);
+
+            // On ne garde que les 6 derniers
+            if (_DerniersMotsCles.Count > 6)
+            {
+                _DerniersMotsCles.RemoveRange(6, _DerniersMotsCles.Count - 6);
+            }
+
+            MettreAJourBoutonsSuggestionsMotsCles();
         }
         #region Barre de Boutons
         // ─────────────────────────────────────────────────────────────────────

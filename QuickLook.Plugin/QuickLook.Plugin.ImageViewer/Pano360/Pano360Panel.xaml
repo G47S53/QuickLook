@@ -536,6 +536,144 @@
             </Border>
         </Grid>
         <!-- ══════════════════════════════════════════════════════════════════
+                          Boite de dialogue Titre / Mots-clés
+        ══════════════════════════════════════════════════════════════════════ -->
+        <Grid x:Name="gridTitreMotsCles" Visibility="Collapsed" Background="#33000000" Panel.ZIndex="1000" MouseDown="GridTitreMotsCles_MouseDown" PreviewMouseWheel="GridTitreMotsCles_PreviewMouseWheel">
+
+            <Border Background="#FA1A1A1A" CornerRadius="12" BorderBrush="#33FFFFFF" BorderThickness="1" Width="360" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Margin="20">
+
+                    <TextBlock Text="Titre et mots-clés" Foreground="White" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" HorizontalAlignment="Center"/>
+
+                    <!-- ── Titre ───────────────────────── -->
+                    <TextBlock Text="Titre" Foreground="#AAFFFFFF" FontSize="12" Margin="0,0,0,5"/>
+                    <TextBox x:Name="txtTitre"
+                             Background="#22FFFFFF"
+                             Foreground="White"
+                             BorderBrush="#33FFFFFF"
+                             BorderThickness="1"
+                             Padding="8,6"
+                             FontSize="14"
+                             CaretBrush="White"
+                             Margin="0,0,0,18"/>
+
+                    <!-- ── Mots-clés déjà présents (tags) ───────────────────────── -->
+                    <TextBlock Text="Mots-clés" Foreground="#AAFFFFFF" FontSize="12" Margin="0,0,0,5"/>
+                    <Border Background="#16FFFFFF" CornerRadius="6" BorderBrush="#22FFFFFF" BorderThickness="1" Padding="6" MinHeight="36" Margin="0,0,0,8">
+                        <WrapPanel x:Name="wrapMotsCles" Orientation="Horizontal"/>
+                    </Border>
+
+                    <!-- ── Ajout d'un nouveau mot-clé ───────────────────────── -->
+                    <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="txtNouveauMotCle"
+                                 Grid.Column="0"
+                                 Background="#22FFFFFF"
+                                 Foreground="White"
+                                 BorderBrush="#33FFFFFF"
+                                 BorderThickness="1"
+                                 Padding="8,6"
+                                 FontSize="14"
+                                 CaretBrush="White"
+                                 Margin="0,0,6,0"
+                                 ToolTip="Tapez un mot-clé puis Entrée"
+                                 KeyDown="TxtNouveauMotCle_KeyDown"/>
+                        <Button Grid.Column="1" Content="➕" Width="34" Padding="0" Cursor="Hand" Click="BtnAjouterMotCle_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="#22FFFFFF"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="bd" Property="Background" Value="#33FFFFFF"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </Grid>
+
+                    <!-- ── Suggestions : 6 derniers mots-clés utilisés ───────────────────────── -->
+                    <TextBlock Text="Suggestions récentes" Foreground="#AAFFFFFF" FontSize="12" Margin="0,0,0,6"/>
+                    <UniformGrid x:Name="grpSuggestionsMotsCles" Columns="2" Rows="3" Margin="0,0,0,18">
+                        <UniformGrid.Resources>
+                            <Style TargetType="Button">
+                                <Setter Property="Margin" Value="0,0,8,8"/>
+                                <Setter Property="Padding" Value="6,5"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Background" Value="#1AFFFFFF"/>
+                                <Setter Property="FontSize" Value="12"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="bd" Property="Background" Value="#33FFFFFF"/>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter TargetName="bd" Property="Background" Value="Transparent"/>
+                                                    <Setter Property="Foreground" Value="#40FFFFFF"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </UniformGrid.Resources>
+
+                        <Button x:Name="btnMotCleRecent1" Content="" IsEnabled="False" Click="BtnMotCleRecent_Click"/>
+                        <Button x:Name="btnMotCleRecent2" Content="" IsEnabled="False" Click="BtnMotCleRecent_Click"/>
+                        <Button x:Name="btnMotCleRecent3" Content="" IsEnabled="False" Click="BtnMotCleRecent_Click"/>
+                        <Button x:Name="btnMotCleRecent4" Content="" IsEnabled="False" Click="BtnMotCleRecent_Click"/>
+                        <Button x:Name="btnMotCleRecent5" Content="" IsEnabled="False" Click="BtnMotCleRecent_Click"/>
+                        <Button x:Name="btnMotCleRecent6" Content="" IsEnabled="False" Click="BtnMotCleRecent_Click"/>
+                    </UniformGrid>
+
+                    <!-- ── Bouton de fermeture ───────────────── -->
+                    <Button Content="Enregistrer et Fermer" HorizontalAlignment="Right" Width="170" Padding="10,6" Cursor="Hand" Click="BtnCloseTitreMotsCles_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#FF00AAFF"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#FF33BBFF"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                </StackPanel>
+            </Border>
+        </Grid>
+        <!-- ══════════════════════════════════════════════════════════════════
                              Info texte (PopUp) centrale 
         ══════════════════════════════════════════════════════════════════════ -->
         <Border x:Name="infoPopup" Padding="20,10,20,10" HorizontalAlignment="Center" VerticalAlignment="Center" Background="#CC222222" CornerRadius="8" IsHitTestVisible="False" Opacity="0">
@@ -573,7 +711,7 @@
             </Border.Resources>
         </Border>
         <!-- ══════════════════════════════════════════════════════════════════
-                              Barre Rating (5 étoiles)
+                               Barre Rating (5 étoiles)
         ══════════════════════════════════════════════════════════════════════ -->        
         <Border x:Name="panelRating" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,75" Background="#80000000" CornerRadius="10" Padding="8,2" RenderTransformOrigin="0.5,0.5" MouseEnter="BarrePanelRating_MouseEnter" MouseLeave="BarrePanelRating_MouseLeave">
             <Border.RenderTransform>
@@ -733,6 +871,41 @@
                         CornerRadius="8"
                         BorderBrush="#30FFFFFF"
                         BorderThickness="1"/>
+
+                <!-- ── Icône d'accès à la boite de dialogue Titre/Mots-clés ────────── -->
+                <Button x:Name="btnTitreMotsCles"
+                        Content="⚙️"
+                        Width="24" Height="24"
+                        Margin="6,6,0,0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Padding="0"
+                        FontSize="13"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        ToolTip="Modifier le titre et les mots-clés"
+                        Panel.ZIndex="1"
+                        Click="BtnTitreMotsCles_Click">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="5">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="bd" Property="Background" Value="#33FFFFFF" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Button.Style>
+                </Button>
 
                 <StackPanel Margin="16,14,20,14">
                     <TextBlock x:Name="txtMetaFileName" Text="Nom_du_fichier.jpg" Foreground="White" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,0,4"/>
