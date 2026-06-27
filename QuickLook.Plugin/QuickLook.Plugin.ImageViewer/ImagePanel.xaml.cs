@@ -27,6 +27,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Runtime.Remoting.Contexts;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -634,8 +635,11 @@ public partial class ImagePanel : UserControl, INotifyPropertyChanged, IDisposab
     {
         // Si TitlebarAutoHide n'est pas activé, on ne fait rien.
         // C'est la même vérification que HasVideo dans le VideoViewer.
-        if (!ContextObject.TitlebarAutoHide)
-            return;
+        if (ContextObject != null)
+        {
+            if (!ContextObject.TitlebarAutoHide)
+                return;
+        }
 
         // On récupère le Storyboard "Show" depuis les ressources du StackPanel,
         // exactement comme le VideoViewer fait avec FindResource.
