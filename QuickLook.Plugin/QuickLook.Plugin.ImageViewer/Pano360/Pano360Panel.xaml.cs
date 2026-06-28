@@ -339,7 +339,6 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         private bool _isMouseOverBarre = false;                 // True quand le curseur survole la barre ou le panneau de progression — force la barre à rester visible
 
         #endregion Constantes et Déclarations de champs
-        #region Initialisation
         // ─────────────────────────────────────────────────────────────────────
         // Constructeur
         // ─────────────────────────────────────────────────────────────────────
@@ -404,6 +403,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             MouseRightButtonUp += (s, e) => ToggleFullscreen();
             this.SizeChanged += Pano360Panel_SizeChanged;
         }
+        #region Initialisation & Moteur 3D de rendu
         // ─────────────────────────────────────────────────────────────────────
         // Scène 3D
         // ─────────────────────────────────────────────────────────────────────
@@ -988,8 +988,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // Note l'heure courante comme "dernier mouvement détecté".
             _lastMovementTime = DateTime.Now;
         }
-        #endregion Initialisation
-        #region Evenements
+        #endregion Initialisation & Moteur 3D de rendu
+        #region Evenements Clavier, souris et spacemouse
         // ─────────────────────────────────────────────────────────────────────
         // Gestionnaires d'événements
         // ─────────────────────────────────────────────────────────────────────
@@ -1363,9 +1363,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         {
 
         }
-        #endregion Evenements
+        #endregion Evenements Clavier, souris et spacemouse
+        #region Options & Préférences
         // ─────────────────────────────────────────────────────────────────────
-        // BOUTONS OPTIONS & PREFERENCES
+        // OPTIONS & PREFERENCES (Panneau et logique de lectrure/sauvegarde)
         // ─────────────────────────────────────────────────────────────────────
         private void LoadSettings()
         {
@@ -1790,225 +1791,10 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             // 🎯 On bloque aussi la molette de la souris pour empêcher le zoom en arrière-plan
             e.Handled = true;
         }
+        #endregion Options & Préférences
+        #region Boutons de l'interface
         // ─────────────────────────────────────────────────────────────────────
-        // Boite de dialogue Titre / Mots-clés
-        // ─────────────────────────────────────────────────────────────────────
-        private List<string> _motsClesEnEdition = new List<string>();     // Copie de travail des mots-clés de la photo courante, modifiée pendant que la boite de dialogue est ouverte (appliquée à _currentMetadata.Keywords seulement à la fermeture)
-        private void BtnTitreMotsCles_Click(object sender, RoutedEventArgs e)
-        {
-            // 🎯 On empêche le clic de remonter au Grid parent (infoExifXmp), qui replierait le panneau d'infos
-            e.Handled = true;
-
-            if (_currentMetadata == null) return;
-
-            // Pré-remplissage du titre
-            txtTitre.Text = _currentMetadata.Titre ?? "";
-
-            // Copie de travail des mots-clés actuels (on ne touche pas directement à _currentMetadata.Keywords avant la fermeture)
-            _motsClesEnEdition = _currentMetadata.Keywords != null
-                ? new List<string>(_currentMetadata.Keywords)
-                : new List<string>();
-            RafraichirWrapMotsCles();
-
-            txtNouveauMotCle.Text = "";
-
-            MettreAJourBoutonsSuggestionsMotsCles();
-
-            // 🎯 ON ALLUME LE FLOU DERRIÈRE, comme pour le panneau Options
-            viewBlur.Radius = 15;
-
-            // Indique qu'une boite de dialogue est ouverte (utile pour désactiver la spacemouse)
-            _OptionOpen = true;
-
-            // Empêche la touche Espace de fermer/toggler QuickLook tant que ce dialogue est ouvert
-            // (sinon, taper un espace dans le titre ou un mot-clé peut fermer toute la fenêtre QuickLook)
-            if (_context != null) _context.BlocageEspaceFerme = true;
-
-            // Affiche la boite de dialogue
-            gridTitreMotsCles.Visibility = Visibility.Visible;
-            txtTitre.Focus();
-        }
-        private void BtnCloseTitreMotsCles_Click(object sender, RoutedEventArgs e)
-        {
-            // 🎯 ON ÉTEINT LE FLOU : Le panorama redevient instantanément net
-            viewBlur.Radius = 0;
-
-            _OptionOpen = false;
-
-            // Redonne la possibilité de fermer QuickLook avec la touche Espace
-            if (_context != null) _context.BlocageEspaceFerme = false;
-
-            gridTitreMotsCles.Visibility = Visibility.Collapsed;
-
-            if (_currentMetadata != null)
-            {
-                // Titre : chaîne vide considérée comme "pas de titre" (cohérent avec la lecture, qui laisse Titre à null si absent)
-                string titreSaisi = txtTitre.Text?.Trim();
-                _currentMetadata.Titre = string.IsNullOrEmpty(titreSaisi) ? null : titreSaisi;
-
-                // Mots-clés : on applique la copie de travail
-                _currentMetadata.Keywords = new List<string>(_motsClesEnEdition);
-
-                // Sauvegarde temporisée via le flag _isMetaChanging
-                _isMetaChanging = true;
-
-                //// Sauvegarde immédiate dans le fichier (même pattern que SauvegardeMetadata pour Rating/Label)
-                //if (!string.IsNullOrEmpty(_currentPanoPath))
-                //{
-                //    PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
-                //}
-
-                // Rafraîchissement de l'affichage du panneau d'infos (titre/mots-clés affichés au survol)
-                UpdateDataPanelInfo();
-                AppliquerVisibiliteGrids();
-            }
-
-            // Sauvegarde définitive des settings (dont les 6 derniers mots-clés)
-            SaveSettings();
-        }
-        private void GridTitreMotsCles_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-            // 🎯 On indique à WPF que l'événement s'arrête ici.
-            // Le clic est "consommé" par le fond noir et ne traverse pas vers le panorama !
-            e.Handled = true;
-        }
-        private void GridTitreMotsCles_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            // 🎯 On bloque aussi la molette de la souris pour empêcher le zoom en arrière-plan
-            e.Handled = true;
-        }
-        // ── Puces des mots-clés déjà présents sur la photo (générées dynamiquement) ──
-        private void RafraichirWrapMotsCles()
-        {
-            wrapMotsCles.Children.Clear();
-
-            foreach (string motCle in _motsClesEnEdition)
-            {
-                wrapMotsCles.Children.Add(CreerPuceMotCle(motCle));
-            }
-        }
-        private Border CreerPuceMotCle(string motCle)
-        {
-            var bouton = new Button
-            {
-                Content = "✕",
-                Width = 16,
-                Height = 16,
-                Padding = new Thickness(0),
-                Margin = new Thickness(6, 0, 0, 0),
-                FontSize = 9,
-                Cursor = System.Windows.Input.Cursors.Hand,
-                Background = Brushes.Transparent,
-                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#B3FFFFFF")),
-                BorderThickness = new Thickness(0),
-                Tag = motCle
-            };
-            bouton.Click += BtnSupprimerMotCle_Click;
-
-            var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
-            panel.Children.Add(new TextBlock
-            {
-                Text = motCle,
-                Foreground = Brushes.White,
-                FontSize = 12,
-                VerticalAlignment = VerticalAlignment.Center
-            });
-            panel.Children.Add(bouton);
-
-            return new Border
-            {
-                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF00AAFF")),
-                CornerRadius = new CornerRadius(10),
-                Padding = new Thickness(10, 4, 8, 4),
-                Margin = new Thickness(0, 0, 6, 6),
-                Child = panel
-            };
-        }
-        private void BtnSupprimerMotCle_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button bouton && bouton.Tag is string motCle)
-            {
-                _motsClesEnEdition.Remove(motCle);
-                RafraichirWrapMotsCles();
-            }
-        }
-        // ── Ajout d'un nouveau mot-clé (TextBox + Entrée, ou bouton ➕) ──
-        private void TxtNouveauMotCle_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter)
-            {
-                AjouterMotCle(txtNouveauMotCle.Text);
-                e.Handled = true;
-            }
-        }
-        private void BtnAjouterMotCle_Click(object sender, RoutedEventArgs e)
-        {
-            AjouterMotCle(txtNouveauMotCle.Text);
-        }
-        private void AjouterMotCle(string motCle)
-        {
-            motCle = motCle?.Trim();
-            if (string.IsNullOrEmpty(motCle)) return;
-
-            // Pas de doublon (insensible à la casse, pour éviter "Plage" et "plage" en double)
-            if (!_motsClesEnEdition.Any(m => string.Equals(m, motCle, StringComparison.OrdinalIgnoreCase)))
-            {
-                _motsClesEnEdition.Add(motCle);
-                RafraichirWrapMotsCles();
-
-                EnregistrerMotCleDansHistorique(motCle);
-            }
-
-            txtNouveauMotCle.Text = "";
-            txtNouveauMotCle.Focus();
-        }
-        // ── 6 boutons "suggestions" : les derniers mots-clés utilisés via cette boite de dialogue ──
-        private void MettreAJourBoutonsSuggestionsMotsCles()
-        {
-            var boutons = new[] { btnMotCleRecent1, btnMotCleRecent2, btnMotCleRecent3, btnMotCleRecent4, btnMotCleRecent5, btnMotCleRecent6 };
-
-            for (int i = 0; i < boutons.Length; i++)
-            {
-                if (i < _DerniersMotsCles.Count)
-                {
-                    boutons[i].Content = _DerniersMotsCles[i];
-                    boutons[i].Tag = _DerniersMotsCles[i];
-                    boutons[i].IsEnabled = true;
-                }
-                else
-                {
-                    boutons[i].Content = "";
-                    boutons[i].Tag = null;
-                    boutons[i].IsEnabled = false;
-                }
-            }
-        }
-        private void BtnMotCleRecent_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button bouton && bouton.Tag is string motCle)
-            {
-                AjouterMotCle(motCle);
-            }
-        }
-        // ── Mémorisation des 6 derniers mots-clés utilisés (le plus récent en tête) ──
-        private void EnregistrerMotCleDansHistorique(string motCle)
-        {
-            // On retire l'éventuelle occurrence existante (insensible à la casse) avant de la remettre en tête,
-            // pour qu'un mot-clé réutilisé remonte en première position plutôt que d'être dupliqué.
-            _DerniersMotsCles.RemoveAll(m => string.Equals(m, motCle, StringComparison.OrdinalIgnoreCase));
-            _DerniersMotsCles.Insert(0, motCle);
-
-            // On ne garde que les 6 derniers
-            if (_DerniersMotsCles.Count > 6)
-            {
-                _DerniersMotsCles.RemoveRange(6, _DerniersMotsCles.Count - 6);
-            }
-
-            MettreAJourBoutonsSuggestionsMotsCles();
-        }
-        #region Barre de Boutons
-        // ─────────────────────────────────────────────────────────────────────
-        // Barre de BOUTONS
+        // Aspect visuel des boutons barre de boutons (FadeIn et FadeOut)
         // ─────────────────────────────────────────────────────────────────────
         private void BarreBtn_MouseEnter(object sender, MouseEventArgs e)
         {
@@ -2359,7 +2145,11 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 }
             }
         }
-        #endregion Barre de Boutons
+        // ─────────────────────────────────────────────────────────────────────
+        // BOUTON Drag & Drop 
+        // ─────────────────────────────────────────────────────────────────────
+
+        #endregion Boutons de l'interface
         #region Navigation panoramas
         // ─────────────────────────────────────────────────────────────────────
         // NAVIGATION entre panoramas du dossier courant
@@ -2721,6 +2511,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             }
         }
         #endregion Navigation panoramas
+        #region Gestion Exif et Xmp
         // ─────────────────────────────────────────────────────────────────────
         // Gestion Exif et Xmp
         // ─────────────────────────────────────────────────────────────────────
@@ -2894,6 +2685,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
             }
         }
+        #endregion Gestion Exif et Xmp
+        #region Information
         // ─────────────────────────────────────────────────────────────────────
         // Panneau d'information
         // ─────────────────────────────────────────────────────────────────────
@@ -3093,6 +2886,224 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                 infoTitleKeywords.Visibility = Visibility.Collapsed;
             }
         }
+        // ─────────────────────────────────────────────────────────────────────
+        // Modification Titre et Mots-clés
+        // ─────────────────────────────────────────────────────────────────────
+        private List<string> _motsClesEnEdition = new List<string>();     // Copie de travail des mots-clés de la photo courante, modifiée pendant que la boite de dialogue est ouverte (appliquée à _currentMetadata.Keywords seulement à la fermeture)
+        private void BtnTitreMotsCles_Click(object sender, RoutedEventArgs e)
+        {
+            // 🎯 On empêche le clic de remonter au Grid parent (infoExifXmp), qui replierait le panneau d'infos
+            e.Handled = true;
+
+            if (_currentMetadata == null) return;
+
+            // Pré-remplissage du titre
+            txtTitre.Text = _currentMetadata.Titre ?? "";
+
+            // Copie de travail des mots-clés actuels (on ne touche pas directement à _currentMetadata.Keywords avant la fermeture)
+            _motsClesEnEdition = _currentMetadata.Keywords != null
+                ? new List<string>(_currentMetadata.Keywords)
+                : new List<string>();
+            RafraichirWrapMotsCles();
+
+            txtNouveauMotCle.Text = "";
+
+            MettreAJourBoutonsSuggestionsMotsCles();
+
+            // 🎯 ON ALLUME LE FLOU DERRIÈRE, comme pour le panneau Options
+            viewBlur.Radius = 15;
+
+            // Indique qu'une boite de dialogue est ouverte (utile pour désactiver la spacemouse)
+            _OptionOpen = true;
+
+            // Empêche la touche Espace de fermer/toggler QuickLook tant que ce dialogue est ouvert
+            // (sinon, taper un espace dans le titre ou un mot-clé peut fermer toute la fenêtre QuickLook)
+            if (_context != null) _context.BlocageEspaceFerme = true;
+
+            // Affiche la boite de dialogue
+            gridTitreMotsCles.Visibility = Visibility.Visible;
+            txtTitre.Focus();
+        }
+        private void BtnCloseTitreMotsCles_Click(object sender, RoutedEventArgs e)
+        {
+            // 🎯 ON ÉTEINT LE FLOU : Le panorama redevient instantanément net
+            viewBlur.Radius = 0;
+
+            _OptionOpen = false;
+
+            // Redonne la possibilité de fermer QuickLook avec la touche Espace
+            if (_context != null) _context.BlocageEspaceFerme = false;
+
+            gridTitreMotsCles.Visibility = Visibility.Collapsed;
+
+            if (_currentMetadata != null)
+            {
+                // Titre : chaîne vide considérée comme "pas de titre" (cohérent avec la lecture, qui laisse Titre à null si absent)
+                string titreSaisi = txtTitre.Text?.Trim();
+                _currentMetadata.Titre = string.IsNullOrEmpty(titreSaisi) ? null : titreSaisi;
+
+                // Mots-clés : on applique la copie de travail
+                _currentMetadata.Keywords = new List<string>(_motsClesEnEdition);
+
+                // Sauvegarde temporisée via le flag _isMetaChanging
+                _isMetaChanging = true;
+
+                //// Sauvegarde immédiate dans le fichier (même pattern que SauvegardeMetadata pour Rating/Label)
+                //if (!string.IsNullOrEmpty(_currentPanoPath))
+                //{
+                //    PanoMetadataService.WriteMetadata(_currentPanoPath, _currentMetadata);
+                //}
+
+                // Rafraîchissement de l'affichage du panneau d'infos (titre/mots-clés affichés au survol)
+                UpdateDataPanelInfo();
+                AppliquerVisibiliteGrids();
+            }
+
+            // Sauvegarde définitive des settings (dont les 6 derniers mots-clés)
+            SaveSettings();
+        }
+        private void GridTitreMotsCles_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            // 🎯 On indique à WPF que l'événement s'arrête ici.
+            // Le clic est "consommé" par le fond noir et ne traverse pas vers le panorama !
+            e.Handled = true;
+        }
+        private void GridTitreMotsCles_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // 🎯 On bloque aussi la molette de la souris pour empêcher le zoom en arrière-plan
+            e.Handled = true;
+        }
+        // ── Puces des mots-clés déjà présents sur la photo (générées dynamiquement) ──
+        private void RafraichirWrapMotsCles()
+        {
+            wrapMotsCles.Children.Clear();
+
+            foreach (string motCle in _motsClesEnEdition)
+            {
+                wrapMotsCles.Children.Add(CreerPuceMotCle(motCle));
+            }
+        }
+        private Border CreerPuceMotCle(string motCle)
+        {
+            var bouton = new Button
+            {
+                Content = "✕",
+                Width = 16,
+                Height = 16,
+                Padding = new Thickness(0),
+                Margin = new Thickness(6, 0, 0, 0),
+                FontSize = 9,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                Background = Brushes.Transparent,
+                Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#B3FFFFFF")),
+                BorderThickness = new Thickness(0),
+                Tag = motCle
+            };
+            bouton.Click += BtnSupprimerMotCle_Click;
+
+            var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            panel.Children.Add(new TextBlock
+            {
+                Text = motCle,
+                Foreground = Brushes.White,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            panel.Children.Add(bouton);
+
+            return new Border
+            {
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FF00AAFF")),
+                CornerRadius = new CornerRadius(10),
+                Padding = new Thickness(10, 4, 8, 4),
+                Margin = new Thickness(0, 0, 6, 6),
+                Child = panel
+            };
+        }
+        private void BtnSupprimerMotCle_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button bouton && bouton.Tag is string motCle)
+            {
+                _motsClesEnEdition.Remove(motCle);
+                RafraichirWrapMotsCles();
+            }
+        }
+        // ── Ajout d'un nouveau mot-clé (TextBox + Entrée, ou bouton ➕) ──
+        private void TxtNouveauMotCle_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                AjouterMotCle(txtNouveauMotCle.Text);
+                e.Handled = true;
+            }
+        }
+        private void BtnAjouterMotCle_Click(object sender, RoutedEventArgs e)
+        {
+            AjouterMotCle(txtNouveauMotCle.Text);
+        }
+        private void AjouterMotCle(string motCle)
+        {
+            motCle = motCle?.Trim();
+            if (string.IsNullOrEmpty(motCle)) return;
+
+            // Pas de doublon (insensible à la casse, pour éviter "Plage" et "plage" en double)
+            if (!_motsClesEnEdition.Any(m => string.Equals(m, motCle, StringComparison.OrdinalIgnoreCase)))
+            {
+                _motsClesEnEdition.Add(motCle);
+                RafraichirWrapMotsCles();
+
+                EnregistrerMotCleDansHistorique(motCle);
+            }
+
+            txtNouveauMotCle.Text = "";
+            txtNouveauMotCle.Focus();
+        }
+        // ── 6 boutons "suggestions" : les derniers mots-clés utilisés via cette boite de dialogue ──
+        private void MettreAJourBoutonsSuggestionsMotsCles()
+        {
+            var boutons = new[] { btnMotCleRecent1, btnMotCleRecent2, btnMotCleRecent3, btnMotCleRecent4, btnMotCleRecent5, btnMotCleRecent6 };
+
+            for (int i = 0; i < boutons.Length; i++)
+            {
+                if (i < _DerniersMotsCles.Count)
+                {
+                    boutons[i].Content = _DerniersMotsCles[i];
+                    boutons[i].Tag = _DerniersMotsCles[i];
+                    boutons[i].IsEnabled = true;
+                }
+                else
+                {
+                    boutons[i].Content = "";
+                    boutons[i].Tag = null;
+                    boutons[i].IsEnabled = false;
+                }
+            }
+        }
+        private void BtnMotCleRecent_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button bouton && bouton.Tag is string motCle)
+            {
+                AjouterMotCle(motCle);
+            }
+        }
+        // ── Mémorisation des 6 derniers mots-clés utilisés (le plus récent en tête) ──
+        private void EnregistrerMotCleDansHistorique(string motCle)
+        {
+            // On retire l'éventuelle occurrence existante (insensible à la casse) avant de la remettre en tête,
+            // pour qu'un mot-clé réutilisé remonte en première position plutôt que d'être dupliqué.
+            _DerniersMotsCles.RemoveAll(m => string.Equals(m, motCle, StringComparison.OrdinalIgnoreCase));
+            _DerniersMotsCles.Insert(0, motCle);
+
+            // On ne garde que les 6 derniers
+            if (_DerniersMotsCles.Count > 6)
+            {
+                _DerniersMotsCles.RemoveRange(6, _DerniersMotsCles.Count - 6);
+            }
+
+            MettreAJourBoutonsSuggestionsMotsCles();
+        }
+        #endregion Information
+        #region GPS
         // ─────────────────────────────────────────────────────────────────────
         // Panneau Carte GPS (WebView2 + Leaflet/OSM)
         // ─────────────────────────────────────────────────────────────────────
@@ -3727,6 +3738,8 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _isMetaChanging = true;      // Indique qu'il est nécessaire de sauvegarder
             SauvegardeMeta();
         }
+        #endregion GPS
+        #region Helpers
         // ─────────────────────────────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────────────────────────────
@@ -4047,6 +4060,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
             _targetFov = _camera.FieldOfView;
             txtFov.Text = string.Format("(FOV: {0:F0}°)", _camera.FieldOfView);
         }
+        #endregion Helpers
         // ─────────────────────────────────────────────────────────────────────
         // Dispose — nettoyage des ressources
         // ─────────────────────────────────────────────────────────────────────
