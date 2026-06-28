@@ -1124,7 +1124,60 @@
         <!-- ══════════════════════════════════════════════════════════════════
                                BOUTON Drag & Drop 
         ══════════════════════════════════════════════════════════════════════ -->
-
+        <!-- ── Bouton Drag & Drop OLE vers application tierce ──────────── -->
+        <Button x:Name="btnDragDrop"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="20,50,0,0"
+                    Width="40"
+                    Height="40"
+                    Cursor="Hand"
+                    PreviewMouseLeftButtonDown="BtnDragDrop_PreviewMouseLeftButtonDown"
+                    MouseEnter="BarrePanelRating_MouseEnter"
+                    MouseLeave="BarrePanelRating_MouseLeave"
+                    ToolTip="Glisser-déposer le fichier vers une autre application">
+            <Button.Resources>
+                <Storyboard x:Key="FadeOutbtnDragDrop">
+                    <DoubleAnimation Storyboard.TargetName="btnDragDrop" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.4" />
+                </Storyboard>
+                <Storyboard x:Key="FadeInbtnDragDrop">
+                    <DoubleAnimation Storyboard.TargetName="btnDragDrop" Storyboard.TargetProperty="Opacity" To="1.0" Duration="0:0:0.3" />
+                </Storyboard>
+            </Button.Resources>
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Setter Property="Background" Value="#73000000"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bd" 
+                        Background="{TemplateBinding Background}" 
+                        CornerRadius="20" 
+                        BorderBrush="#22FFFFFF" 
+                        BorderThickness="1">
+                                    <TextBlock Text="🚀" 
+                               FontFamily="Segoe UI" 
+                               FontSize="18" 
+                               HorizontalAlignment="Center" 
+                               VerticalAlignment="Center" 
+                               Margin="0,0,0,2"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#AA000000"/>
+                                        <Setter TargetName="bd" Property="BorderBrush" Value="#44FFFFFF"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#00000000"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Button.Style>
+        </Button>
         <!-- ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── -->
         <!-- ────────────────────────────────────────────────────────────────────────── The end 😉 ────────────────────────────────────────────────────────────────────── -->
     </Grid>

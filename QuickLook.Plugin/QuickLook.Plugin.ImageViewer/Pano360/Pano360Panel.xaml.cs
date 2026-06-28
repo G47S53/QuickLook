@@ -1827,6 +1827,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     (panelRating.Resources["FadeInRating"] as Storyboard)?.Begin(panelRating);
                     (btnToggleInfo.Resources["FadeInbtnToggleInfo"] as Storyboard)?.Begin(btnToggleInfo);
                     (btnToggleMap.Resources["FadeInbtnToggleMap"] as Storyboard)?.Begin(btnToggleMap);
+                    (btnDragDrop.Resources["FadeInbtnDragDrop"] as Storyboard)?.Begin(btnDragDrop);
                     _isBarreMasquee = false;
                 }
                 return;
@@ -1847,6 +1848,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     (panelAutoCloseProgress.Resources["FadeOutProgress"] as Storyboard)?.Begin(panelAutoCloseProgress);
                     (btnToggleInfo.Resources["FadeOutbtnToggleInfo"] as Storyboard)?.Begin(btnToggleInfo);
                     (btnToggleMap.Resources["FadeOutbtnToggleMap"] as Storyboard)?.Begin(btnToggleMap);
+                    (btnDragDrop.Resources["FadeOutbtnDragDrop"] as Storyboard)?.Begin(btnDragDrop);
                     if (_autoCloseActive || _autoRotState != AutoRotationState.Off)
                     {
                         (panelRating.Resources["FadeOutRating"] as Storyboard)?.Begin(panelRating);
@@ -1869,6 +1871,7 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
                     (panelRating.Resources["FadeInRating"] as Storyboard)?.Begin(panelRating);
                     (btnToggleInfo.Resources["FadeInbtnToggleInfo"] as Storyboard)?.Begin(btnToggleInfo);
                     (btnToggleMap.Resources["FadeInbtnToggleMap"] as Storyboard)?.Begin(btnToggleMap);
+                    (btnDragDrop.Resources["FadeInbtnDragDrop"] as Storyboard)?.Begin(btnDragDrop);
                     _isBarreMasquee = false;
                 }
                 _context.BlocageShowCaption = false;
@@ -2148,7 +2151,16 @@ namespace QuickLook.Plugin.ImageViewer.Pano360
         // ─────────────────────────────────────────────────────────────────────
         // BOUTON Drag & Drop 
         // ─────────────────────────────────────────────────────────────────────
+        private void BtnDragDrop_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_currentPanoPath) || !System.IO.File.Exists(_currentPanoPath))
+                return;
 
+            e.Handled = true; // Empêche le bouton de déclencher son propre Click/effet visuel pendant le drag
+
+            var dataObject = new DataObject(DataFormats.FileDrop, new string[] { _currentPanoPath });
+            DragDrop.DoDragDrop(btnDragDrop, dataObject, DragDropEffects.Copy | DragDropEffects.Link);
+        }
         #endregion Boutons de l'interface
         #region Navigation panoramas
         // ─────────────────────────────────────────────────────────────────────
