@@ -1122,9 +1122,8 @@
             </Grid>
         </Border>
         <!-- ══════════════════════════════════════════════════════════════════
-                               BOUTON Drag & Drop 
+                               BOUTON Drag & Drop OLE
         ══════════════════════════════════════════════════════════════════════ -->
-        <!-- ── Bouton Drag & Drop OLE vers application tierce ──────────── -->
         <Button x:Name="btnDragDrop"
                     HorizontalAlignment="Left"
                     VerticalAlignment="Top"
@@ -1152,16 +1151,16 @@
                         <Setter.Value>
                             <ControlTemplate TargetType="Button">
                                 <Border x:Name="bd" 
-                        Background="{TemplateBinding Background}" 
-                        CornerRadius="20" 
-                        BorderBrush="#22FFFFFF" 
-                        BorderThickness="1">
+                                        Background="{TemplateBinding Background}" 
+                                        CornerRadius="20" 
+                                        BorderBrush="#22FFFFFF" 
+                                        BorderThickness="1">
                                     <TextBlock Text="🚀" 
-                               FontFamily="Segoe UI" 
-                               FontSize="18" 
-                               HorizontalAlignment="Center" 
-                               VerticalAlignment="Center" 
-                               Margin="0,0,0,2"/>
+                                               FontFamily="Segoe UI" 
+                                               FontSize="18" 
+                                               HorizontalAlignment="Center" 
+                                               VerticalAlignment="Center" 
+                                               Margin="0,0,0,2"/>
                                 </Border>
                                 <ControlTemplate.Triggers>
                                     <Trigger Property="IsMouseOver" Value="True">

@@ -172,9 +172,20 @@
                                      Storyboard.TargetProperty="Opacity"
                                      To="1"
                                      Duration="0:0:0.05" />
+                    <DoubleAnimation Storyboard.Target="{Binding Source={x:Reference btnDragDrop}}"
+                                     Storyboard.TargetProperty="Opacity"
+                                     To="1"
+                                     Duration="0:0:0.05" />
                 </Storyboard>
                 <Storyboard x:Key="HideControlStoryboard">
                     <DoubleAnimationUsingKeyFrames Storyboard.Target="{Binding Source={x:Reference videoControlContainer}}" Storyboard.TargetProperty="Opacity">
+                        <DoubleAnimationUsingKeyFrames.KeyFrames>
+                            <LinearDoubleKeyFrame KeyTime="0:0:0" Value="1" />
+                            <LinearDoubleKeyFrame KeyTime="0:0:1" Value="1" />
+                            <LinearDoubleKeyFrame KeyTime="0:0:1.05" Value="0" />
+                        </DoubleAnimationUsingKeyFrames.KeyFrames>
+                    </DoubleAnimationUsingKeyFrames>
+                    <DoubleAnimationUsingKeyFrames Storyboard.Target="{Binding Source={x:Reference btnDragDrop}}" Storyboard.TargetProperty="Opacity">
                         <DoubleAnimationUsingKeyFrames.KeyFrames>
                             <LinearDoubleKeyFrame KeyTime="0:0:0" Value="1" />
                             <LinearDoubleKeyFrame KeyTime="0:0:1" Value="1" />
@@ -352,6 +363,7 @@
                         Style="{StaticResource PositionSliderStyle}"
                         Value="{Binding MediaPosition, ElementName=mediaElement}" />
             </DockPanel>
+            
         </Grid>
         <Grid x:Name="volumeSliderLayer"
               Background="Transparent"
@@ -368,5 +380,59 @@
                         Value="{Binding ElementName=viewerPanel, Path=LinearVolume}" />
             </Grid>
         </Grid>
+        <!-- ══════════════════════════════════════════════════════════════════
+                               BOUTON Drag & Drop OLE
+        ══════════════════════════════════════════════════════════════════════ -->
+        <Button x:Name="btnDragDrop"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="20,50,0,0"
+                    Width="40"
+                    Height="40"
+                    Cursor="Hand"
+                    PreviewMouseLeftButtonDown="BtnDragDrop_PreviewMouseLeftButtonDown"
+                    ToolTip="Glisser-déposer le fichier vers une autre application">
+            <Button.Resources>
+                <Storyboard x:Key="FadeOutbtnDragDrop">
+                    <DoubleAnimation Storyboard.TargetName="btnDragDrop" Storyboard.TargetProperty="Opacity" To="0" Duration="0:0:0.4" />
+                </Storyboard>
+                <Storyboard x:Key="FadeInbtnDragDrop">
+                    <DoubleAnimation Storyboard.TargetName="btnDragDrop" Storyboard.TargetProperty="Opacity" To="1.0" Duration="0:0:0.3" />
+                </Storyboard>
+            </Button.Resources>
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Setter Property="Background" Value="#73000000"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bd" 
+                                        Background="{TemplateBinding Background}" 
+                                        CornerRadius="20" 
+                                        BorderBrush="#22FFFFFF" 
+                                        BorderThickness="1">
+                                    <TextBlock Text="🚀" 
+                                               FontFamily="Segoe UI" 
+                                               FontSize="18" 
+                                               HorizontalAlignment="Center" 
+                                               VerticalAlignment="Center" 
+                                               Margin="0,0,0,2"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#AA000000"/>
+                                        <Setter TargetName="bd" Property="BorderBrush" Value="#44FFFFFF"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="bd" Property="Background" Value="#00000000"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Button.Style>
+        </Button>
     </Grid>
 </UserControl>

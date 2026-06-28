@@ -83,6 +83,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         public int SeekMode { get; set; } = 2;
     }
 
+    private string _currentVideoPath;  // Ajouter pour connaitre le chemin du fichier, utile pour pouvoir faire le glisser déposer à partir du fichier
+
     // ─────────────────────────────────────────────────────────────────────
     // 🎉 Constructeur
     // ─────────────────────────────────────────────────────────────────────
@@ -370,6 +372,17 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             (Storyboard)videoInfoPopup.Resources["StoryboardShowVideoInfo"];
 
         storyboard.Begin();
+    }
+    // ────────── BOUTON Drag & Drop ───────────────────────────────────────
+    private void BtnDragDrop_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (string.IsNullOrEmpty(_currentVideoPath) || !File.Exists(_currentVideoPath))
+            return;
+
+        e.Handled = true;
+
+        var dataObject = new DataObject(DataFormats.FileDrop, new string[] { _currentVideoPath });
+        DragDrop.DoDragDrop(btnDragDrop, dataObject, DragDropEffects.Copy | DragDropEffects.Link);
     }
     // ─────────────────────────────────────────────────────────────────────
     // Méthodes initiales du plugin (non modifiées par G47S53)
@@ -708,6 +721,8 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
             rotation /= 1e3;
         if (Math.Abs(rotation) > 0.1d)
             mediaElement.LayoutTransform = new RotateTransform(rotation, 0.5d, 0.5d);
+
+        _currentVideoPath = path;
 
         mediaElement.Source = new Uri(path);
         // old plugin use an int-typed "Volume" config key ranged from 0 to 100. Let's use a new one here.
