@@ -516,7 +516,7 @@ public partial class ViewerPanel : UserControl, IDisposable, INotifyPropertyChan
         if (!HasVideo)
             return;
 
-        if (videoControlContainer.IsMouseOver)
+        if (videoControlContainer.IsMouseOver || btnDragDrop.IsMouseOver)
             return;
 
         var hide = (Storyboard)videoControlContainer.FindResource("HideControlStoryboard");
